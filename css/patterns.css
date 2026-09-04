@@ -1,0 +1,90 @@
+/*
+ * Layout rules that exist because something broke without them.
+ * Append to css/layout.css (or import after it). See references/pitfalls.md.
+ */
+
+/* --- Nothing in the viewport may shrink -------------------------------- *
+ * flex-shrink defaults to 1, so in a short window the column squashes its
+ * children - clipping tab text and compressing the diagram - rather than
+ * scrolling. The stage grows into spare room; everything else keeps the
+ * height its content needs.                                pitfalls.md #2  */
+
+.viewport > * { flex: 0 0 auto; }
+.viewport__stage { flex: 1 0 auto; }
+
+/* --- Diagrams draw at natural size ------------------------------------- *
+ * Renderers size their viewBox to the contents, so `width: 100%` alone
+ * magnifies a small drawing to fill the panel. main.js caps max-width to the
+ * viewBox width in px; this centres whatever is narrower.  pitfalls.md #3  */
+
+.viewport__stage svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* --- Tooltips live on <body> ------------------------------------------- *
+ * A bubble nested inside the sidebar is clipped by its scroll container no
+ * matter how high the z-index. Fixed positioning, set from JS, escapes every
+ * clipping context.                                        pitfalls.md #1  */
+
+.info__bubble {
+  position: fixed;
+  z-index: 300;
+  display: none;
+  pointer-events: none;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+}
+
+/* --- Header and tab labels shorten before they collide ----------------- *
+ * Full labels beside the logo overflow on a phone and the action buttons end
+ * up on top of the wordmark. Render both labels; CSS picks one.           */
+
+.btn-label--short, .tab-label--short { display: none; }
+
+.segmented__btn { min-height: 34px; line-height: 1.4; }
+
+@media (max-width: 700px) {
+  .btn-label--long { display: none; }
+  .btn-label--short { display: inline; }
+}
+
+@media (max-width: 620px) {
+  .tab-label--long { display: none; }
+  .tab-label--short { display: inline; }
+  .segmented__btn { padding: 7px 6px; }
+}
+
+@media (max-width: 560px) {
+  .brand__tool, .brand__sep { display: none; }
+
+  /* Let the logo be the first thing to give way - it is decorative next to
+     the controls. */
+  .brand { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+  .brand__logo {
+    height: 22px;
+    flex: 0 1 auto;
+    min-width: 0;
+    object-fit: contain;
+    object-position: left center;
+  }
+
+  .app-header { gap: var(--space-2); padding: 0 var(--space-3); }
+  .header-actions { flex: 0 0 auto; gap: var(--space-1); }
+  .header-actions .btn { padding: 6px 8px; }
+}

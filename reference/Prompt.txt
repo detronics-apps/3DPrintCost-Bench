@@ -1,0 +1,1 @@
+Build a new Detronics browser app called X that does Y. Use the detronics-app skill — scaffold with its script, read references/pitfalls.md before any viewport CSS or SVG, pure modules and tests first, then the UI. Domain modules I need: Z.

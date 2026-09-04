@@ -1,0 +1,34 @@
+/* The printable sheet.
+   The document is built into the page as real DOM and revealed here, rather
+   than opened in a popup - popups are blocked as often as not, and a document
+   assembled from a string cannot be checked by anything. */
+
+@media print {
+  .app-header, .sidebar, .app-footer, .viewport, .toast, .info__bubble {
+    display: none !important;
+  }
+  .print-host { display: block !important; }
+  body { background: #fff; color: #000; display: block; height: auto; }
+  .app-main { display: block; }
+  .sheet { padding: 0; }
+  @page { margin: 14mm; }
+
+  /* Spool labels: a grid of stick-on boxes, each cut out and put on a spool. */
+  .sheet--labels { padding: 0; }
+  .labels {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6mm;
+  }
+  .label {
+    border: 1px solid #000;
+    border-radius: 2mm;
+    padding: 4mm 5mm;
+    break-inside: avoid;
+  }
+  .label__title { font-size: 12pt; font-weight: 700; margin-bottom: 2mm; }
+  .label__row { display: flex; justify-content: space-between; gap: 4mm; font-size: 10pt; }
+  .label__key { color: #333; }
+  .label__val { font-variant-numeric: tabular-nums; word-break: break-all; text-align: right; }
+  .label__foot { margin-top: 2mm; font-size: 8pt; color: #555; }
+}

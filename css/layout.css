@@ -1,0 +1,98 @@
+/* Header, viewport, sidebar, footer. Tokens only - no literal colours.
+   Class vocabulary matches Bench-Calculator, so css/patterns.css applies. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font: 400 14px/1.5 var(--font);
+  color: var(--text);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  flex: 0 0 auto;
+  height: var(--header-h);
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: 0 var(--space-4);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: relative; z-index: 20;
+}
+
+.brand { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.brand__logo { height: 26px; width: auto; display: block; border-radius: 5px; }
+.brand__sep { width: 1px; height: 22px; background: var(--border); }
+.brand__tool { font-weight: 600; color: var(--text-dim); white-space: nowrap; }
+.header-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+
+.app-main {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-w);
+  min-height: 0;
+}
+
+body.no-sidebar .app-main { grid-template-columns: minmax(0, 1fr); }
+
+.viewport {
+  display: flex; flex-direction: column; min-width: 0;
+  padding: var(--space-4); gap: var(--space-4);
+  overflow-y: auto;
+}
+
+.viewport__body {
+  display: flex; flex-direction: column; gap: var(--space-4); min-width: 0;
+}
+
+.viewport__stage {
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-4);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.viewport__stage > * { width: 100%; max-width: 780px; }
+
+.stage-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+}
+
+.sidebar {
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+
+.app-footer {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text-faint);
+}
+
+.app-footer nav { margin-left: auto; display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+
+@media (max-width: 1100px) {
+  .stage-pair { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 1040px) {
+  .app-main { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { border-left: none; border-top: 1px solid var(--border); }
+  .viewport, .sidebar { overflow-y: visible; }
+  body { height: auto; }
+}
+
+/* The printed sheet lives in the page and is revealed by css/print.css. */
+.print-host { display: none; }

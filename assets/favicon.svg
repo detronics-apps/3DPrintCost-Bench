@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#1f2d3d"/>
+  <!-- A part being built up in layers on a heated plate. The layers use the
+       real look of printed plastic rather than a palette token: an icon of a
+       real object should look like the object. -->
+  <rect x="10" y="46" width="44" height="5" rx="2" fill="#7fabc7"/>
+  <rect x="19" y="39" width="26" height="6" rx="1" fill="#d7e5f2"/>
+  <rect x="21" y="32" width="22" height="6" rx="1" fill="#cfe0ee"/>
+  <rect x="23" y="25" width="18" height="6" rx="1" fill="#bcd4e6"/>
+  <rect x="25" y="18" width="14" height="6" rx="1" fill="#a8c7de"/>
+  <rect x="30" y="8" width="5" height="8" rx="1" fill="#e9eaec"/>
+  <rect x="27" y="14" width="11" height="3" rx="1" fill="#e9eaec"/>
+</svg>

@@ -1,0 +1,11 @@
+{
+  "name": "3dprintcost-bench",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Costing, quoting, production and invoicing for 3D-printed parts.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "serve": "python -m http.server 8080"
+  }
+}
