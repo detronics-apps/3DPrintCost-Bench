@@ -234,6 +234,19 @@ export function main() {
             + 'to maintain. “Copy client progress update” makes a short progress note for the '
             + 'customer from the current phase.',
         }),
+        statTile('Internal (cost-only) orders', 'Projects · Settings', {
+          hint: 'Tick “Internal order” on a project to price it at the physical cost only — '
+            + 'material, machine, electricity, hardware and the allowances — with no labour and no '
+            + 'profit. Settings → Company also gives a “cost-only” portal link to send staff so '
+            + 'they can see what a print actually costs.',
+          tone: 'ok',
+        }),
+        statTile('Busy-plate print time', 'Settings → Estimator', {
+          hint: 'Print-time estimates now count the toolhead travel between objects on a shared '
+            + 'plate (a new “Travel between objects” assumption), so a plate of many small parts is '
+            + 'not under-counted. The “Sustained share of the rated flow” slider is still the main '
+            + 'lever if estimates run low — and pasted slicer figures always win.',
+        }),
       ]),
     ], { open: false }),
 
