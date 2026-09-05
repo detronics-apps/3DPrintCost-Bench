@@ -16,7 +16,10 @@
  * a number to be trusted as final.
  */
 
-import { makeProject, makePart, makeCustomer, makeAddressParts, formatAddress } from './projects.js';
+import {
+  makeProject, makePart, makeCustomer, makeAddressParts, formatAddress,
+  defaultWorkflow, logEvent,
+} from './projects.js';
 import { num } from './money.js';
 
 function partFrom(selection, printerId, slots) {
@@ -51,7 +54,7 @@ function partFrom(selection, printerId, slots) {
  */
 export function portalRequest({
   company, parts, printerId = null, slots = null, customer, order, quotedTotal, currencyCode,
-  validityDays = null, now = Date.now(),
+  validityDays = null, expedited = false, now = Date.now(),
 }) {
   const exportedAt = new Date(now).toISOString();
   const validUntil = validityDays != null
@@ -83,11 +86,24 @@ export function portalRequest({
     ? `${cust.name} — ${projectParts[0].name}`
     : `${cust.name} — ${projectParts.length} parts`;
 
-  const project = makeProject({
+  // An expedited request skips the quote: the client accepted and paid the
+  // estimate, so it lands in Awaiting payment (proof of payment to verify) with
+  // the paid figure carried on the workflow, rather than starting in Quotation.
+  const isExpedited = !!expedited;
+
+  let project = makeProject({
     name: title,
     customerId: cust.id,
     customerName: cust.name,
     status: 'draft',
+    ...(isExpedited ? {
+      phase: 'awaiting-payment',
+      workflow: {
+        ...defaultWorkflow(),
+        expedited: true,
+        expeditedTotal: quotedTotal != null ? num(quotedTotal) : null,
+      },
+    } : {}),
     parts: projectParts,
     order: {
       shippingMethodId: order?.shippingMethodId || 'auto',
@@ -98,12 +114,20 @@ export function portalRequest({
       extras: [],
     },
     notes: [
-      'Imported from a customer request.',
-      money ? `They were quoted about ${money} (indicative — re-price from the sliced parts).` : null,
+      isExpedited ? 'Imported from a customer request — EXPEDITED (client paid the estimate).' : 'Imported from a customer request.',
+      isExpedited && money ? `They paid the estimate of about ${money}. Verify proof of payment, then confirm to raise the invoice and start production.` : null,
+      !isExpedited && money ? `They were quoted about ${money} (indicative — re-price from the sliced parts).` : null,
       validUntil ? `Their quote was valid until ${new Date(validUntil).toLocaleDateString()}.` : null,
       cust.notes ? `Customer note: ${cust.notes}` : null,
     ].filter(Boolean).join('\n'),
   });
+
+  if (isExpedited) {
+    project = logEvent(project, 'imported-expedited',
+      `Imported as an expedited order — client paid the estimate${money ? ` (${money})` : ''}`);
+  } else {
+    project = logEvent(project, 'imported', 'Imported from a customer request');
+  }
 
   // `kind: 'project'` with a sibling `customer` is exactly what importFile reads,
   // so no new import path is needed - the workshop's Open button handles it.
@@ -112,6 +136,7 @@ export function portalRequest({
     v: 1,
     source: 'customer-portal',
     from: company?.name || '',
+    expedited: isExpedited,
     quotedTotal: quotedTotal != null ? num(quotedTotal) : null,
     currencyCode: currencyCode || null,
     exportedAt,

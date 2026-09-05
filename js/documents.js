@@ -200,6 +200,30 @@ export function lockedPricing(invoices) {
   };
 }
 
+/**
+ * Force a document's total to an agreed figure and keep the breakdown summing.
+ *
+ * An expedited order is one the client accepted at the estimate they were shown
+ * and paid up front. That estimate is the agreed price, which can sit above the
+ * internally-priced total (the padding is what makes the estimate safe). Rather
+ * than re-derive every line, the difference is reconciled as one adjustment line,
+ * so the invoice still adds up and its total is exactly what the client paid. The
+ * surplus over the priced total is extra margin, so it is added to the internal
+ * profit too.
+ */
+export function agreeTotal(doc, total) {
+  const target = Math.max(0, num(total));
+  const delta = round(target - num(doc.total), doc.currencyCode);
+  if (Math.abs(delta) < 0.005) return doc;
+  return {
+    ...doc,
+    extras: [...(doc.extras || []), { name: 'Expedite — agreed estimate price', amount: delta }],
+    net: num(doc.net) + delta,
+    total: target,
+    internal: { ...(doc.internal || {}), profit: num(doc.internal?.profit) + delta },
+  };
+}
+
 /** An invoice made from an accepted quote keeps that quote's numbers. */
 export function invoiceFromQuote(quote, { number, dueDays = 14 }) {
   const issued = new Date();

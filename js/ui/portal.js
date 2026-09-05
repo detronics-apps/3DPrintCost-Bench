@@ -69,6 +69,7 @@ const state = {
   materialId: null,
   slots: null,
   shippingMethodId: 'auto',
+  expedite: false,
   parts: [makePortalPart()],
   customer: { name: '', email: '', phone: '', notes: '', addressParts: makeAddressParts() },
 };
@@ -519,9 +520,31 @@ function render() {
       + 'after that please export a fresh quote from the latest link.'),
   ].filter(Boolean)));
 
+  // Expedite: if the company allows it, the client can pay the (padded) estimate
+  // now and skip the quote entirely. In 'only' mode there is no quote path at all.
+  const expediteMode = config.expediteMode || 'off';
+  if (expediteMode !== 'off') {
+    nodes.push(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Expedite your order' }),
+      expediteMode === 'only'
+        ? banner('info', `To confirm this order, pay ${fmtMoney(quoted, code)} and attach proof of `
+          + 'payment when you send it. There is no separate quote — once payment is verified your '
+          + 'order goes straight into production. The estimate is set to come in at or above the '
+          + 'final cost, so you are never asked for more.')
+        : checkField('portal-expedite',
+          `Expedite — pay ${fmtMoney(quoted, code)} now and skip the quote`,
+          state.expedite, (v) => { state.expedite = v; render(); }, {
+            hint: 'Happy with this estimate? Pay it now and attach proof of payment, and we skip '
+              + 'the quote and go straight to production. The estimate is set at or above the final '
+              + 'cost, so you will never be asked for more.',
+          }),
+    ]));
+  }
+
   const makePayload = () => portalRequest({
     company: state.config.company,
     printerId: state.printerId,
+    expedited: expediteMode === 'only' ? true : !!state.expedite,
     // The loaded filament travels with the request, so the workshop opens it
     // with every head already filled in with the colours the customer chose.
     slots: slots.map((s) => ({ ...s })),
@@ -558,6 +581,10 @@ function render() {
     muted('This page has no server, so it cannot send the request for you. On a phone the '
       + 'easiest way is the request link — copy it and send it to us in an email or a message. '
       + 'Either way, attach your model file so we can print it.'),
+    (expediteMode === 'only' || state.expedite)
+      ? banner('warn', 'This is an expedited order — attach your proof of payment along with your '
+        + 'model file(s) so we can confirm and start production.')
+      : null,
     el('div', { class: 'field-grid' }, [
       textInput('portal-name', 'Your name', state.customer.name, (v) => { state.customer.name = v; }),
       textInput('portal-email', 'Your email', state.customer.email, (v) => { state.customer.email = v; }, 'email'),
@@ -621,6 +648,9 @@ function init() {
     state.slots = null;
     state.parts = [makePortalPart({ profileId: config.profiles[0]?.id || state.settings.profiles[0].id })];
     state.shippingMethodId = 'auto';
+    // In expedite-only mode there is no quote path, so the order is expedited
+    // from the start; in optional mode the client turns it on themselves.
+    state.expedite = config.expediteMode === 'only';
     state.customer.addressParts.country = state.settings.countries
       .find((c) => c.id === config.countryId)?.name || '';
     document.title = `Get a price — ${config.company.name}`;

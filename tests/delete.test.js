@@ -41,6 +41,12 @@ test('without a tombstone, a missing shipped default IS restored (the behaviour 
     'the migration tops shipped defaults back up — which is why Delete needs the tombstone');
 });
 
+test('expedite mode defaults to off on an older settings blob', () => {
+  const migrated = migrateSettings({ version: 1, customerPortal: { enabled: true } });
+  assert.ok(['off', 'optional', 'only'].includes(migrated.customerPortal.expediteMode));
+  assert.equal(migrated.customerPortal.expediteMode, 'off', 'the safe default');
+});
+
 test('a deleted labour operation is tombstoned and not topped back up', () => {
   const s = defaultSettings();
   const victim = s.labour.ops[0];

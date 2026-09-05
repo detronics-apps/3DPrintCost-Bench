@@ -59,6 +59,7 @@ export function portalConfig(settings) {
     showBreakdown: portal.showBreakdown,
     minimumOrder: portal.minimumOrder,
     allowExpress: portal.allowExpress,
+    expediteMode: ['off', 'optional', 'only'].includes(portal.expediteMode) ? portal.expediteMode : 'off',
     leadTimeNote: portal.leadTimeNote,
     quoteBuffer: Math.max(0, num(portal.quoteBuffer, 0)),
     quoteValidityDays: Math.max(1, Math.round(num(settings.company.quoteValidityDays, 30))),

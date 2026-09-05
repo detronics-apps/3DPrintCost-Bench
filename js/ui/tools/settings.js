@@ -224,6 +224,16 @@ function companyPanel(ctx) {
             + 'sliced part, comes in at or under the quote. A pleasant surprise rather than an '
             + 'awkward one. Zero quotes the bare estimate.',
         }),
+      selectField('portal-expedite', 'Expedite (pay the estimate to skip the quote)', [
+        { value: 'off', label: 'Off — normal quote flow only' },
+        { value: 'optional', label: 'Optional — the client may pay the estimate now' },
+        { value: 'only', label: 'Expedite only — never issue a manual quote' },
+      ], settings.customerPortal.expediteMode || 'off',
+      (v) => { settings.customerPortal.expediteMode = v; touch(rerender); }, {
+        hint: 'Lets a client who is happy with the padded estimate pay it up front (with proof of '
+          + 'payment) and skip the quote — the order jumps straight to payment and into production. '
+          + 'The padding is what keeps the estimate at or above the final cost.',
+      }),
       subsection('Print intents customers may choose', settings.profiles.map((p) => checkField(
         `portal-profile-${p.id}`, p.name,
         settings.customerPortal.allowedProfiles.includes(p.id),

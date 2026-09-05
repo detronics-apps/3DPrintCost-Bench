@@ -7,7 +7,7 @@ import {
   PROJECT_STATUSES, statusOf, statusFromPhase, phaseFromStatus,
 } from '../js/projects.js';
 import {
-  makeQuote, invoiceFromQuote, recordPayment, outstanding, isOverdue, lockedPricing,
+  makeQuote, invoiceFromQuote, recordPayment, agreeTotal, outstanding, isOverdue, lockedPricing,
   displayStatus, reprice, assumptionDrift, documentRows, snapshotAssumptions,
   QUOTE_STATUSES, INVOICE_STATUSES,
 } from '../js/documents.js';
@@ -327,6 +327,18 @@ test('repricing makes a new revision rather than editing the old one', () => {
   assert.equal(next.supersedes, quote.id);
   assert.notEqual(next.id, quote.id);
   assert.equal(quote.revision, 1, 'the original is untouched');
+});
+
+test('agreeTotal forces a document to the agreed figure and keeps it summing', () => {
+  const { quote } = pricedQuote();
+  const target = quote.total + 100;
+  const agreed = agreeTotal(quote, target);
+  close(agreed.total, target, 1e-9, 'total is the agreed figure the client paid');
+  const line = agreed.extras[agreed.extras.length - 1];
+  close(line.amount, 100, 0.01, 'the difference is one reconciling line');
+  close(agreed.net, quote.net + line.amount, 1e-9, 'the net includes it');
+  close(agreed.internal.profit, quote.internal.profit + line.amount, 1e-9,
+    'the surplus over the priced total is extra margin');
 });
 
 test('an invoice made from a quote keeps the quote’s numbers', () => {

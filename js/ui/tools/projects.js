@@ -29,7 +29,9 @@ import {
 import {
   workflowState, advance, clientProgressReport, phaseName, PHASES,
 } from '../../workflow.js';
-import { makeQuote, invoiceFromQuote, recordPayment, lockedPricing } from '../../documents.js';
+import {
+  makeQuote, invoiceFromQuote, recordPayment, agreeTotal, lockedPricing,
+} from '../../documents.js';
 import { movementsForRun, materialStock } from '../../inventory.js';
 import { nextNumber } from '../../settings.js';
 import {
@@ -295,8 +297,16 @@ function workflowPanel(ctx, project, result) {
       return;
     }
     if (id === 'payment-received') {
-      const withInvoice = (project.quotes.length && !project.invoices.length)
-        ? createPaidInvoice(project) : project;
+      let p = project;
+      // An expedited order skipped the quote, so raise one now from the current
+      // pricing and lock it to the estimate the client actually paid.
+      if (!p.quotes.length) p = createQuote(p, result);
+      const agreed = p.workflow?.expedited ? p.workflow.expeditedTotal : null;
+      if (agreed != null) {
+        const last = p.quotes.length - 1;
+        p = { ...p, quotes: p.quotes.map((q, i) => (i === last ? agreeTotal(q, agreed) : q)) };
+      }
+      const withInvoice = p.invoices.length ? p : createPaidInvoice(p);
       commit(advance(withInvoice, 'payment-received'));
       rerender();
       return;
@@ -325,12 +335,20 @@ function workflowPanel(ctx, project, result) {
     rerender();
   };
 
-  // The awaiting-payment wait shows what is outstanding on the invoice.
+  // The awaiting-payment wait. An expedited order is one the client already paid
+  // from the estimate — so it says "verify proof of payment" rather than "waiting".
+  const expedited = project.workflow?.expedited;
+  const expeditedAmt = project.workflow?.expeditedTotal;
   const paymentNote = ws.phase.id === 'awaiting-payment'
-    ? muted(project.invoices.length
-      ? 'The quotation is issued. Record the payment when it arrives to approve production.'
-      : 'The quotation is issued. When payment arrives, “Payment received” raises the paid '
-        + 'invoice and starts production.')
+    ? (expedited
+      ? banner('info', `Expedited — the client paid the estimate`
+        + `${expeditedAmt != null ? ` of ${fmtMoney(expeditedAmt, result.currencyCode)}` : ''}. `
+        + 'Verify their proof of payment, then “Payment received” raises the invoice for that '
+        + 'figure and starts production.')
+      : muted(project.invoices.length
+        ? 'The quotation is issued. Record the payment when it arrives to approve production.'
+        : 'The quotation is issued. When payment arrives, “Payment received” raises the paid '
+          + 'invoice and starts production.'))
     : null;
 
   const quoteIssue = project.workflow?.quoteIssue
