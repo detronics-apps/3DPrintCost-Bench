@@ -37,8 +37,16 @@ function nameOf(item) {
   return findPackaging(settings.packaging, item.refId)?.name || item.refId || 'Packaging';
 }
 
+// Filament is grams; hardware and packaging are a plain count, so they carry no
+// unit suffix (the old “off” read as a typo to everyone who is not in the trade).
 function unitOf(item) {
-  return item.kind === 'filament' ? 'g' : 'off';
+  return item.kind === 'filament' ? 'g' : '';
+}
+
+/** A quantity with its unit, and no trailing space when there is no unit. */
+function qtyWithUnit(qty, item, decimals = 0) {
+  const u = unitOf(item);
+  return `${num(qty).toFixed(decimals)}${u ? ` ${u}` : ''}`;
 }
 
 /** The hardware component's logistics part number, for the stock table. */
@@ -88,7 +96,7 @@ export function main(ctx) {
     ]),
 
     ...low.map((b) => banner('warn',
-      `${nameOf(b.item)} is down to ${b.quantity.toFixed(0)} ${unitOf(b.item)} `
+      `${nameOf(b.item)} is down to ${qtyWithUnit(b.quantity, b.item)} `
       + `against a reorder point of ${num(b.item.reorderAt)}.`)),
 
     el('div', { class: 'panel' }, [
@@ -110,9 +118,9 @@ export function main(ctx) {
           label: 'On hand',
           align: 'right',
           mono: true,
-          get: (r) => `${r.quantity.toFixed(r.item.kind === 'filament' ? 0 : 0)} ${r.unit}`,
+          get: (r) => qtyWithUnit(r.quantity, r.item),
         },
-        { label: 'Reorder at', align: 'right', mono: true, get: (r) => `${num(r.item.reorderAt)} ${r.unit}` },
+        { label: 'Reorder at', align: 'right', mono: true, get: (r) => qtyWithUnit(r.item.reorderAt, r.item) },
         { label: 'Movements', align: 'right', mono: true, get: (r) => String(r.movements) },
         {
           label: '',
@@ -141,7 +149,20 @@ export function main(ctx) {
           get: (r) => `${num(r.movement.quantity) > 0 ? '+' : ''}${num(r.movement.quantity).toFixed(0)}`,
         },
         { label: 'Note', get: (r) => r.movement.note || '—' },
+        {
+          label: '',
+          get: (r) => button('Delete', () => {
+            if (!window.confirm('Delete this stock movement? The on-hand balance is '
+              + 'recalculated without it.')) return;
+            state.inventory.movements = state.inventory.movements
+              .filter((m) => m.id !== r.movement.id);
+            toast('Movement deleted');
+            touch(ctx.rerender);
+          }, { key: `del-mv-${r.movement.id}`, danger: true }),
+        },
       ], recent, { compact: true }),
+      muted('Deleting a movement recalculates the balance from what is left — use it for a '
+        + 'mistaken entry. A production movement can be deleted too, but its print record stays.'),
     ]) : null,
   ];
 }
@@ -211,7 +232,7 @@ export function sidebar(ctx) {
       numberField('stock-reorder', 'Reorder point', selected.reorderAt,
         (v) => set('reorderAt')(Math.max(0, num(v))), { min: 0, suffix: unitOf(selected) }),
       el('div', { class: 'summary-grid' }, [
-        statTile('On hand', `${(balance?.quantity ?? 0).toFixed(0)} ${unitOf(selected)}`),
+        statTile('On hand', qtyWithUnit(balance?.quantity ?? 0, selected)),
       ]),
     ]),
 
