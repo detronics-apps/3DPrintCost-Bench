@@ -175,9 +175,11 @@ export function makeProject(spec = {}) {
     status: 'draft',
     onHoldFrom: null,
     workflow: defaultWorkflow(),
-    // An internal order is priced at cost only — no labour, no profit — for
-    // prints the company makes for itself rather than for a paying customer.
-    internal: false,
+    // Internal orders are priced at cost only — no labour, no profit.
+    //   'off'      a normal paying-customer order
+    //   'employee' for a staff member: still quoted and paid, but at cost
+    //   'company'  for the company itself (R&D, office): no quote, an expense
+    internal: 'off',
     createdAt: at,
     modifiedAt: at,
     notes: '',
@@ -188,7 +190,10 @@ export function makeProject(spec = {}) {
       shippingMethodId: 'auto',
       packagingContainerId: null,
       packagingConsumables: null,
+      // Pickup: the customer collects, so no courier — but it is still boxed.
       packagingCollected: false,
+      // No packaging at all: the parts are handed over as they come off the printer.
+      noPackaging: false,
       insured: false,
       extras: [],
     },
@@ -532,6 +537,9 @@ export function migrateProject(stored) {
   project.onHoldFrom = raw.onHoldFrom || null;
   project.workflow = { ...defaultWorkflow(), ...(raw.workflow || {}) };
   project.status = statusFromPhase(project.phase);
+  // `internal` used to be a boolean; a true one becomes an employee order.
+  if (raw.internal === true) project.internal = 'employee';
+  else if (!['off', 'employee', 'company'].includes(raw.internal)) project.internal = 'off';
   project.history = Array.isArray(raw.history) ? raw.history : [];
   project.quotes = Array.isArray(raw.quotes) ? raw.quotes : [];
   project.invoices = Array.isArray(raw.invoices) ? raw.invoices : [];

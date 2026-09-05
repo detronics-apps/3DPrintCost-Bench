@@ -482,8 +482,13 @@ function orderSection(ctx) {
       [{ value: 'auto', label: 'Cheapest that fits (recommended)' },
         ...methods.map((m) => ({ value: m.id, label: `${m.name} — ${fmtMoney(m.basePrice, settings.currencyCode)}` }))],
       order.shippingMethodId, set('shippingMethodId')),
-    checkField('collected', 'Customer collects — no packaging either',
-      order.packagingCollected, set('packagingCollected')),
+    checkField('collected', 'Customer collects (pickup — no courier)',
+      order.packagingCollected, set('packagingCollected'), {
+        hint: 'Still boxed for collection, but no delivery is charged.',
+      }),
+    checkField('nopack', 'No packaging required', !!order.noPackaging, set('noPackaging'), {
+      hint: 'Hand the parts over as they come off the printer — no packaging cost.',
+    }),
   ];
 
   if (state.mode !== 'simple') {

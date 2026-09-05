@@ -45,7 +45,16 @@ export function dashboard({ projects = [], settings, filter = {} }, now = new Da
   const ctc = invoices
     .filter((i) => i.status !== 'cancelled')
     .reduce((t, i) => t + num(i.internal?.costToCompany), 0);
-  const profit = revenue - ctc;
+
+  // A company-internal print earns no revenue — it is an expense the company
+  // carries (R&D, office use), so its recorded production cost is subtracted
+  // straight from profit. An employee-internal print is invoiced at cost, so it
+  // already nets to nothing in revenue minus CTC and needs no special handling.
+  const internalExpense = live
+    .filter((p) => p.internal === 'company')
+    .reduce((t, p) => t + (p.parts || []).reduce((s, part) => s + num(partStats(part).cost), 0), 0);
+
+  const profit = revenue - ctc - internalExpense;
 
   /* --- production ----------------------------------------------------- */
 
@@ -114,6 +123,7 @@ export function dashboard({ projects = [], settings, filter = {} }, now = new Da
       owed,
       overdue: overdue.reduce((t, i) => t + outstanding(i), 0),
       costToCompany: ctc,
+      internalExpense,
       profit,
       margin: revenue > 0 ? profit / revenue : null,
       averageOrder: invoices.length ? revenue / invoices.length : null,

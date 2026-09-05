@@ -241,6 +241,18 @@ test('NFC coding is opt-in — charged only when the part is ticked to code it',
   assert.ok(on.production.postProcess > off.production.postProcess, 'and only then does it cost');
 });
 
+test('pickup keeps packaging but drops shipping; no-packaging drops packaging', () => {
+  const settings = defaultSettings();
+  const base = orderFromProject(addPart(makeProject(), samplePart()));
+  const normal = calculateOrder({ ...base }, settings);
+  const pickup = calculateOrder({ ...base, packagingCollected: true }, settings);
+  const nopack = calculateOrder({ ...base, noPackaging: true }, settings);
+
+  close(pickup.orderExtras.packaging, normal.orderExtras.packaging, 1e-9, 'pickup is still boxed');
+  assert.equal(pickup.orderExtras.shipping, 0, 'but no courier is charged');
+  assert.equal(nopack.orderExtras.packaging, 0, 'no packaging means no packaging cost');
+});
+
 test('an internal order is priced at cost — no labour, no profit', () => {
   const settings = defaultSettings();
   const order = orderFromProject(addPart(makeProject({ internal: true }), samplePart()));
@@ -655,6 +667,26 @@ test('the dashboard adds up revenue, cost and profit from real invoices', () => 
   close(d.money.costToCompany, quote.internal.costToCompany, 1e-9, 'CTC');
   close(d.money.profit, quote.total - quote.internal.costToCompany, 1e-9, 'profit');
   assert.equal(d.conversion, 1);
+});
+
+test('a company-internal print reduces profit as an expense, earning no revenue', () => {
+  const settings = defaultSettings();
+  const { quote, project } = pricedQuote();
+  const invoice = recordPayment(invoiceFromQuote(quote, { number: 'INV1' }), quote.total);
+  const paid = { ...project, invoices: [invoice], quotes: [{ ...quote, status: 'accepted' }] };
+
+  let internal = addPart(makeProject({ internal: 'company' }), samplePart());
+  internal = recordAttempt(internal, internal.parts[0].id,
+    { quantity: 4, accepted: 4, minutes: 200, grams: 160, costPerAttempt: 30 });
+
+  const without = dashboard({ projects: [paid], settings });
+  const withIt = dashboard({ projects: [paid, internal], settings });
+
+  assert.ok(withIt.money.internalExpense > 0, 'the company print is booked as an expense');
+  close(withIt.money.internalExpense, 120, 1e-9, '30 per attempt × 4');
+  close(withIt.money.revenue, without.money.revenue, 1e-9, 'it adds no revenue');
+  close(withIt.money.profit, without.money.profit - withIt.money.internalExpense, 1e-6,
+    'and it lowers profit by exactly its cost');
 });
 
 test('committed load counts accepted work only, never open quotes', () => {

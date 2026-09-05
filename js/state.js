@@ -94,6 +94,7 @@ export function defaultQuick() {
       shippingMethodId: 'auto',
       packagingContainerId: null,
       packagingCollected: false,
+      noPackaging: false,
       insured: false,
       extras: [],
     },

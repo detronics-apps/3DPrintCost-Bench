@@ -75,9 +75,61 @@ function facts(project) {
 const fraction = (steps) => (steps.length
   ? steps.filter((s) => s.done).length / steps.length : 0);
 
+/** Internal orders are priced at cost. 'employee' still quotes and pays; 'company'
+ *  is an expense the company carries with no quote at all. */
+export const isInternal = (project) => project.internal === 'employee' || project.internal === 'company';
+export const isCompanyInternal = (project) => project.internal === 'company';
+
+/**
+ * Whether a phase does not apply to this order, so the workflow skips over it.
+ *   - post-processing when no part needs finishing
+ *   - packaging when the order needs none, or is internal
+ *   - delivery when the customer collects (pickup), or the order is internal
+ *   - quotation and payment when it is a company-internal print (no quote)
+ */
+export function phaseSkipped(project, phaseId) {
+  const order = project.order || {};
+  switch (phaseId) {
+    case 'quotation':
+    case 'awaiting-payment':
+      return isCompanyInternal(project);
+    case 'post-processing':
+      return !postProcessingRequired(project);
+    case 'packaging':
+      return isInternal(project) || !!order.noPackaging;
+    case 'delivery':
+      return isInternal(project) || !!order.packagingCollected;
+    default:
+      return false;
+  }
+}
+
+/** The next phase after `fromId` that actually applies to this order. */
+export function nextPhaseFrom(project, fromId) {
+  let i = PHASE_ORDER.indexOf(fromId);
+  if (i < 0) return 'closeout';
+  for (i += 1; i < PHASE_ORDER.length; i += 1) {
+    if (!phaseSkipped(project, PHASE_ORDER[i])) return PHASE_ORDER[i];
+  }
+  return 'closeout';
+}
+
+const SKIP_NOTE = {
+  quotation: 'Skipped — a company print needs no quote',
+  'awaiting-payment': 'Skipped — no payment for a company print',
+  'post-processing': 'No post-processing needed',
+  packaging: 'No packaging needed',
+  delivery: 'No delivery — the customer collects',
+};
+
 /** Steps and progress (0..1) for one phase, from recorded data. */
 function phaseDetail(project, phaseId, f) {
   const wf = project.workflow || defaultWorkflow();
+  if (phaseSkipped(project, phaseId)) {
+    const note = isInternal(project) && (phaseId === 'packaging' || phaseId === 'delivery')
+      ? `Skipped — internal order` : (SKIP_NOTE[phaseId] || 'Not needed');
+    return { steps: [{ label: note, done: true }], progress: 1, skipped: true };
+  }
   switch (phaseId) {
     case 'quotation': {
       const steps = [
@@ -116,7 +168,11 @@ function phaseDetail(project, phaseId, f) {
     }
     case 'packaging': {
       const done = !!wf.readyForCollectionAt;
-      return { steps: [{ label: 'Packed and ready for collection', done }], progress: done ? 1 : 0 };
+      const byClient = !!project.order?.packagingCollected;
+      return {
+        steps: [{ label: `Packed and ready for collection${byClient ? ' by the client' : ''}`, done }],
+        progress: done ? 1 : 0,
+      };
     }
     case 'delivery': {
       const steps = [
@@ -137,21 +193,35 @@ function phaseDetail(project, phaseId, f) {
   }
 }
 
-/** The phase whose progress the order is really sitting at (sees through holds). */
+/**
+ * The phase whose progress the order is really sitting at. Sees through holds and
+ * cancels, and skips forward past any phase that does not apply — so a company
+ * print whose stored phase is still 'quotation' reads as being in Production.
+ */
 function effectivePhase(project) {
   if (project.phase === 'on-hold') return project.onHoldFrom || 'quotation';
   if (project.phase === 'cancelled') return project.workflow?.cancelledFrom || 'quotation';
-  return project.phase;
+  if (project.phase === 'closed') return 'closed';
+  let i = PHASE_ORDER.indexOf(project.phase);
+  if (i < 0) return project.phase;
+  while (i < PHASE_ORDER.length && phaseSkipped(project, PHASE_ORDER[i])) i += 1;
+  return i < PHASE_ORDER.length ? PHASE_ORDER[i] : 'closeout';
+}
+
+/** The phase to SHOW for an order: the stored one for off-pipeline states,
+ *  otherwise the effective one (so a company print reads as Production). */
+export function displayPhase(project) {
+  if (['on-hold', 'cancelled', 'closed'].includes(project.phase)) return project.phase;
+  return effectivePhase(project);
 }
 
 /** The next phase a job is expected to reach, skipping any that do not apply. */
-function nextExpected(project, f) {
+function nextExpected(project) {
   const from = effectivePhase(project);
   let i = PHASE_ORDER.indexOf(from);
   if (i < 0) return null;
   for (i += 1; i < PHASE_ORDER.length; i += 1) {
-    if (PHASE_ORDER[i] === 'post-processing' && !f.ppRequired) continue;
-    return PHASE_ORDER[i];
+    if (!phaseSkipped(project, PHASE_ORDER[i])) return PHASE_ORDER[i];
   }
   return null;
 }
@@ -159,12 +229,14 @@ function nextExpected(project, f) {
 /* ------------------------------------------------- actions per phase ------ */
 
 function actionsFor(project) {
-  const phase = project.phase;
-  if (phase === 'on-hold') return [{ id: 'resume', label: 'Resume order', primary: true, tone: 'ok' }];
-  if (phase === 'closed') return [];
-  if (phase === 'cancelled') return [{ id: 'resume-cancel', label: 'Reopen order', tone: 'ok' }];
+  if (project.phase === 'on-hold') return [{ id: 'resume', label: 'Resume order', primary: true, tone: 'ok' }];
+  if (project.phase === 'closed') return [];
+  if (project.phase === 'cancelled') return [{ id: 'resume-cancel', label: 'Reopen order', tone: 'ok' }];
 
+  // The phase the order is really at, past any that do not apply to it.
+  const phase = effectivePhase(project);
   const hasQuote = (project.quotes || []).length > 0;
+  const pickup = !!project.order?.packagingCollected;
   const wf = project.workflow || defaultWorkflow();
   const main = [];
   switch (phase) {
@@ -184,7 +256,11 @@ function actionsFor(project) {
       main.push({ id: 'post-processing-done', label: 'Post-processing done', primary: true });
       break;
     case 'packaging':
-      main.push({ id: 'ready-for-collection', label: 'Packed — ready for collection', primary: true });
+      main.push({
+        id: 'ready-for-collection',
+        label: pickup ? 'Packed — ready for the client to collect' : 'Packed — ready for collection',
+        primary: true,
+      });
       break;
     case 'delivery':
       if (!wf.collectedAt) main.push({ id: 'confirm-collected', label: 'Courier collected it', primary: true });
@@ -225,9 +301,12 @@ export function workflowState(project) {
   let overall = total ? done / total : 0;
   if (project.phase === 'closed') overall = 1;
 
-  const next = nextExpected(project, f);
+  const next = nextExpected(project);
+  // The phase to SHOW: the stored one for the off-pipeline states, otherwise the
+  // effective one (so a company print reads as being in Production, not Quotation).
+  const shown = ['on-hold', 'cancelled', 'closed'].includes(project.phase) ? project.phase : eff;
   return {
-    phase: { id: project.phase, name: phaseName(project.phase) },
+    phase: { id: shown, name: phaseName(shown) },
     effectivePhase: eff,
     facts: f,
     steps: detail.steps,
@@ -266,7 +345,7 @@ const TRANSITIONS = {
     event: { type: 'production-started', text: 'Production started' },
   }),
   'inspection-pass': (p) => {
-    const to = postProcessingRequired(p) ? 'post-processing' : 'packaging';
+    const to = nextPhaseFrom(p, 'production');
     return {
       phase: to,
       workflow: { inspection: { passed: true, at: now() } },
@@ -277,25 +356,34 @@ const TRANSITIONS = {
     workflow: { inspection: { passed: false, at: now(), note } },
     event: { type: 'reprint-needed', text: note ? `Reprint needed: ${note}` : 'Reprint needed — parts failed inspection' },
   }),
-  'post-processing-done': (p) => ({
-    phase: 'packaging',
-    workflow: { postProcessingDoneAt: now() },
-    event: { type: 'post-processing-done', text: 'Post-processing complete', phaseFrom: p.phase, phaseTo: 'packaging' },
-  }),
-  'ready-for-collection': (p) => ({
-    phase: 'delivery',
-    workflow: { readyForCollectionAt: now() },
-    event: { type: 'ready-for-collection', text: 'Packaged and ready for collection', phaseFrom: p.phase, phaseTo: 'delivery' },
-  }),
+  'post-processing-done': (p) => {
+    const to = nextPhaseFrom(p, 'post-processing');
+    return {
+      phase: to,
+      workflow: { postProcessingDoneAt: now() },
+      event: { type: 'post-processing-done', text: `Post-processing complete — moving to ${phaseName(to)}`, phaseFrom: p.phase, phaseTo: to },
+    };
+  },
+  'ready-for-collection': (p) => {
+    const to = nextPhaseFrom(p, 'packaging');
+    return {
+      phase: to,
+      workflow: { readyForCollectionAt: now() },
+      event: { type: 'ready-for-collection', text: 'Packaged and ready for collection', phaseFrom: p.phase, phaseTo: to },
+    };
+  },
   'confirm-collected': () => ({
     workflow: { collectedAt: now() },
     event: { type: 'collected', text: 'Collected by the courier' },
   }),
-  'confirm-delivered': (p) => ({
-    phase: 'closeout',
-    workflow: { deliveredAt: now() },
-    event: { type: 'delivered', text: 'Delivered to the client', phaseFrom: p.phase, phaseTo: 'closeout' },
-  }),
+  'confirm-delivered': (p) => {
+    const to = nextPhaseFrom(p, 'delivery');
+    return {
+      phase: to,
+      workflow: { deliveredAt: now() },
+      event: { type: 'delivered', text: 'Delivered to the client', phaseFrom: p.phase, phaseTo: to },
+    };
+  },
   'record-feedback': (p, { feedback = {} } = {}) => ({
     workflow: { closeout: { ...feedback, at: now() } },
     event: { type: 'closeout-feedback', text: 'Client feedback recorded' },
@@ -307,8 +395,8 @@ const TRANSITIONS = {
   }),
   hold: (p) => (p.phase === 'on-hold' ? {} : {
     phase: 'on-hold',
-    holdFrom: p.phase,
-    event: { type: 'on-hold', text: 'Order put on hold', phaseFrom: p.phase, phaseTo: 'on-hold' },
+    holdFrom: effectivePhase(p),
+    event: { type: 'on-hold', text: 'Order put on hold', phaseFrom: effectivePhase(p), phaseTo: 'on-hold' },
   }),
   resume: (p) => ({
     phase: p.onHoldFrom || 'quotation',
@@ -317,8 +405,8 @@ const TRANSITIONS = {
   }),
   cancel: (p, { note = '' } = {}) => ({
     phase: 'cancelled',
-    workflow: { cancelledFrom: p.phase },
-    event: { type: 'cancelled', text: note ? `Order cancelled: ${note}` : 'Order cancelled', phaseFrom: p.phase, phaseTo: 'cancelled' },
+    workflow: { cancelledFrom: effectivePhase(p) },
+    event: { type: 'cancelled', text: note ? `Order cancelled: ${note}` : 'Order cancelled', phaseFrom: effectivePhase(p), phaseTo: 'cancelled' },
   }),
   'resume-cancel': (p) => ({
     phase: p.workflow?.cancelledFrom || 'quotation',
@@ -330,13 +418,11 @@ const TRANSITIONS = {
   // Packaging shows Production as unfinished again, not still at 100%.
   back: (p) => {
     const cur = effectivePhase(p);
-    const i = PHASE_ORDER.indexOf(cur);
-    if (i <= 0) return {};
-    const pp = postProcessingRequired(p);
-    let j = i - 1;
-    while (j >= 0 && PHASE_ORDER[j] === 'post-processing' && !pp) j -= 1;
+    let j = PHASE_ORDER.indexOf(cur) - 1;
+    while (j >= 0 && phaseSkipped(p, PHASE_ORDER[j])) j -= 1;
     if (j < 0) return {};
     const prev = PHASE_ORDER[j];
+    const pp = postProcessingRequired(p);
     const clearOnLeaving = {
       'awaiting-payment': {},
       production: { paymentReceivedAt: null },
