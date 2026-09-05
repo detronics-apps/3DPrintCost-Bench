@@ -20,6 +20,7 @@ import { analyse, fmtSize, mm3ToCm3 } from '../../geometry.js';
 import { calculateOrder } from '../../engine.js';
 import { filamentSlots, mixEditor } from '../filament-slots.js';
 import { reconcileSlots, defaultSlots } from '../../filaments.js';
+import { findMaterial, materialLabel } from '../../materials.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart, duplicatePart,
@@ -534,6 +535,52 @@ function projectSidebar(ctx, project, result) {
   return sections;
 }
 
+/**
+ * The slicer figures for a project part: grams PER HEAD, and one total time.
+ *
+ * A multi-material job comes off the slicer with a weight for each head, so that
+ * is what is entered here - one figure per loaded spool. The print time is one
+ * number for the whole plate, not per head. Entered figures outrank the app's own
+ * geometry, and per-head grams are costed each at their own plastic's price.
+ */
+function slicerFigures(part, liveSlots, settings, set) {
+  const slicer = part.slicer || {};
+  const headGrams = (slotId) => {
+    const hit = (slicer.heads || []).find((h) => h.slotId === slotId);
+    if (hit) return num(hit.grams);
+    // An older part may carry a single flat grams figure; show it on the one head.
+    if (liveSlots.length === 1 && slicer.grams != null) return num(slicer.grams);
+    return 0;
+  };
+  const setHeadGrams = (slotId, grams) => {
+    const heads = liveSlots.map((s) => ({
+      slotId: s.id,
+      grams: s.id === slotId ? Math.max(0, num(grams)) : headGrams(s.id),
+    }));
+    const total = heads.reduce((t, h) => t + h.grams, 0);
+    set({ slicer: { ...slicer, heads, grams: total } });
+  };
+
+  const gramFields = liveSlots.map((s, i) => {
+    const material = findMaterial(settings.materials, s.materialId);
+    return numberField(`part-slicer-g-${part.id}-${i}`,
+      liveSlots.length > 1 ? `${materialLabel(material)} — material` : 'Material',
+      headGrams(s.id), (v) => setHeadGrams(s.id, v), { min: 0, suffix: 'g' });
+  });
+
+  return subsection('Slicer figures', [
+    muted('Once you have sliced it, paste the grams for each head and the total print '
+      + 'time. These outrank the app’s own geometry.'),
+    ...gramFields,
+    numberField(`part-slicer-min-${part.id}`, 'Total print time', slicer.minutes ?? 0,
+      (v) => set({ slicer: { ...slicer, minutes: num(v) } }), { min: 0, suffix: 'min' }),
+  ], {
+    hint: liveSlots.length > 1
+      ? 'One weight per loaded head, and one print time for the whole plate.'
+      : null,
+  });
+}
+
 function partSidebar(ctx, project, part) {
   const { rerender } = ctx;
   const settings = state.settings;
@@ -627,14 +674,7 @@ function partSidebar(ctx, project, part) {
       fileInput,
     ]),
 
-    subsection('Slicer figures', [
-      el('div', { class: 'field-grid' }, [
-        numberField('part-slicer-g', 'Material', part.slicer?.grams ?? 0,
-          (v) => set({ slicer: { ...(part.slicer || {}), grams: num(v) } }), { min: 0, suffix: 'g' }),
-        numberField('part-slicer-min', 'Time', part.slicer?.minutes ?? 0,
-          (v) => set({ slicer: { ...(part.slicer || {}), minutes: num(v) } }), { min: 0, suffix: 'min' }),
-      ]),
-    ], { hint: 'Paste the slicer’s own numbers and they outrank the app’s geometry.' }),
+    slicerFigures(part, liveSlots, settings, set),
 
     buttonRow([
       button('Duplicate this part', () => {

@@ -10,7 +10,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   makeSlot, defaultSlots, reconcileSlots, canAddSlot, normaliseMix, mixWarnings,
-  materialBreakdown, mixForEstimate, primarySlot, slotsUsed, changeModel, mixWithSlotAdded,
+  materialBreakdown, materialBreakdownFromGrams, mixForEstimate, primarySlot, slotsUsed,
+  changeModel, mixWithSlotAdded,
 } from '../js/filaments.js';
 import {
   DEFAULT_PRINTERS, COLOUR_MODES, colourMode, slotLimit, findPrinter,
@@ -27,6 +28,39 @@ const close = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol,
 const M = DEFAULT_MATERIALS;
 const printerOf = (id) => findPrinter(DEFAULT_PRINTERS, id);
 const spool = (type, colour) => findByTypeAndColour(M, type, colour).id;
+
+/* ------------------------------------------------ per-head slicer grams -- */
+
+test('per-head slicer grams are costed each at its own plastic’s price', () => {
+  const settings = defaultSettings();
+  const slots = [
+    { id: 's1', materialId: 'petg-dark-grey' },
+    { id: 's2', materialId: 'pla-dark-grey' },
+  ];
+  const b = materialBreakdownFromGrams(
+    [{ slotId: 's1', grams: 60 }, { slotId: 's2', grams: 40 }],
+    slots, settings.materials, settings.countryId,
+  );
+  assert.equal(b.lines.length, 2);
+  close(b.grams, 100, 1e-9, 'total grams is the sum of the heads');
+  const one = b.lines.find((l) => l.slotId === 's1');
+  const two = b.lines.find((l) => l.slotId === 's2');
+  close(one.grams, 60, 1e-9, 'head one weight is taken verbatim');
+  close(two.grams, 40, 1e-9, 'head two weight likewise');
+  close(one.cost, one.grams * one.perGram, 1e-9, 'each head is priced at its own rate');
+  close(b.cost, one.cost + two.cost, 1e-9, 'the total is the sum of the heads');
+});
+
+test('a head with no grams, or one pointing at a gone spool, is left out', () => {
+  const settings = defaultSettings();
+  const slots = [{ id: 's1', materialId: 'petg-dark-grey' }];
+  const b = materialBreakdownFromGrams(
+    [{ slotId: 's1', grams: 50 }, { slotId: 'gone', grams: 30 }, { slotId: 's1', grams: 0 }],
+    slots, settings.materials, settings.countryId,
+  );
+  assert.equal(b.lines.length, 1, 'only a loaded head with grams counts');
+  close(b.grams, 50, 1e-9, 'and the total is just that head');
+});
 
 /* --------------------------------------------------------- the capability -- */
 

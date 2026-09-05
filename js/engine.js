@@ -29,8 +29,8 @@ import {
   findPrinter, machineHourCost, fitsBuildVolume, supportsMaterial, colourMode, slotLimit,
 } from './printers.js';
 import {
-  reconcileSlots, normaliseMix, mixWarnings, materialBreakdown, mixForEstimate,
-  primarySlot, slotsUsed, changeModel, defaultSlots, purgeTower, DEFAULT_TOWER,
+  reconcileSlots, normaliseMix, mixWarnings, materialBreakdown, materialBreakdownFromGrams,
+  mixForEstimate, primarySlot, slotsUsed, changeModel, defaultSlots, purgeTower, DEFAULT_TOWER,
 } from './filaments.js';
 import { findMaterial, pricePerGram, materialType, gramsFor } from './materials.js';
 import { labourCost, resolveLabourRate } from './labour.js';
@@ -280,9 +280,17 @@ export function calculateLine(line, settings, context = {}) {
   // own price. One average price across two plastics is wrong by whatever the
   // difference between them is.
   const chosen = estimate.levels[estimate.method];
-  const filamentCost = materialBreakdown(
-    chosen.bodyVolume, slots, mix, settings.materials, settings.countryId,
-  );
+  // Once the job is sliced the slicer knows exactly how many grams came off each
+  // head. When those are present and the slicer estimate is the one in use, they
+  // are the material cost - each head at its own plastic's price - rather than a
+  // volume-times-share split. Otherwise the split from the mix stands.
+  const slicerHeads = estimate.method === 'slicer' && Array.isArray(line.slicer?.heads)
+    && line.slicer.heads.some((h) => num(h.grams) > 0)
+    ? line.slicer.heads
+    : null;
+  const filamentCost = slicerHeads
+    ? materialBreakdownFromGrams(slicerHeads, slots, settings.materials, settings.countryId)
+    : materialBreakdown(chosen.bodyVolume, slots, mix, settings.materials, settings.countryId);
   const extraG = Math.max(0, estimate.grams - filamentCost.grams);
   const perGram = pricePerGram(material, settings.countryId);
   if (filamentCost.missingPrice || perGram == null) {

@@ -225,6 +225,24 @@ test('a project part with no loaded heads still prices as a single filament', ()
   assert.equal(result.lines[0].filaments.length, 1, 'unchanged single-colour behaviour');
 });
 
+test('per-head slicer grams drive a project part’s material, overriding the mix', () => {
+  const settings = defaultSettings();
+  const part = samplePart({
+    printerId: 'snapmaker-u1',
+    slots: [{ id: 's1', materialId: 'petg-dark-grey' }, { id: 's2', materialId: 'pla-dark-grey' }],
+    mix: [{ slotId: 's1', percent: 50 }, { slotId: 's2', percent: 50 }],
+    // The slicer says 70/30, not the 50/50 the mix would imply.
+    slicer: { grams: 100, minutes: 200, heads: [{ slotId: 's1', grams: 70 }, { slotId: 's2', grams: 30 }] },
+  });
+  const project = addPart(makeProject(), part);
+  const line = calculateOrder(orderFromProject(project), settings).lines[0];
+  assert.equal(line.estimate.method, 'slicer', 'the sliced figures are the ones in use');
+  const one = line.filaments.find((f) => f.slotId === 's1');
+  const two = line.filaments.find((f) => f.slotId === 's2');
+  close(one.grams, 70, 1e-9, 'head one is the slicer’s weight, not half');
+  close(two.grams, 30, 1e-9, 'head two is the slicer’s weight, not half');
+});
+
 test('a project part carries its loaded heads, and the engine prices every one', () => {
   const settings = defaultSettings();
   const part = samplePart({

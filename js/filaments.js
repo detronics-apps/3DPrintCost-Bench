@@ -275,6 +275,51 @@ export function materialBreakdown(bodyVolumeMm3, slots, normalised, materials, c
   return { lines, grams, cost, missingPrice };
 }
 
+/**
+ * The material breakdown straight from the slicer's per-head grams.
+ *
+ * Once a job has been sliced, the slicer reports exactly how many grams came off
+ * each head. That is better than any volume-times-share estimate, and on a
+ * multi-material print with two different plastics it is the only figure that is
+ * actually right - so when it is present it is used verbatim, each head costed at
+ * its own material's price. Heads pointing at a spool no longer loaded, or with
+ * no grams, are ignored.
+ */
+export function materialBreakdownFromGrams(heads, slots, materials, countryId) {
+  const valid = (heads || [])
+    .filter((h) => h && slots.some((s) => s.id === h.slotId) && num(h.grams) > 0);
+  const total = valid.reduce((t, h) => t + Math.max(0, num(h.grams)), 0);
+
+  const lines = [];
+  let grams = 0;
+  let cost = 0;
+  let missingPrice = false;
+
+  for (const head of valid) {
+    const slot = slots.find((s) => s.id === head.slotId);
+    const material = findMaterial(materials, slot?.materialId);
+    const g = Math.max(0, num(head.grams));
+    const perGram = pricePerGram(material, countryId);
+    if (perGram == null) missingPrice = true;
+    lines.push({
+      slotId: head.slotId,
+      material,
+      label: materialLabel(material),
+      percent: total > 0 ? (g / total) * 100 : 0,
+      fraction: total > 0 ? g / total : 0,
+      volume: (g / Math.max(0.01, density(material))) * 1000,
+      grams: g,
+      perGram: perGram == null ? null : perGram,
+      cost: num(perGram) * g,
+      wasteFactor: Math.max(0, num(material?.wasteFactor, 0.03)),
+    });
+    grams += g;
+    cost += num(perGram) * g;
+  }
+
+  return { lines, grams, cost, missingPrice };
+}
+
 /** The mix as `[{ material, fraction }]`, which is what the estimator wants. */
 export function mixForEstimate(slots, normalised, materials) {
   return normalised.entries
