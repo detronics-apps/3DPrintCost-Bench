@@ -466,6 +466,16 @@ export function restoreFromFile(text) {
   } catch {
     return { ok: false, error: 'That file is not valid JSON.' };
   }
+  if (data && data.kind === 'project') {
+    // A customer request also carries settings, so it would otherwise pass the
+    // check below and replace the whole workshop with one project. Open is for
+    // switching companies; a single project is merged in with Upload project.
+    return {
+      ok: false,
+      error: 'That is a single project, not a workshop. Use “Upload project” to add it '
+        + 'to the company you have open.',
+    };
+  }
   if (!data || typeof data !== 'object' || !data.settings) {
     return { ok: false, error: 'That is not a full workshop backup — use “Save all” to make one.' };
   }

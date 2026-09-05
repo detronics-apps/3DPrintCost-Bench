@@ -61,6 +61,24 @@ test('a file that is not a full backup is refused, not applied', () => {
   assert.equal(state.projects.length, before, 'the workshop is untouched by a refused restore');
 });
 
+test('a customer request is refused by Open even though it carries settings', () => {
+  restoreFromFile(backup());
+  const before = state.projects.length;
+  // A portal request carries the pricing settings, so it would otherwise look
+  // like a full backup and replace the whole workshop with one project.
+  const request = JSON.stringify({
+    kind: 'project',
+    project: { id: 'req1', name: 'From a customer', parts: [] },
+    customer: { id: 'cx', name: 'Nadia' },
+    settings: { version: 1, company: { name: 'Should not win' } },
+  });
+  const r = restoreFromFile(request);
+  assert.equal(r.ok, false, 'Open refuses a single project');
+  assert.match(r.error, /Upload project/, 'and points at the right button');
+  assert.equal(state.projects.length, before, 'nothing is replaced');
+  assert.equal(state.settings.company.name, 'Acme Works', 'the open company is untouched');
+});
+
 test('exportAll then restoreFromFile is a faithful round-trip', () => {
   restoreFromFile(backup());
   const dumped = exportAll();
