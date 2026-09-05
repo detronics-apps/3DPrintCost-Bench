@@ -69,6 +69,7 @@ const state = {
   materialId: null,
   slots: null,
   shippingMethodId: 'auto',
+  expedite: false,
   parts: [makePortalPart()],
   customer: { name: '', email: '', phone: '', notes: '', addressParts: makeAddressParts() },
 };
@@ -134,13 +135,14 @@ function price() {
     lines: state.parts.map((p) => toLine(p)),
     shippingMethodId: state.shippingMethodId,
     extras: [],
-  }, state.settings);
+  }, state.settings, { internal: !!state.config?.internal });
 }
 
 function quotedTotal(result) {
   // The parts price is padded by the company's quote buffer so the real invoice,
-  // priced from the sliced parts, tends to come in under this figure.
-  const buffer = Math.max(0, num(state.config.quoteBuffer, 0));
+  // priced from the sliced parts, tends to come in under this figure. An internal
+  // link carries no buffer — it shows the bare cost.
+  const buffer = state.config?.internal ? 0 : Math.max(0, num(state.config.quoteBuffer, 0));
   return result.totals.finalInvoice + result.parts.total * buffer;
 }
 
@@ -413,17 +415,23 @@ function render() {
   const slots = liveSlots();
   const printer = printerOf();
   const deliveryTotal = result.orderExtras.shipping + result.orderExtras.packaging;
-  const buffer = Math.max(0, num(config.quoteBuffer, 0));
+  const internal = !!config.internal;
+  const buffer = internal ? 0 : Math.max(0, num(config.quoteBuffer, 0));
   const validityDays = Math.max(1, Math.round(num(config.quoteValidityDays, 30)));
   const validUntil = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
   const partCtx = { config, slots, materials, code, buffer, canRemove: state.parts.length > 1 };
 
   const nodes = [
     el('div', { class: 'panel' }, [
-      el('h1', { class: 'portal__title', text: `Get a price from ${config.company.name}` }),
-      muted('Add one part or several — each with its own model, finish, colours and quantity. '
-        + 'Everything on this page happens in your own browser; your models are measured '
-        + 'here and never uploaded.'),
+      el('h1', { class: 'portal__title', text: internal
+        ? `Internal cost — ${config.company.name}` : `Get a price from ${config.company.name}` }),
+      muted(internal
+        ? 'Internal cost estimate for staff — the physical cost only (material, machine, '
+          + 'electricity, allowances), with no labour and no profit. Everything happens in your '
+          + 'browser; nothing is uploaded.'
+        : 'Add one part or several — each with its own model, finish, colours and quantity. '
+          + 'Everything on this page happens in your own browser; your models are measured '
+          + 'here and never uploaded.'),
     ]),
   ];
 
@@ -511,17 +519,43 @@ function render() {
         + 'Send the request anyway and we will come back to you.')
       : null,
     muted(config.leadTimeNote),
-    banner('info', 'This is a quotation only. The price is estimated from the shape of your '
-      + 'models; the exact figures can only be worked out once the parts have been prepared and '
-      + 'sliced for printing. The confirmed invoice is usually at or below this quote.'),
-    banner('warn', `This quote is valid for ${validityDays} day${validityDays === 1 ? '' : 's'} `
-      + `from when you download it — until ${validUntil.toLocaleDateString()}. Prices change, so `
-      + 'after that please export a fresh quote from the latest link.'),
+    internal
+      ? banner('info', 'Internal cost only — labour and profit are excluded. This is an estimate '
+        + 'from the model’s shape; the exact figure is known once the part is sliced.')
+      : banner('info', 'This is a quotation only. The price is estimated from the shape of your '
+        + 'models; the exact figures can only be worked out once the parts have been prepared and '
+        + 'sliced for printing. The confirmed invoice is usually at or below this quote.'),
+    internal ? null
+      : banner('warn', `This quote is valid for ${validityDays} day${validityDays === 1 ? '' : 's'} `
+        + `from when you download it — until ${validUntil.toLocaleDateString()}. Prices change, so `
+        + 'after that please export a fresh quote from the latest link.'),
   ].filter(Boolean)));
+
+  // Expedite: if the company allows it, the client can pay the (padded) estimate
+  // now and skip the quote entirely. In 'only' mode there is no quote path at all.
+  const expediteMode = internal ? 'off' : (config.expediteMode || 'off');
+  if (expediteMode !== 'off') {
+    nodes.push(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Expedite your order' }),
+      expediteMode === 'only'
+        ? banner('info', `To confirm this order, pay ${fmtMoney(quoted, code)} and attach proof of `
+          + 'payment when you send it. There is no separate quote — once payment is verified your '
+          + 'order goes straight into production. The estimate is set to come in at or above the '
+          + 'final cost, so you are never asked for more.')
+        : checkField('portal-expedite',
+          `Expedite — pay ${fmtMoney(quoted, code)} now and skip the quote`,
+          state.expedite, (v) => { state.expedite = v; render(); }, {
+            hint: 'Happy with this estimate? Pay it now and attach proof of payment, and we skip '
+              + 'the quote and go straight to production. The estimate is set at or above the final '
+              + 'cost, so you will never be asked for more.',
+          }),
+    ]));
+  }
 
   const makePayload = () => portalRequest({
     company: state.config.company,
     printerId: state.printerId,
+    expedited: expediteMode === 'only' ? true : !!state.expedite,
     // The loaded filament travels with the request, so the workshop opens it
     // with every head already filled in with the colours the customer chose.
     slots: slots.map((s) => ({ ...s })),
@@ -558,6 +592,10 @@ function render() {
     muted('This page has no server, so it cannot send the request for you. On a phone the '
       + 'easiest way is the request link — copy it and send it to us in an email or a message. '
       + 'Either way, attach your model file so we can print it.'),
+    (expediteMode === 'only' || state.expedite)
+      ? banner('warn', 'This is an expedited order — attach your proof of payment along with your '
+        + 'model file(s) so we can confirm and start production.')
+      : null,
     el('div', { class: 'field-grid' }, [
       textInput('portal-name', 'Your name', state.customer.name, (v) => { state.customer.name = v; }),
       textInput('portal-email', 'Your email', state.customer.email, (v) => { state.customer.email = v; }, 'email'),
@@ -621,6 +659,9 @@ function init() {
     state.slots = null;
     state.parts = [makePortalPart({ profileId: config.profiles[0]?.id || state.settings.profiles[0].id })];
     state.shippingMethodId = 'auto';
+    // In expedite-only mode there is no quote path, so the order is expedited
+    // from the start; in optional mode the client turns it on themselves.
+    state.expedite = config.expediteMode === 'only';
     state.customer.addressParts.country = state.settings.countries
       .find((c) => c.id === config.countryId)?.name || '';
     document.title = `Get a price — ${config.company.name}`;

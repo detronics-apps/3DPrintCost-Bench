@@ -43,12 +43,15 @@ export function pricingSettings(settings) {
 }
 
 /** What the company hands out: the options, plus what is needed to price them. */
-export function portalConfig(settings) {
+export function portalConfig(settings, { internal = false } = {}) {
   const portal = settings.customerPortal;
   const allowed = (list, ids) => list.filter((x) => !x.archived && (!ids.length || ids.includes(x.id)));
 
   return {
     v: 1,
+    // An internal link prices at cost only (no labour, no profit) and is for
+    // employees, not customers — so it carries no quote buffer and no expedite.
+    internal: !!internal,
     company: {
       name: settings.company.name,
       email: settings.company.email,
@@ -59,6 +62,7 @@ export function portalConfig(settings) {
     showBreakdown: portal.showBreakdown,
     minimumOrder: portal.minimumOrder,
     allowExpress: portal.allowExpress,
+    expediteMode: ['off', 'optional', 'only'].includes(portal.expediteMode) ? portal.expediteMode : 'off',
     leadTimeNote: portal.leadTimeNote,
     quoteBuffer: Math.max(0, num(portal.quoteBuffer, 0)),
     quoteValidityDays: Math.max(1, Math.round(num(settings.company.quoteValidityDays, 30))),

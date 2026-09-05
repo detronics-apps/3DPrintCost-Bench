@@ -224,6 +224,16 @@ function companyPanel(ctx) {
             + 'sliced part, comes in at or under the quote. A pleasant surprise rather than an '
             + 'awkward one. Zero quotes the bare estimate.',
         }),
+      selectField('portal-expedite', 'Expedite (pay the estimate to skip the quote)', [
+        { value: 'off', label: 'Off — normal quote flow only' },
+        { value: 'optional', label: 'Optional — the client may pay the estimate now' },
+        { value: 'only', label: 'Expedite only — never issue a manual quote' },
+      ], settings.customerPortal.expediteMode || 'off',
+      (v) => { settings.customerPortal.expediteMode = v; touch(rerender); }, {
+        hint: 'Lets a client who is happy with the padded estimate pay it up front (with proof of '
+          + 'payment) and skip the quote — the order jumps straight to payment and into production. '
+          + 'The padding is what keeps the estimate at or above the final cost.',
+      }),
       subsection('Print intents customers may choose', settings.profiles.map((p) => checkField(
         `portal-profile-${p.id}`, p.name,
         settings.customerPortal.allowedProfiles.includes(p.id),
@@ -248,6 +258,14 @@ function companyPanel(ctx) {
             text: 'Open the form',
           }),
         ]),
+        buttonRow([
+          button('Copy an internal (cost-only) link', () => {
+            copyText(portalLink(settings, { internal: true }));
+          }, { key: 'copy-internal-link' }),
+        ]),
+        muted('The internal link is for staff: it prices at cost only — no labour, no profit — '
+          + 'and skips the quote buffer and expedite. Use it to see what a print actually costs '
+          + 'to make.'),
         banner('warn', 'The link carries your prices and your cost model in its URL '
           + 'fragment, because there is no server to hold them. The form never renders '
           + 'your costs — but somebody who reads the link itself could find them. Treat '
@@ -704,10 +722,15 @@ function labourPanel(ctx) {
         },
         {
           label: '',
-          get: (op) => (op.builtIn ? '' : button('Remove', () => {
+          get: (op) => button('Remove', () => {
+            if (!window.confirm(`Remove the “${op.name}” operation for good? `
+              + '(Untick “On” instead if you only want to switch it off.)')) return;
             settings.labour.ops = settings.labour.ops.filter((x) => x.id !== op.id);
+            // Tombstone it so a shipped default is not topped back up on reload.
+            const removed = settings.removed || (settings.removed = {});
+            removed.labourOps = [...new Set([...(removed.labourOps || []), op.id])];
             touch(rerender);
-          }, { key: `op-remove-${op.id}` })),
+          }, { key: `op-remove-${op.id}`, danger: true }),
         },
       ], settings.labour.ops, { compact: true }),
       muted('“Happens” is what makes quantity pricing honest. Per-order work is done once '
@@ -798,6 +821,13 @@ function estimatorPanel(ctx) {
         }),
       numberField('layer-overhead', 'Fixed cost of a layer', a.layerOverheadSeconds,
         set('layerOverheadSeconds'), { min: 0, step: 0.1, suffix: 's' }),
+      numberField('travel-per-object', 'Travel between objects on a plate',
+        num(a.travelSecondsPerObjectLayer, 0.8), set('travelSecondsPerObjectLayer'), {
+          min: 0, step: 0.1, suffix: 's / object / layer',
+          info: 'On a plate of several parts the toolhead hops between them on every layer. '
+            + 'This is that travel, per extra object per layer — so a plate of many small parts '
+            + 'is not under-estimated. Zero counts none.',
+        }),
       numberField('support-scale', 'Support material scale', a.supportScale, set('supportScale'),
         { min: 0, step: 0.05, suffix: '×',
           hint: 'The app assumes every overhang is held from the build plate, which '

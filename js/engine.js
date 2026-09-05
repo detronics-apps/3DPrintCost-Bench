@@ -110,6 +110,12 @@ export function scrapModel(settings, printer, hardwareFailure = 0, history = nul
 export function calculateLine(line, settings, context = {}) {
   const notes = [];
   const quantity = Math.max(1, Math.round(num(line.quantity, 1)));
+  // An INTERNAL order is priced at cost only: the physical cost of making it —
+  // material, machine (with its depreciation and maintenance), electricity,
+  // hardware, the rejection allowance and the general allowance — with NO labour
+  // and NO profit or growth. It is what a print for the company's own use costs,
+  // not what a customer is charged.
+  const internal = !!context.internal;
 
   const country = findCountry(settings.countries, settings.countryId);
   const currencyCode = settings.currencyCode || country.currency;
@@ -236,6 +242,16 @@ export function calculateLine(line, settings, context = {}) {
     : Math.max(1, Math.ceil(quantity / perPlate));
   const purgeVolumePerPart = changes.purgeVolume * plateJobs / quantity;
   const changeMinutesPerPart = (changes.machineSeconds * plateJobs / quantity) / 60;
+  // Toolhead travel between the objects on a shared plate: on every layer the
+  // head hops between each object, and none of that is extrusion. It scales with
+  // how many objects are actually on the plate, so a plate of many small parts
+  // is no longer under-counted. Per plate, spread across the parts on it — and
+  // it only touches the geometry-based estimate, since a slicer figure already
+  // has the travel in it.
+  const onPlate = Math.max(1, Math.min(perPlate, quantity));
+  const travelSecondsPerPlate = Math.max(0, onPlate - 1) * layerCount
+    * Math.max(0, num(settings.estimate?.assumptions?.travelSecondsPerObjectLayer, 0.8));
+  const travelMinutesPerPart = (travelSecondsPerPlate * plateJobs / quantity) / 60;
   // A hand swap is once per plate too, so it is charged for every plate, never
   // for every part.
   const manualChanges = changes.manualChanges * plateJobs;
@@ -259,9 +275,10 @@ export function calculateLine(line, settings, context = {}) {
     // plastic is being flushed, so it converts against the one in the machine.
     // This is one part's SHARE of the plate's purge, not a whole plate's worth.
     purgeG: gramsFor(purgeVolumePerPart, material),
-    // Machine seconds, not labour: the printer does this by itself. Also one
-    // part's share of the plate's change time.
-    changeMinutes: changeMinutesPerPart,
+    // Machine seconds, not labour: the printer does this by itself. One part's
+    // share of the plate's change time, plus the toolhead travel between the
+    // objects sharing the plate.
+    changeMinutes: changeMinutesPerPart + travelMinutesPerPart,
     hardwareExtraG: hardware.extraMaterialG,
     slicer: line.slicer,
     actual: line.actual,
@@ -320,9 +337,14 @@ export function calculateLine(line, settings, context = {}) {
   }
 
   const labourRate = resolveLabourRate(settings.labour, country.labourRate);
-  const labour = labourCost(settings.labour?.ops || [], {
-    quantity,
-    jobs: estimate.jobs,
+  // Internal orders carry no labour at all — the point is the machine cost, not
+  // what a person's time is worth. An empty labour result keeps every downstream
+  // figure (at-risk, recovered, the labour panel) honestly zero.
+  const labour = internal
+    ? { lines: [], rate: labourRate, minutes: 0, cost: 0, minutesPerUnit: 0, costPerUnit: 0 }
+    : labourCost(settings.labour?.ops || [], {
+      quantity,
+      jobs: estimate.jobs,
     // Only a change somebody has to make costs labour. A tool change and an
     // AMS purge cost machine time and plastic; nobody is standing there.
     colourChanges: manualChanges,
@@ -388,8 +410,11 @@ export function calculateLine(line, settings, context = {}) {
   // they are spent on the finished part, not on every attempt: a print that
   // fails never got resined, coded, assembled, or its loose parts boxed. The
   // manual colour-swap labour sits here too - it is work on the running print.
-  const direct = atRisk + (labourInCtc ? labourSafe : 0) + postProcess.cost
-    + hardware.afterCost + swap.labourCost;
+  // Internal drops the labour-based finishing (post-processing and manual swaps),
+  // keeping only the physical costs and the after-print components themselves.
+  const direct = atRisk + (labourInCtc ? labourSafe : 0)
+    + (internal ? 0 : postProcess.cost + swap.labourCost)
+    + hardware.afterCost;
 
   /* -- scrap ------------------------------------------------------------- */
 
@@ -411,9 +436,17 @@ export function calculateLine(line, settings, context = {}) {
 
   /* -- price ------------------------------------------------------------- */
 
-  const demand = context.demand || demandMultiplier(settings.demand);
-  const thirds = thirdsPrice(ctc, settings.thirds, demand.multiplier, labourRecovered);
-  if (thirds.belowCost) {
+  // Internal is priced at CTC exactly: no demand multiplier, and the commercial
+  // and profit tanks set to nothing, so the "price" is the cost. No discount
+  // either — there is nobody to discount for.
+  const demand = internal
+    ? { multiplier: 1, mode: 'internal', label: 'Internal (cost only)' }
+    : (context.demand || demandMultiplier(settings.demand));
+  const thirdsConfig = internal
+    ? { ...settings.thirds, commercialShare: 0, profitShare: 0, growthClientShare: 0 }
+    : settings.thirds;
+  const thirds = thirdsPrice(ctc, thirdsConfig, demand.multiplier, labourRecovered);
+  if (thirds.belowCost && !internal) {
     notes.push(note('warn',
       'At this demand setting the part sells for less than the job actually cost, '
       + 'labour included. Point demand at the commercial and profit shares to stop '
@@ -422,7 +455,7 @@ export function calculateLine(line, settings, context = {}) {
 
   const discount = applyDiscount(
     thirds.price,
-    line.discount || settings.discount || { kind: 'none' },
+    internal ? { kind: 'none' } : (line.discount || settings.discount || { kind: 'none' }),
     quantity,
     settings.volumeTiers,
   );

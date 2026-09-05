@@ -7,7 +7,7 @@ import {
   PROJECT_STATUSES, statusOf, statusFromPhase, phaseFromStatus,
 } from '../js/projects.js';
 import {
-  makeQuote, invoiceFromQuote, recordPayment, outstanding, isOverdue, lockedPricing,
+  makeQuote, invoiceFromQuote, recordPayment, agreeTotal, outstanding, isOverdue, lockedPricing,
   displayStatus, reprice, assumptionDrift, documentRows, snapshotAssumptions,
   QUOTE_STATUSES, INVOICE_STATUSES,
 } from '../js/documents.js';
@@ -224,6 +224,35 @@ test('a project becomes an order the engine can price', () => {
   assert.equal(result.separation.ok, true);
 });
 
+test('an internal order is priced at cost — no labour, no profit', () => {
+  const settings = defaultSettings();
+  const order = orderFromProject(addPart(makeProject({ internal: true }), samplePart()));
+  const internalR = calculateOrder(order, settings, { internal: true });
+  const customerR = calculateOrder(order, settings, {});
+
+  const line = internalR.lines[0];
+  assert.equal(line.production.labour, 0, 'no labour in an internal line');
+  assert.equal(line.price.commercial, 0, 'no growth tank');
+  assert.equal(line.price.profit, 0, 'no profit tank');
+  close(line.unitPrice, line.ctc, 1e-9, 'the price is exactly the cost to company');
+  close(internalR.totals.partPrice, internalR.totals.costToCompany, 1e-6, 'part price equals CTC');
+  assert.equal(internalR.separation.ok, true, 'the order is still internally consistent');
+  assert.ok(internalR.totals.partPrice < customerR.totals.partPrice,
+    'and it comes in below the customer price');
+});
+
+test('toolhead travel between objects lengthens a busy plate estimate', () => {
+  const none = { ...defaultSettings() };
+  none.estimate = { ...none.estimate, assumptions: { ...none.estimate.assumptions, travelSecondsPerObjectLayer: 0 } };
+  const lots = clone(none);
+  lots.estimate.assumptions.travelSecondsPerObjectLayer = 5;
+
+  const order = orderFromProject(addPart(makeProject(), samplePart({ quantity: 8 })));
+  const t0 = calculateOrder(order, none).lines[0].detail.machineMinutes;
+  const t1 = calculateOrder(order, lots).lines[0].detail.machineMinutes;
+  assert.ok(t1 > t0, 'more travel per object per layer means more machine time on a shared plate');
+});
+
 test('a project part with no loaded heads still prices as a single filament', () => {
   const project = addPart(makeProject(), samplePart());
   const result = calculateOrder(orderFromProject(project), defaultSettings());
@@ -327,6 +356,18 @@ test('repricing makes a new revision rather than editing the old one', () => {
   assert.equal(next.supersedes, quote.id);
   assert.notEqual(next.id, quote.id);
   assert.equal(quote.revision, 1, 'the original is untouched');
+});
+
+test('agreeTotal forces a document to the agreed figure and keeps it summing', () => {
+  const { quote } = pricedQuote();
+  const target = quote.total + 100;
+  const agreed = agreeTotal(quote, target);
+  close(agreed.total, target, 1e-9, 'total is the agreed figure the client paid');
+  const line = agreed.extras[agreed.extras.length - 1];
+  close(line.amount, 100, 0.01, 'the difference is one reconciling line');
+  close(agreed.net, quote.net + line.amount, 1e-9, 'the net includes it');
+  close(agreed.internal.profit, quote.internal.profit + line.amount, 1e-9,
+    'the surplus over the priced total is extra margin');
 });
 
 test('an invoice made from a quote keeps the quote’s numbers', () => {

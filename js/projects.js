@@ -172,6 +172,9 @@ export function makeProject(spec = {}) {
     status: 'draft',
     onHoldFrom: null,
     workflow: defaultWorkflow(),
+    // An internal order is priced at cost only — no labour, no profit — for
+    // prints the company makes for itself rather than for a paying customer.
+    internal: false,
     createdAt: at,
     modifiedAt: at,
     notes: '',

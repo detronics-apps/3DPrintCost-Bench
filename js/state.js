@@ -510,6 +510,24 @@ export function replaceProject(project) {
   return project;
 }
 
+/**
+ * Delete a project outright — for clearing the false ones made while testing or
+ * demonstrating. Its stock movements go with it, so nothing is left pointing at
+ * a project that no longer exists, and the open project is closed if it was this
+ * one. This is not reversible; the caller confirms.
+ */
+export function removeProject(id) {
+  const before = state.projects.length;
+  state.projects = state.projects.filter((p) => p.id !== id);
+  state.inventory.movements = state.inventory.movements.filter((m) => m.projectId !== id);
+  if (state.activeProjectId === id) {
+    state.activeProjectId = null;
+    state.activePartId = null;
+  }
+  save();
+  return before !== state.projects.length;
+}
+
 export function customerFor(project) {
   if (!project?.customerId) return null;
   return state.customers.find((c) => c.id === project.customerId) || null;

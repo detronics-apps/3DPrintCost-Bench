@@ -29,11 +29,14 @@ import {
 import {
   workflowState, advance, clientProgressReport, phaseName, PHASES,
 } from '../../workflow.js';
-import { makeQuote, invoiceFromQuote, recordPayment, lockedPricing } from '../../documents.js';
+import {
+  makeQuote, invoiceFromQuote, recordPayment, agreeTotal, lockedPricing,
+} from '../../documents.js';
 import { movementsForRun, materialStock } from '../../inventory.js';
 import { nextNumber } from '../../settings.js';
 import {
-  state, replaceProject, activeProject, activePart, saveSoon, customerFor, exportProject,
+  state, replaceProject, removeProject, activeProject, activePart, saveSoon,
+  customerFor, exportProject,
 } from '../../state.js';
 
 export const id = 'projects';
@@ -44,7 +47,7 @@ const commit = (project) => { replaceProject(project); };
 
 function priceProject(project, settings) {
   const customer = customerFor(project);
-  return calculateOrder(orderFromProject(project, { customer }), settings);
+  return calculateOrder(orderFromProject(project, { customer }), settings, { internal: !!project.internal });
 }
 
 /* ------------------------------------------------ shared document actions -- */
@@ -150,6 +153,15 @@ function projectList(ctx) {
       { label: 'Printed', align: 'right', mono: true, get: (r) => `${r.accepted}/${r.printed}` },
       { label: 'CTC', align: 'right', mono: true, get: (r) => fmtMoney(r.result.totals.costToCompany, code) },
       { label: 'Invoice', align: 'right', mono: true, get: (r) => fmtMoney(r.result.totals.finalInvoice, code) },
+      {
+        label: '',
+        get: (r) => button('Delete', () => {
+          if (!window.confirm(`Delete “${r.project.name}” for good? This cannot be undone.`)) return;
+          removeProject(r.project.id);
+          toast('Project deleted');
+          rerender();
+        }, { key: `delete-${r.project.id}`, danger: true }),
+      },
     ], rows),
   ];
 }
@@ -285,8 +297,16 @@ function workflowPanel(ctx, project, result) {
       return;
     }
     if (id === 'payment-received') {
-      const withInvoice = (project.quotes.length && !project.invoices.length)
-        ? createPaidInvoice(project) : project;
+      let p = project;
+      // An expedited order skipped the quote, so raise one now from the current
+      // pricing and lock it to the estimate the client actually paid.
+      if (!p.quotes.length) p = createQuote(p, result);
+      const agreed = p.workflow?.expedited ? p.workflow.expeditedTotal : null;
+      if (agreed != null) {
+        const last = p.quotes.length - 1;
+        p = { ...p, quotes: p.quotes.map((q, i) => (i === last ? agreeTotal(q, agreed) : q)) };
+      }
+      const withInvoice = p.invoices.length ? p : createPaidInvoice(p);
       commit(advance(withInvoice, 'payment-received'));
       rerender();
       return;
@@ -315,12 +335,20 @@ function workflowPanel(ctx, project, result) {
     rerender();
   };
 
-  // The awaiting-payment wait shows what is outstanding on the invoice.
+  // The awaiting-payment wait. An expedited order is one the client already paid
+  // from the estimate — so it says "verify proof of payment" rather than "waiting".
+  const expedited = project.workflow?.expedited;
+  const expeditedAmt = project.workflow?.expeditedTotal;
   const paymentNote = ws.phase.id === 'awaiting-payment'
-    ? muted(project.invoices.length
-      ? 'The quotation is issued. Record the payment when it arrives to approve production.'
-      : 'The quotation is issued. When payment arrives, “Payment received” raises the paid '
-        + 'invoice and starts production.')
+    ? (expedited
+      ? banner('info', `Expedited — the client paid the estimate`
+        + `${expeditedAmt != null ? ` of ${fmtMoney(expeditedAmt, result.currencyCode)}` : ''}. `
+        + 'Verify their proof of payment, then “Payment received” raises the invoice for that '
+        + 'figure and starts production.')
+      : muted(project.invoices.length
+        ? 'The quotation is issued. Record the payment when it arrives to approve production.'
+        : 'The quotation is issued. When payment arrives, “Payment received” raises the paid '
+          + 'invoice and starts production.'))
     : null;
 
   const quoteIssue = project.workflow?.quoteIssue
@@ -590,6 +618,12 @@ function projectSidebar(ctx, project, result) {
         state.customers.push(customer);
         setProject({ customerId: customer.id });
       }, { key: 'new-customer' })]),
+      checkField('project-internal', 'Internal order (cost only — no labour, no profit)',
+        !!project.internal, (v) => setProject({ internal: v }), {
+          hint: 'For prints the company makes for itself. Prices at the physical cost — material, '
+            + 'machine, electricity, hardware, the rejection and general allowances — with no '
+            + 'labour and no profit or margin.',
+        }),
       textField('project-notes', 'Notes', project.notes, (v) => setProject({ notes: v }), { multiline: true }),
     ]),
   ];

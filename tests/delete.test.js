@@ -41,6 +41,31 @@ test('without a tombstone, a missing shipped default IS restored (the behaviour 
     'the migration tops shipped defaults back up — which is why Delete needs the tombstone');
 });
 
+test('expedite mode defaults to off on an older settings blob', () => {
+  const migrated = migrateSettings({ version: 1, customerPortal: { enabled: true } });
+  assert.ok(['off', 'optional', 'only'].includes(migrated.customerPortal.expediteMode));
+  assert.equal(migrated.customerPortal.expediteMode, 'off', 'the safe default');
+});
+
+test('a deleted labour operation is tombstoned and not topped back up', () => {
+  const s = defaultSettings();
+  const victim = s.labour.ops[0];
+  assert.ok(victim, 'there is a shipped labour operation to delete');
+
+  s.labour.ops = s.labour.ops.filter((op) => op.id !== victim.id);
+  s.removed = { labourOps: [victim.id] };
+  const migrated = migrateSettings(s);
+  assert.ok(!migrated.labour.ops.some((op) => op.id === victim.id),
+    'the tombstoned operation stays gone through a migration');
+
+  // Without the tombstone it would come back — the behaviour the tombstone guards.
+  const s2 = defaultSettings();
+  s2.labour.ops = s2.labour.ops.filter((op) => op.id !== victim.id);
+  const migrated2 = migrateSettings(s2);
+  assert.ok(migrated2.labour.ops.some((op) => op.id === victim.id),
+    'a missing shipped operation is otherwise restored');
+});
+
 test('a custom entry is not a shipped default, so tombstoning it is harmless and it stays gone', () => {
   const s = defaultSettings();
   s.hardware.push({ ...DEFAULT_HARDWARE[0], id: 'hw-custom-1', name: 'My widget', partNumber: 'LOG-001' });

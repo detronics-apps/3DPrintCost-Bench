@@ -166,6 +166,31 @@ test('a structured address composes into the customer, keeping both forms', () =
   assert.equal(req.customer.addressParts.postalCode, '2196');
 });
 
+test('an expedited request lands in awaiting payment with the paid figure on the workflow', () => {
+  const req = portalRequest({
+    company: { name: 'Detronics' }, printerId: 'bambu-x1e', parts: [selection()],
+    customer: customer(), order: {}, quotedTotal: 972.5, currencyCode: 'ZAR', expedited: true,
+  });
+  assert.equal(req.expedited, true, 'the payload is flagged expedited');
+  assert.equal(req.project.phase, 'awaiting-payment', 'it skips quotation');
+  assert.equal(req.project.workflow.expedited, true);
+  assert.equal(req.project.workflow.expeditedTotal, 972.5, 'the paid estimate is carried');
+  assert.match(req.project.notes, /EXPEDITED/);
+
+  const migrated = migrateProject(req.project);
+  assert.equal(migrated.phase, 'awaiting-payment', 'the phase survives migration');
+  assert.equal(migrated.workflow.expedited, true, 'and so does the expedite marker');
+});
+
+test('a normal request still starts in Quotation and is not expedited', () => {
+  const req = portalRequest({
+    company: { name: 'Detronics' }, printerId: 'bambu-x1e', parts: [selection()],
+    customer: customer(), order: {}, quotedTotal: 500, currencyCode: 'ZAR',
+  });
+  assert.equal(req.expedited, false);
+  assert.equal(req.project.phase, 'quotation');
+});
+
 test('the export carries its validity window', () => {
   const req = portalRequest({
     company: { name: 'Detronics' }, printerId: 'bambu-x1e', parts: [selection()],

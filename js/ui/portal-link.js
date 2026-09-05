@@ -11,7 +11,7 @@
 
 import { portalConfig } from '../portal-config.js';
 
-export function portalLink(settings) {
+export function portalLink(settings, { internal = false } = {}) {
   const base = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}quote.html`;
-  return `${base}#${encodeURIComponent(JSON.stringify(portalConfig(settings)))}`;
+  return `${base}#${encodeURIComponent(JSON.stringify(portalConfig(settings, { internal })))}`;
 }
