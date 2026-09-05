@@ -70,6 +70,9 @@ export function makeMovement(spec = {}) {
     unitCost: null,
     projectId: null,
     partId: null,
+    /** The production attempt this movement belongs to, so deleting that print
+     *  can take its stock back out again. Null for movements not tied to a run. */
+    runId: null,
     note: '',
     ...spec,
   };
@@ -132,6 +135,7 @@ export function movementsForRun({
       unitCost: pricePerGram(material, settings.countryId),
       projectId: project?.id || null,
       partId: part.id,
+      runId: attempt.id || null,
       note: `${attempt.failed ? 'Failed print' : 'Print'} of ${part.name}`,
     }));
   }
@@ -148,6 +152,7 @@ export function movementsForRun({
       unitCost: itemPrice(spec, settings.countryId),
       projectId: project?.id || null,
       partId: part.id,
+      runId: attempt.id || null,
       note: spec.name,
     }));
   }

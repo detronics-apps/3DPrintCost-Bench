@@ -315,6 +315,25 @@ export function recordAttempt(project, partId, attempt) {
 }
 
 /**
+ * Drop a recorded print.
+ *
+ * A print gets recorded once too often - the button was clicked twice, or the
+ * plate was planned and never actually run - and there has to be a way to take
+ * it back out. The stock the print booked out is reversed by the caller, which
+ * owns the movement log; this only touches the part's own history.
+ */
+export function removeAttempt(project, partId, attemptId) {
+  return touch({
+    ...project,
+    parts: project.parts.map((p) => (
+      p.id === partId
+        ? { ...p, attempts: (p.attempts || []).filter((a) => a.id !== attemptId) }
+        : p
+    )),
+  });
+}
+
+/**
  * What actually happened to this part.
  *
  * Estimated-versus-actual is reported as a ratio as well as a difference,

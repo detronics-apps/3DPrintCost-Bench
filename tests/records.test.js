@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart,
   duplicatePart, duplicateProject, nextRevision, setStatus, archiveProject,
-  recordAttempt, partStats, projectStats, migrateProject, orderFromProject,
+  recordAttempt, removeAttempt, partStats, projectStats, migrateProject, orderFromProject,
   PROJECT_STATUSES, statusOf,
 } from '../js/projects.js';
 import {
@@ -112,6 +112,49 @@ test('part statistics compare estimate with actual as a ratio', () => {
 
   const rolled = projectStats(project);
   assert.equal(rolled.accepted, 3);
+});
+
+test('a recorded print can be deleted by id, leaving the others', () => {
+  let project = addPart(makeProject(), samplePart());
+  const partId = project.parts[0].id;
+  project = recordAttempt(project, partId, { quantity: 1, accepted: 1, minutes: 100, grams: 50 });
+  project = recordAttempt(project, partId, { quantity: 1, accepted: 1, minutes: 110, grams: 55 });
+  const [first, second] = project.parts[0].attempts;
+
+  const after = removeAttempt(project, partId, first.id);
+  assert.equal(after.parts[0].attempts.length, 1, 'one print is gone');
+  assert.equal(after.parts[0].attempts[0].id, second.id, 'the right one remained');
+  assert.equal(project.parts[0].attempts.length, 2, 'the original project is untouched');
+});
+
+test('deleting a missing attempt is a no-op that changes nothing important', () => {
+  let project = addPart(makeProject(), samplePart());
+  const partId = project.parts[0].id;
+  project = recordAttempt(project, partId, { quantity: 1, accepted: 1, minutes: 100, grams: 50 });
+  const after = removeAttempt(project, partId, 'no-such-run');
+  assert.equal(after.parts[0].attempts.length, 1);
+});
+
+test('the movements a print books out carry the run id, so a delete can reverse them', () => {
+  const settings = defaultSettings();
+  const part = samplePart({ hardware: [{ hardwareId: 'magnet-6x3', qty: 2 }] });
+  let project = addPart(makeProject(), part);
+  project = recordAttempt(project, part.id, { quantity: 4, accepted: 4, grams: 160 });
+  const created = project.parts[0].attempts.at(-1);
+
+  const movements = movementsForRun({
+    project, part, attempt: created, settings,
+  });
+  assert.ok(movements.length >= 1);
+  assert.ok(movements.every((m) => m.runId === created.id),
+    'every movement is tagged with the attempt it belongs to');
+
+  // The delete reverses exactly this run's movements and no other.
+  const other = makeMovement({ itemId: 'material:petg-dark-grey', reason: 'purchase', quantity: 1000 });
+  const log = [...movements, other];
+  const afterDelete = log.filter((m) => m.runId !== created.id);
+  assert.equal(afterDelete.length, 1);
+  assert.equal(afterDelete[0].id, other.id, 'unrelated stock is left alone');
 });
 
 test('a part never printed reports no data rather than a confident zero', () => {

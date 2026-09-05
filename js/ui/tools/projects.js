@@ -22,7 +22,7 @@ import { materialPickerWithAdd } from '../material-picker.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart, duplicatePart,
-  duplicateProject, setStatus, recordAttempt, partStats, orderFromProject,
+  duplicateProject, setStatus, recordAttempt, removeAttempt, partStats, orderFromProject,
   PROJECT_STATUSES, statusOf,
 } from '../../projects.js';
 import { makeQuote, invoiceFromQuote, lockedPricing } from '../../documents.js';
@@ -197,6 +197,15 @@ function partsPanel(ctx, project, result) {
           ? `${r.stats.accepted}/${r.stats.printed}`
           : muted('—')),
       },
+      {
+        label: '',
+        get: (r) => button('Remove', () => {
+          if (!window.confirm(`Remove ${r.part.name} from this project?`)) return;
+          commit(removePart(project, r.part.id));
+          if (state.activePartId === r.part.id) state.activePartId = null;
+          rerender();
+        }, { key: `list-remove-${r.part.id}`, danger: true }),
+      },
     ], rows) : muted('No parts yet.'),
   ]);
 }
@@ -233,9 +242,12 @@ function productionPanel(ctx, project, result) {
         };
         const next = recordAttempt(project, part.id, attempt);
         commit(next);
-        // Stock follows production, and only production.
+        // Stock follows production, and only production. Book it against the
+        // attempt that was just created (with its id), so deleting that print
+        // later can find and reverse exactly these movements.
+        const created = next.parts.find((p) => p.id === part.id).attempts.at(-1);
         const movements = movementsForRun({
-          project: next, part, attempt, result: line, settings: state.settings,
+          project: next, part, attempt: created, result: line, settings: state.settings,
         });
         state.inventory.movements.push(...movements);
         saveSoon();
@@ -310,6 +322,21 @@ function productionPanel(ctx, project, result) {
           r.attempt.failureReason = v;
           commit({ ...project });
         }, { placeholder: r.attempt.failed ? 'Root cause' : '' }),
+      },
+      {
+        label: '',
+        get: (r) => button('Delete', () => {
+          if (!window.confirm('Delete this recorded print? The stock it used is put '
+            + 'back.')) return;
+          commit(removeAttempt(project, part.id, r.attempt.id));
+          // This print did not happen, so its stock movements come back out
+          // rather than being offset by a compensating return.
+          state.inventory.movements = state.inventory.movements
+            .filter((m) => m.runId !== r.attempt.id);
+          saveSoon();
+          toast('Print deleted — stock restored');
+          rerender();
+        }, { key: `del-run-${r.attempt.id}`, danger: true }),
       },
     ], rows, { compact: true }) : null,
   ]);

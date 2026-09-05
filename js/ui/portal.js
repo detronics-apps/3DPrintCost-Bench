@@ -22,7 +22,7 @@
  */
 
 import { el, clear, toast, download } from './dom.js';
-import { capDiagramScale } from './patterns.js';
+import { capDiagramScale, captureFocus, restoreFocus } from './patterns.js';
 import {
   numberField, selectField, checkField, chips, button, buttonRow, banner, statTile, table, muted, emptyState,
 } from './controls.js';
@@ -388,6 +388,11 @@ function requestText(result) {
 
 function render() {
   const host = document.getElementById('portal');
+  // The portal rebuilds the whole page on every edit — the same one render path
+  // the internal app uses — so it must not throw away where the reader was
+  // scrolled to or which field they had focus in. Adding a head or a part four
+  // panels down otherwise snaps the page to the top (pitfalls #21).
+  const snapshot = captureFocus({ page: document.scrollingElement });
   clear(host);
 
   if (!state.config) {
@@ -598,6 +603,7 @@ function render() {
 
   for (const node of nodes) if (node) host.appendChild(node);
   capDiagramScale(host);
+  restoreFocus(snapshot, { page: document.scrollingElement });
 }
 
 function init() {
