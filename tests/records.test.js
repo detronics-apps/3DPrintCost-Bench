@@ -224,6 +224,23 @@ test('a project becomes an order the engine can price', () => {
   assert.equal(result.separation.ok, true);
 });
 
+test('NFC coding is opt-in — charged only when the part is ticked to code it', () => {
+  const settings = defaultSettings();
+  settings.postProcessing = {
+    ...settings.postProcessing,
+    nfc: { ...(settings.postProcessing?.nfc || {}), codingMinutes: 5 },
+  };
+  const tagged = () => samplePart({ hardware: [{ hardwareId: 'nfc-ntag215', qty: 1 }] });
+  const off = calculateOrder(orderFromProject(
+    addPart(makeProject(), { ...tagged(), nfcCode: false })), settings).lines[0];
+  const on = calculateOrder(orderFromProject(
+    addPart(makeProject(), { ...tagged(), nfcCode: true })), settings).lines[0];
+
+  assert.equal(off.detail.postProcess.nfcTags, 0, 'a tag embedded is not coded automatically');
+  assert.ok(on.detail.postProcess.nfcTags > 0, 'it is coded once ticked');
+  assert.ok(on.production.postProcess > off.production.postProcess, 'and only then does it cost');
+});
+
 test('an internal order is priced at cost — no labour, no profit', () => {
   const settings = defaultSettings();
   const order = orderFromProject(addPart(makeProject({ internal: true }), samplePart()));

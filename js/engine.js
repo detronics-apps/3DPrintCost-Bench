@@ -378,7 +378,9 @@ export function calculateLine(line, settings, context = {}) {
   const postProcess = postProcessing({
     needsResin: !!line.needsResin,
     areaCm2: topAreaCm2(orientedSize),
-    nfcCount: hardware.nfc,
+    // NFC coding is opt-in: only the parts the operator ticked to code are
+    // charged for it, never automatically because a tag is embedded.
+    nfcCount: line.nfcCode ? hardware.nfc : 0,
     // Fitting after-print hardware onto the finished part is post-processing too.
     fitMinutes: hardware.fitMinutes,
     config: settings.postProcessing,

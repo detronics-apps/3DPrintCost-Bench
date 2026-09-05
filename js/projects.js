@@ -144,6 +144,9 @@ export function makePart(spec = {}) {
     needsSupport: false,
     needsResin: false,
     needsDeburring: false,
+    // Coding an embedded NFC tag is opt-in; nfcUrl is the link it should carry.
+    nfcCode: false,
+    nfcUrl: '',
     partsPerPlateOverride: 0,
     otherDirectCost: 0,
 
@@ -560,6 +563,7 @@ export function orderFromProject(project, { customer = null } = {}) {
       needsSupport: part.needsSupport,
       needsResin: part.needsResin,
       needsDeburring: part.needsDeburring,
+      nfcCode: part.nfcCode,
       partsPerPlateOverride: part.partsPerPlateOverride,
       otherDirectCost: part.otherDirectCost,
       estimateMethod: part.estimateMethod,

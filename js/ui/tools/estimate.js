@@ -86,6 +86,7 @@ function partToLine(part, quick) {
     needsSupport: part.needsSupport,
     needsResin: part.needsResin,
     needsDeburring: part.needsDeburring,
+    nfcCode: part.nfcCode,
     partsPerPlateOverride: part.partsPerPlateOverride,
     otherDirectCost: part.otherDirectCost,
     estimateMethod: part.estimateMethod,
@@ -735,13 +736,20 @@ function postProcessingSubsection(part, key, set, rerender, catalogue) {
       })),
   ];
   if (nfcOnPart) {
-    body.push(muted('This part has an NFC tag, so coding it is added here automatically. '
-      + 'Set the coding time in Settings → Labour → Post-processing.'));
+    body.push(checkField(`nfc-${key}`, 'Code the NFC tag', !!part.nfcCode, set('nfcCode'), {
+      hint: 'This part has an embedded NFC tag. Tick to code it — the coding time is set in '
+        + 'Settings → Labour → Post-processing.',
+    }));
+    if (part.nfcCode) {
+      body.push(textField(`nfc-url-${key}`, 'Link to code onto the tag', part.nfcUrl || '',
+        set('nfcUrl'), { placeholder: 'https://…' }));
+    }
   }
 
-  const active = part.needsSupport || part.needsResin || part.needsDeburring
-    || nfcOnPart || afterEntries.some((x) => x.e.fit === true);
-  return subsection('Post-processing', body, { open: active });
+  // Collapsed by default: a part that ships straight off the printer needs none
+  // of this, so it stays out of the way until opened. The open/closed choice is
+  // remembered per part.
+  return section(`pp-${key}`, 'Post-processing', body, { open: false });
 }
 
 /**
@@ -1165,6 +1173,12 @@ function exportSection(ctx) {
             mix: Array.isArray(part.mix) ? part.mix.map((m) => ({ ...m })) : null,
             hardware: part.hardware.map((h) => ({ ...h })),
             complexity: part.complexity,
+            // The post-processing choices belong to the part, so they travel too.
+            needsSupport: part.needsSupport,
+            needsResin: part.needsResin,
+            needsDeburring: part.needsDeburring,
+            nfcCode: part.nfcCode,
+            nfcUrl: part.nfcUrl,
             // A project's slicer figures are totals for the whole print; the
             // estimator's are per part, so scale them up on the way in.
             slicer: totalSlicer(part.slicer, part.quantity),

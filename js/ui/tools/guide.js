@@ -155,8 +155,9 @@ export function main() {
         }),
         statTile('Post-processing', 'Estimate + Settings', {
           hint: 'Tick “Resin coat” on a part and the resin and the time to lay it on are priced '
-            + 'by the top area, with a curing time after. An embedded NFC tag adds its coding time '
-            + 'on its own. Set the rates in Settings → Labour → Post-processing.',
+            + 'by the top area, with a curing time after. If a part has an embedded NFC tag, tick '
+            + '“Code the NFC tag” to charge the coding and enter the link it should carry — it is '
+            + 'opt-in, never automatic. Set the rates in Settings → Labour → Post-processing.',
         }),
         statTile('Fill a plate, save', 'Estimate + customer form', {
           hint: 'A chart shows the price per part for one against a full plate, so a customer can '
