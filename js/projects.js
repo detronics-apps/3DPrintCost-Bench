@@ -499,12 +499,34 @@ export function orderFromProject(project, { customer = null } = {}) {
       partsPerPlateOverride: part.partsPerPlateOverride,
       otherDirectCost: part.otherDirectCost,
       estimateMethod: part.estimateMethod,
-      slicer: part.slicer,
+      slicer: perPartSlicer(part),
       actual: latestActual(part),
       discount: part.discount || customer?.discount || null,
       partId: part.id,
       name: part.name,
     })),
+  };
+}
+
+/**
+ * Slicer figures on a project part are entered as TOTALS for the whole print of
+ * that part — the grams off each head and the print time the slicer reports for
+ * the plate as sliced, not per single unit. The engine works per part and
+ * multiplies back up by quantity, so the totals are divided down to a per-part
+ * share here. (Recorded production figures do the same, in `latestActual`.)
+ */
+function perPartSlicer(part) {
+  const slicer = part.slicer;
+  if (!slicer) return null;
+  const qty = Math.max(1, num(part.quantity, 1));
+  if (qty === 1) return slicer;
+  return {
+    ...slicer,
+    grams: slicer.grams != null ? num(slicer.grams) / qty : slicer.grams,
+    minutes: slicer.minutes != null ? num(slicer.minutes) / qty : slicer.minutes,
+    heads: Array.isArray(slicer.heads)
+      ? slicer.heads.map((h) => ({ ...h, grams: num(h.grams) / qty }))
+      : slicer.heads,
   };
 }
 

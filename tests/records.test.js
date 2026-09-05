@@ -225,22 +225,34 @@ test('a project part with no loaded heads still prices as a single filament', ()
   assert.equal(result.lines[0].filaments.length, 1, 'unchanged single-colour behaviour');
 });
 
-test('per-head slicer grams drive a project part’s material, overriding the mix', () => {
+test('per-head slicer grams are TOTALS: divided across the quantity, and they override the mix', () => {
   const settings = defaultSettings();
   const part = samplePart({
+    quantity: 4,
     printerId: 'snapmaker-u1',
     slots: [{ id: 's1', materialId: 'petg-dark-grey' }, { id: 's2', materialId: 'pla-dark-grey' }],
     mix: [{ slotId: 's1', percent: 50 }, { slotId: 's2', percent: 50 }],
-    // The slicer says 70/30, not the 50/50 the mix would imply.
-    slicer: { grams: 100, minutes: 200, heads: [{ slotId: 's1', grams: 70 }, { slotId: 's2', grams: 30 }] },
+    // The slicer's TOTAL for the whole print of four: 280 g PETG + 120 g PLA.
+    slicer: { grams: 400, minutes: 800, heads: [{ slotId: 's1', grams: 280 }, { slotId: 's2', grams: 120 }] },
   });
-  const project = addPart(makeProject(), part);
-  const line = calculateOrder(orderFromProject(project), settings).lines[0];
+  const line = calculateOrder(orderFromProject(addPart(makeProject(), part)), settings).lines[0];
   assert.equal(line.estimate.method, 'slicer', 'the sliced figures are the ones in use');
   const one = line.filaments.find((f) => f.slotId === 's1');
   const two = line.filaments.find((f) => f.slotId === 's2');
-  close(one.grams, 70, 1e-9, 'head one is the slicer’s weight, not half');
-  close(two.grams, 30, 1e-9, 'head two is the slicer’s weight, not half');
+  close(one.grams, 70, 1e-9, 'per part is the total ÷ quantity (280 / 4), not the whole 280');
+  close(two.grams, 30, 1e-9, 'likewise for the second head (120 / 4)');
+  // The order as a whole uses the slicer total, never total × quantity.
+  const orderG = line.filaments.reduce((t, f) => t + f.grams, 0) * line.quantity;
+  close(orderG, 400, 1e-9, 'the order material is 400 g, not 400 × 4');
+});
+
+test('a flat slicer total is divided across the quantity, not multiplied by it', () => {
+  const settings = defaultSettings();
+  const part = samplePart({ quantity: 5, slicer: { grams: 500, minutes: 1000 } });
+  const line = calculateOrder(orderFromProject(addPart(makeProject(), part)), settings).lines[0];
+  assert.equal(line.estimate.method, 'slicer');
+  close(line.estimate.minutes, 200, 1e-9, 'per-part print time is the total (1000) over the quantity (5)');
+  close(line.filaments[0].grams, 100, 0.6, 'per-part material is the total (500) over the quantity (5)');
 });
 
 test('a project part carries its loaded heads, and the engine prices every one', () => {

@@ -561,23 +561,25 @@ function slicerFigures(part, liveSlots, settings, set) {
     set({ slicer: { ...slicer, heads, grams: total } });
   };
 
+  const qty = Math.max(1, num(part.quantity, 1));
   const gramFields = liveSlots.map((s, i) => {
     const material = findMaterial(settings.materials, s.materialId);
     return numberField(`part-slicer-g-${part.id}-${i}`,
-      liveSlots.length > 1 ? `${materialLabel(material)} — material` : 'Material',
+      liveSlots.length > 1 ? `${materialLabel(material)} — total` : 'Total material',
       headGrams(s.id), (v) => setHeadGrams(s.id, v), { min: 0, suffix: 'g' });
   });
 
   return subsection('Slicer figures', [
-    muted('Once you have sliced it, paste the grams for each head and the total print '
-      + 'time. These outrank the app’s own geometry.'),
+    muted(`Once you have sliced it, paste the slicer’s TOTALS for the whole print`
+      + `${qty > 1 ? ` of all ${qty}` : ''} — the grams off each head and the total print `
+      + 'time — not the figure per part. These outrank the app’s own geometry.'),
     ...gramFields,
     numberField(`part-slicer-min-${part.id}`, 'Total print time', slicer.minutes ?? 0,
       (v) => set({ slicer: { ...slicer, minutes: num(v) } }), { min: 0, suffix: 'min' }),
   ], {
-    hint: liveSlots.length > 1
-      ? 'One weight per loaded head, and one print time for the whole plate.'
-      : null,
+    hint: qty > 1
+      ? `The whole print, not per part — the app divides across the ${qty} for you.`
+      : 'The whole print as the slicer reports it.',
   });
 }
 
