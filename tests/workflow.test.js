@@ -146,6 +146,38 @@ test('cancel is a terminal off-ramp that can be reopened to where it was', () =>
   assert.equal(reopened.phase, 'packaging');
 });
 
+/* ------------------------------------------------------- back a phase ----- */
+
+test('back a phase returns to the previous one and reopens its decision', () => {
+  let p = advance(toProduction(order()), 'inspection-pass'); // packaging (no post-processing)
+  assert.equal(p.phase, 'packaging');
+  p = advance(p, 'back');
+  assert.equal(p.phase, 'production', 'no post-processing, so packaging steps back to production');
+  assert.equal(p.workflow.inspection, null, 'the inspection decision is reopened');
+  assert.equal(lastEvent(p).type, 'stepped-back');
+});
+
+test('back respects post-processing and clears its completion', () => {
+  let p = advance(toProduction(order({ needsResin: true })), 'inspection-pass'); // post-processing
+  p = advance(p, 'post-processing-done'); // packaging
+  p = advance(p, 'back');
+  assert.equal(p.phase, 'post-processing', 'it steps back through post-processing when it applies');
+  assert.equal(p.workflow.postProcessingDoneAt, null);
+});
+
+test('back from Production returns to Awaiting payment and clears the payment marker', () => {
+  const p = advance(toProduction(order()), 'back');
+  assert.equal(p.phase, 'awaiting-payment');
+  assert.equal(p.workflow.paymentReceivedAt, null);
+});
+
+test('there is no Back before Quotation', () => {
+  assert.ok(!workflowState(order()).actions.some((a) => a.id === 'back'),
+    'quotation is the first phase, so there is nothing behind it');
+  assert.ok(workflowState(advance(order(), 'send-quote')).actions.some((a) => a.id === 'back'),
+    'but awaiting payment can step back');
+});
+
 /* ---------------------------------------------------- overall progress ---- */
 
 test('overall progress increases as the order moves down the phases', () => {

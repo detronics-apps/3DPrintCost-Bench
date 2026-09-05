@@ -197,6 +197,8 @@ function actionsFor(project) {
     default:
       break;
   }
+  // Step back a phase — available wherever there is a phase behind this one.
+  if (phase !== 'quotation') main.push({ id: 'back', label: '← Back a phase' });
   // On-hold and Cancel are available from every active phase.
   main.push({ id: 'hold', label: 'Put on hold' });
   main.push({ id: 'cancel', label: 'Cancel order', tone: 'danger' });
@@ -323,6 +325,32 @@ const TRANSITIONS = {
     workflow: { cancelledFrom: null },
     event: { type: 'reopened', text: 'Order reopened', phaseFrom: 'cancelled', phaseTo: p.workflow?.cancelledFrom || 'quotation' },
   }),
+  // Step back to the previous phase, reopening its decision by clearing the
+  // marker that had advanced INTO the current one — so a job pulled back out of
+  // Packaging shows Production as unfinished again, not still at 100%.
+  back: (p) => {
+    const cur = effectivePhase(p);
+    const i = PHASE_ORDER.indexOf(cur);
+    if (i <= 0) return {};
+    const pp = postProcessingRequired(p);
+    let j = i - 1;
+    while (j >= 0 && PHASE_ORDER[j] === 'post-processing' && !pp) j -= 1;
+    if (j < 0) return {};
+    const prev = PHASE_ORDER[j];
+    const clearOnLeaving = {
+      'awaiting-payment': {},
+      production: { paymentReceivedAt: null },
+      'post-processing': { inspection: null },
+      packaging: pp ? { postProcessingDoneAt: null } : { inspection: null },
+      delivery: { readyForCollectionAt: null },
+      closeout: { deliveredAt: null },
+    };
+    return {
+      phase: prev,
+      workflow: clearOnLeaving[cur] || {},
+      event: { type: 'stepped-back', text: `Stepped back to ${phaseName(prev)}`, phaseFrom: p.phase, phaseTo: prev },
+    };
+  },
 };
 
 /** Apply a workflow action, returning a new project (pure). */
