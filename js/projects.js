@@ -335,7 +335,11 @@ export function duplicateProject(project, { name } = {}) {
     id: makeId('proj'),
     number: '',
     name: name || `${project.name} (copy)`,
+    // A copy starts a fresh order: back at Quotation, no history, no documents.
+    phase: 'quotation',
     status: 'draft',
+    onHoldFrom: null,
+    workflow: defaultWorkflow(),
     createdAt: at,
     modifiedAt: at,
     quotes: [],

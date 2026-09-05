@@ -724,3 +724,18 @@
 
 .table tbody tr.is-group td { background: var(--panel-2); font-weight: 600; }
 .table tbody tr.is-group:hover { background: var(--panel-2); }
+
+/* Workflow progress bars — the overall order bar and the current-phase bar. */
+.progressbar { margin: 10px 0; }
+.progressbar__label {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13px; color: var(--text-dim); margin-bottom: 5px;
+}
+.progressbar__track {
+  height: 9px; border-radius: 999px; background: var(--panel-2);
+  border: 1px solid var(--border); overflow: hidden;
+}
+.progressbar__fill {
+  height: 100%; background: var(--accent); border-radius: 999px;
+  transition: width .25s ease; min-width: 2px;
+}

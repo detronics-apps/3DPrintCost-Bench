@@ -13,7 +13,7 @@ import {
 } from '../controls.js';
 import { moneyDiagram } from '../svg/money.js';
 import { explainLine, explainOrder } from '../explain.js';
-import { downloadJson, downloadCsv, orderCsv } from '../export.js';
+import { downloadJson, downloadCsv, orderCsv, copyText } from '../export.js';
 import { readMesh } from '../../mesh.js';
 import { platformInflate } from '../../zip.js';
 import { analyse, fmtSize, mm3ToCm3 } from '../../geometry.js';
@@ -24,10 +24,12 @@ import { findMaterial, materialLabel } from '../../materials.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart, duplicatePart,
-  duplicateProject, setStatus, recordAttempt, removeAttempt, partStats, orderFromProject,
-  PROJECT_STATUSES, PROJECT_PIPELINE, statusOf, nextStatus, prevStatus, pipelineIndex,
+  duplicateProject, recordAttempt, removeAttempt, partStats, orderFromProject, logEvent,
 } from '../../projects.js';
-import { makeQuote, invoiceFromQuote, lockedPricing } from '../../documents.js';
+import {
+  workflowState, advance, clientProgressReport, phaseName, PHASES,
+} from '../../workflow.js';
+import { makeQuote, invoiceFromQuote, recordPayment, lockedPricing } from '../../documents.js';
 import { movementsForRun, materialStock } from '../../inventory.js';
 import { nextNumber } from '../../settings.js';
 import {
@@ -48,10 +50,11 @@ function priceProject(project, settings) {
 /* ------------------------------------------------ shared document actions -- */
 
 /**
- * Create a quote and move the project to Quoted. Shared by the sidebar and the
- * workflow stepper, so there is exactly one path that raises a quote.
+ * Create a quote from the current pricing and return the project with it added
+ * and the event logged. Does NOT change the phase — the caller (the send-quote
+ * action) advances the workflow once the quote exists.
  */
-function createQuote(project, result, rerender) {
+function createQuote(project, result) {
   const settings = state.settings;
   const { number, numbering } = nextNumber(settings, 'quote');
   settings.numbering = numbering;
@@ -63,38 +66,41 @@ function createQuote(project, result, rerender) {
     order: orderFromProject(project),
     settings,
   });
-  commit(setStatus({ ...project, quotes: [...project.quotes, quote] }, 'quoted', `Quote ${number}`));
   state.activeDocumentId = quote.id;
   toast(`Quote ${number} created`);
-  rerender();
+  return logEvent({ ...project, quotes: [...project.quotes, quote] }, 'quote-created', `Quote ${number} created`);
 }
 
-/** Invoice the latest quote and move the project to Invoiced. Shared likewise. */
-function createInvoice(project, rerender) {
+/**
+ * Raise the invoice for the latest quote and mark it paid — payment is the
+ * client's acceptance. Returns the project with the invoice added and logged.
+ */
+function createPaidInvoice(project) {
   const settings = state.settings;
   const quote = project.quotes[project.quotes.length - 1];
+  if (!quote) return project;
   const { number, numbering } = nextNumber(settings, 'invoice');
   settings.numbering = numbering;
-  const invoice = invoiceFromQuote(quote, { number, dueDays: 14 });
-  commit(setStatus({ ...project, invoices: [...project.invoices, invoice] }, 'invoiced', `Invoice ${number}`));
+  const issued = invoiceFromQuote(quote, { number, dueDays: 14 });
+  const invoice = recordPayment(issued, issued.total);
   state.activeDocumentId = invoice.id;
-  state.tool = 'documents';
-  toast(`Invoice ${number} created`);
-  rerender();
+  toast(`Invoice ${number} — recorded paid`);
+  return logEvent({ ...project, invoices: [...project.invoices, invoice] }, 'invoice-paid',
+    `Invoice ${number} issued and marked paid`);
 }
 
-/** One line of guidance per stage: what it means, and what to do to advance. */
-const STAGE_GUIDE = {
-  draft: 'Getting the parts, printer and quantities right. Quote it when it looks complete.',
-  quoted: 'The customer has a price. Mark it Accepted when they say yes — or step back to change it.',
-  accepted: 'Agreed. Raise the invoice so the work can be scheduled and paid for.',
-  invoiced: 'Invoice sent. Mark it Paid once the money is in.',
-  paid: 'Paid. Move it into production.',
-  'in-production': 'On the machines. Record each print in the Production panel below as it happens.',
-  complete: 'Finished and delivered. Nothing more to do.',
-  cancelled: 'This job was cancelled. Step it back onto the pipeline to revive it.',
-  archived: 'Archived and out of the way.',
-};
+/** The pill tone for a phase, so a phase reads at a glance in a list. */
+function phaseTone(phase) {
+  switch (phase) {
+    case 'closeout':
+    case 'closed': return 'ok';
+    case 'awaiting-payment':
+    case 'production':
+    case 'on-hold': return 'warn';
+    case 'cancelled': return 'danger';
+    default: return 'info';
+  }
+}
 
 /* ----------------------------------------------------------------- list -- */
 
@@ -139,7 +145,7 @@ function projectList(ctx) {
         }, { key: `open-${r.project.id}` }),
       },
       { label: 'Customer', get: (r) => r.project.customerName || customerFor(r.project)?.name || '—' },
-      { label: 'Status', get: (r) => pill(statusOf(r.project.status).name, statusOf(r.project.status).tone) },
+      { label: 'Phase', get: (r) => pill(phaseName(r.project.phase), phaseTone(r.project.phase)) },
       { label: 'Parts', align: 'right', mono: true, get: (r) => String(r.project.parts.length) },
       { label: 'Printed', align: 'right', mono: true, get: (r) => `${r.accepted}/${r.printed}` },
       { label: 'CTC', align: 'right', mono: true, get: (r) => fmtMoney(r.result.totals.costToCompany, code) },
@@ -161,7 +167,6 @@ function newProject(rerender) {
 function projectHeader(ctx, project, result) {
   const { rerender } = ctx;
   const code = result.currencyCode;
-  const status = statusOf(project.status);
 
   // Once a project has been invoiced its price is settled: the numbers come off
   // the invoice, frozen, and later changes to the labour rate or the material
@@ -183,7 +188,7 @@ function projectHeader(ctx, project, result) {
       ]),
       el('div', { class: 'btn-row' }, [
         locked ? pill(`Locked · ${locked.number}`, 'ok') : null,
-        pill(status.name, status.tone),
+        pill(phaseName(project.phase), phaseTone(project.phase)),
         button('Back to the list', () => {
           state.activeProjectId = null;
           saveSoon();
@@ -208,56 +213,166 @@ function projectHeader(ctx, project, result) {
   ].filter(Boolean));
 }
 
+/** A labelled progress bar. Width is the only thing that changes, per render. */
+function progressBar(label, fraction) {
+  const pct = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+  return el('div', { class: 'progressbar' }, [
+    el('div', { class: 'progressbar__label' }, [
+      el('span', { text: label }),
+      el('span', { class: 'value', text: `${pct}%` }),
+    ]),
+    el('div', { class: 'progressbar__track' }, [
+      el('div', { class: 'progressbar__fill', style: { width: `${pct}%` } }),
+    ]),
+  ]);
+}
+
+/** The phase strip: every phase, with the ones passed and the one current. */
+function phaseStrip(project, eff) {
+  const order = PHASES.map((p) => p.id);
+  const curIdx = order.indexOf(eff);
+  return el('div', { class: 'btn-row' }, PHASES.map((ph) => {
+    if (ph.id === project.phase) return pill(ph.name, phaseTone(ph.id));
+    if (curIdx >= 0 && order.indexOf(ph.id) < curIdx) return pill(ph.name, 'ok');
+    return el('span', { class: 'muted', text: ph.name });
+  }));
+}
+
+/** The order's automatic event history, newest first. */
+function eventTimeline(project) {
+  const events = [...(project.history || [])].reverse();
+  if (!events.length) return muted('No events yet.');
+  return el('ul', { class: 'doc-list' }, events.slice(0, 20).map((e) => el('li', {
+    text: `${new Date(e.at).toLocaleDateString()} — ${e.text || e.to || e.type || 'event'}`,
+  })));
+}
+
+/** A compact closeout feedback form, saved as one workflow action. */
+function closeoutForm(project, rerender) {
+  const draft = project.workflow?.closeout || {};
+  const set = (patch) => {
+    commit(advance(project, 'record-feedback', { feedback: { ...draft, ...patch } }));
+    rerender();
+  };
+  return subsection('Client feedback', [
+    checkField('cf-happy', 'Happy with the parts', !!draft.happy, (v) => set({ happy: v })),
+    checkField('cf-more', 'Wants more prints', !!draft.wantsMore, (v) => set({ wantsMore: v })),
+    checkField('cf-satisfied', 'Satisfied with the experience', !!draft.satisfied, (v) => set({ satisfied: v })),
+    textField('cf-notes', 'Notes / anything to do differently', draft.notes || '',
+      (v) => set({ notes: v }), { multiline: true }),
+  ], { hint: 'Captured for the record. The order can be closed once the ~2-week window is done.' });
+}
+
 /**
- * The workflow stepper: where the job is, and the one move that takes it on.
- *
- * The status used to be a bare dropdown that only flipped a flag. Here it is a
- * line the job walks — Previous and Next step along the pipeline, the stage that
- * matters shows what to do, and the action that actually advances it (quote,
- * invoice) is offered right there rather than hunted for in the sidebar.
+ * The workflow panel: which phase the order is in, how far through it and the
+ * whole order is, the short decision points, and only the actions that matter
+ * now. The order walks quotation → awaiting payment → production →
+ * post-processing → packaging → delivery → closeout; progress is read from what
+ * has actually been recorded, not from ticking boxes.
  */
 function workflowPanel(ctx, project, result) {
   const { rerender } = ctx;
-  const status = statusOf(project.status);
-  const onPipeline = pipelineIndex(project.status) >= 0;
-  const next = nextStatus(project.status);
-  const prev = prevStatus(project.status);
-  const cur = pipelineIndex(project.status);
+  const settings = state.settings;
+  const ws = workflowState(project);
 
-  const step = (to) => { commit(setStatus(project, to)); rerender(); };
+  // Dispatch an action. A couple also touch documents; the rest are pure
+  // transitions, with notes collected where the decision needs a reason.
+  const run = (id) => {
+    if (id === 'send-quote') {
+      const withQuote = project.quotes.length ? project : createQuote(project, result);
+      commit(advance(withQuote, 'send-quote'));
+      rerender();
+      return;
+    }
+    if (id === 'payment-received') {
+      const withInvoice = (project.quotes.length && !project.invoices.length)
+        ? createPaidInvoice(project) : project;
+      commit(advance(withInvoice, 'payment-received'));
+      rerender();
+      return;
+    }
+    if (id === 'return-to-client') {
+      const note = window.prompt('What needs clarifying or correcting from the client?') || '';
+      commit(advance(project, 'return-to-client', { note }));
+      rerender();
+      return;
+    }
+    if (id === 'reprint') {
+      const note = window.prompt('What failed, and what needs reprinting?') || '';
+      commit(advance(project, 'reprint', { note }));
+      toast('Back to printing — record the reprints below');
+      rerender();
+      return;
+    }
+    if (id === 'cancel') {
+      if (!window.confirm('Cancel this order? It can be reopened later.')) return;
+      const note = window.prompt('Reason for cancelling (optional)') || '';
+      commit(advance(project, 'cancel', { note }));
+      rerender();
+      return;
+    }
+    commit(advance(project, id));
+    rerender();
+  };
 
-  const breadcrumb = el('div', { class: 'btn-row' }, PROJECT_PIPELINE.map((id) => {
-    const st = statusOf(id);
-    if (id === project.status) return pill(st.name, st.tone);
-    if (onPipeline && pipelineIndex(id) < cur) return pill(st.name, 'ok');
-    return el('span', { class: 'muted', text: st.name });
-  }));
+  // The awaiting-payment wait shows what is outstanding on the invoice.
+  const paymentNote = ws.phase.id === 'awaiting-payment'
+    ? muted(project.invoices.length
+      ? 'The quotation is issued. Record the payment when it arrives to approve production.'
+      : 'The quotation is issued. When payment arrives, “Payment received” raises the paid '
+        + 'invoice and starts production.')
+    : null;
 
-  // The action that advances THIS stage, beyond the plain Next button.
-  let action = null;
-  if (project.status === 'draft') {
-    action = button('Create a quote', () => createQuote(project, result, rerender),
-      { primary: true, key: 'wf-quote' });
-  } else if (project.status === 'accepted' && project.quotes.length) {
-    action = button('Invoice the latest quote', () => createInvoice(project, rerender),
-      { primary: true, key: 'wf-invoice' });
-  } else if (project.status === 'accepted') {
-    action = muted('Create a quote first — the invoice is made from it.');
-  }
+  const quoteIssue = project.workflow?.quoteIssue
+    ? banner('warn', `Returned to client: ${project.workflow.quoteIssue.note || 'awaiting clarification'}`)
+    : null;
+
+  const actionButtons = ws.actions
+    .filter((a) => a.id !== 'record-feedback') // the closeout form saves feedback
+    .map((a) => button(a.label, () => run(a.id), {
+      key: `wf-${a.id}`, primary: a.primary, danger: a.tone === 'danger',
+    }));
 
   return el('div', { class: 'panel' }, [
     el('div', { class: 'panel__head' }, [
       el('h3', { text: 'Workflow' }),
-      pill(status.name, status.tone),
+      pill(phaseName(project.phase), phaseTone(project.phase)),
     ]),
-    breadcrumb,
-    muted(STAGE_GUIDE[project.status] || ''),
-    el('div', { class: 'btn-row' }, [
-      prev ? button(`← ${statusOf(prev).name}`, () => step(prev), { key: 'wf-prev' }) : null,
-      next ? button(`${statusOf(next).name} →`, () => step(next), { primary: !action, key: 'wf-next' }) : null,
-      !onPipeline ? button('Back to Draft', () => step('draft'), { key: 'wf-revive' }) : null,
-    ].filter(Boolean)),
-    action,
+    progressBar('Overall progress', ws.overallProgress),
+    phaseStrip(project, ws.effectivePhase),
+
+    ws.terminal
+      ? muted(project.phase === 'closed'
+        ? 'This order is closed.' : 'This order is cancelled — reopen it to carry on.')
+      : progressBar(`${ws.phase.name}${ws.onHold ? ' (on hold)' : ''}`, ws.phaseProgress),
+
+    quoteIssue,
+    paymentNote,
+
+    ws.steps.length ? el('ul', { class: 'doc-list' }, ws.steps.map((s) => el('li', {
+      text: `${s.done ? '✓' : '○'} ${s.label}`,
+    }))) : null,
+
+    ws.nextExpected && !ws.terminal
+      ? muted(`Next: ${ws.nextExpected.name}`)
+      : null,
+
+    el('div', { class: 'btn-row' }, actionButtons),
+
+    ws.phase.id === 'closeout' ? closeoutForm(project, rerender) : null,
+
+    subsection('Client update', [
+      buttonRow([button('Copy client progress update', () => {
+        const customer = customerFor(project);
+        copyText(clientProgressReport(project, ws, {
+          company: settings.company,
+          customerName: project.customerName || customer?.name || '',
+        }));
+        toast('Client update copied');
+      }, { key: 'wf-client-update' })]),
+    ], { hint: 'A short progress note for the customer, from the current stage.' }),
+
+    subsection('Event history', [eventTimeline(project)]),
   ].filter(Boolean));
 }
 
@@ -346,12 +461,14 @@ function productionPanel(ctx, project, result) {
           estimatedGrams: Number(((line?.estimate.grams || 0) * Math.min(part.quantity, line?.perPlate || 1)).toFixed(1)),
           costPerAttempt: line?.ctc || 0,
         };
-        const next = recordAttempt(project, part.id, attempt);
+        const withRun = recordAttempt(project, part.id, attempt);
+        // Book it against the attempt just created (with its id), so deleting
+        // that print later can find and reverse exactly these movements.
+        const created = withRun.parts.find((p) => p.id === part.id).attempts.at(-1);
+        const next = logEvent(withRun, 'print-recorded',
+          `Print recorded for ${part.name} — ${created.accepted} accepted`);
         commit(next);
-        // Stock follows production, and only production. Book it against the
-        // attempt that was just created (with its id), so deleting that print
-        // later can find and reverse exactly these movements.
-        const created = next.parts.find((p) => p.id === part.id).attempts.at(-1);
+        // Stock follows production, and only production.
         const movements = movementsForRun({
           project: next, part, attempt: created, result: line, settings: state.settings,
         });
@@ -434,7 +551,8 @@ function productionPanel(ctx, project, result) {
         get: (r) => button('Delete', () => {
           if (!window.confirm('Delete this recorded print? The stock it used is put '
             + 'back.')) return;
-          commit(removeAttempt(project, part.id, r.attempt.id));
+          commit(logEvent(removeAttempt(project, part.id, r.attempt.id),
+            'print-deleted', `Recorded print deleted from ${part.name}`));
           // This print did not happen, so its stock movements come back out
           // rather than being offset by a compensating return.
           state.inventory.movements = state.inventory.movements
@@ -472,11 +590,6 @@ function projectSidebar(ctx, project, result) {
         state.customers.push(customer);
         setProject({ customerId: customer.id });
       }, { key: 'new-customer' })]),
-      selectField('project-status', 'Status (jump directly)',
-        PROJECT_STATUSES.map((s) => ({ value: s.id, label: s.name })),
-        project.status, (v) => { commit(setStatus(project, v)); rerender(); },
-        { hint: 'Use the Workflow steps for the normal path. This jumps straight to any '
-          + 'status — including Cancelled — when you need to.' }),
       textField('project-notes', 'Notes', project.notes, (v) => setProject({ notes: v }), { multiline: true }),
     ]),
   ];
@@ -496,22 +609,14 @@ function projectSidebar(ctx, project, result) {
       (v) => setProject({ order: { ...project.order, packagingCollected: v } })),
   ], { open: false }));
 
-  sections.push(section('project-docs', 'Quote and invoice', [
-    buttonRow([
-      button('Create a quote', () => createQuote(project, result, rerender),
-        { primary: true, key: 'make-quote' }),
-    ]),
-    project.quotes.length ? buttonRow([
-      button('Invoice the latest quote', () => createInvoice(project, rerender),
-        { key: 'make-invoice' }),
-    ]) : muted('Create a quote first. It stores the assumptions it was priced under, so '
-      + 'changing your settings later will not rewrite it.'),
+  sections.push(section('project-docs', 'Quotes and invoices', [
     project.quotes.length || project.invoices.length
       ? el('ul', { class: 'doc-list' }, [
         ...project.quotes.map((q) => el('li', { text: `${q.number} · quote · ${fmtMoney(q.total, q.currencyCode)}` })),
         ...project.invoices.map((i) => el('li', { text: `${i.number} · invoice · ${fmtMoney(i.total, i.currencyCode)}` })),
       ])
-      : null,
+      : muted('The quote is raised in the Workflow panel — “Create and send quotation” — and the '
+        + 'invoice when you record payment. They then appear here.'),
   ], { open: false }));
 
   sections.push(section('project-export', 'Export', [
@@ -527,8 +632,6 @@ function projectSidebar(ctx, project, result) {
         state.activeProjectId = copy.id;
         rerender();
       }, { key: 'duplicate-project' }),
-      button('Archive', () => { commit(setStatus(project, 'archived')); rerender(); },
-        { key: 'archive-project' }),
     ]),
   ], { open: false }));
 
