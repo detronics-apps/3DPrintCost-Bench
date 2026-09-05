@@ -200,17 +200,18 @@ export function main() {
             + 'update; it asks first. “Upload project” only adds a customer’s request or a '
             + 'colleague’s project file, and leaves your settings alone.',
         }),
-        statTile('Project workflow steps', 'Projects', {
-          hint: 'A project walks a pipeline — draft → quoted → accepted → invoiced → paid → in '
-            + 'production → complete — with Previous / Next. Each stage says what it is for and '
-            + 'offers the move that advances it (quote, invoice); the sidebar still jumps '
-            + 'straight to any status, including Cancelled.',
+        statTile('Expedite (pay the estimate)', 'Settings → Company · portal', {
+          hint: 'Turn on Expedite (optional, or expedited-only) and a client happy with the padded '
+            + 'estimate can pay it up front with proof of payment — skipping the quote. The order '
+            + 'imports straight into Awaiting payment; “Payment received” raises the invoice locked '
+            + 'to that estimate and starts production.',
           tone: 'accent',
         }),
-        statTile('Delete a print, remove a part', 'Projects', {
-          hint: 'Recorded a print twice, or planned one you did not run? Delete it — the stock '
-            + 'it booked out comes straight back. And a part can be removed from the parts list, '
-            + 'not only added.',
+        statTile('Delete a print, part, project or op', 'Projects · Settings', {
+          hint: 'Recorded a print twice? Delete it and its stock comes straight back. A part can be '
+            + 'removed from the parts list; a whole project can be deleted from the list (for '
+            + 'clearing test/demo orders); and a labour operation line can be removed for good in '
+            + 'Settings → Labour, not only unticked.',
         }),
         statTile('Heads on a project part', 'Projects → Part', {
           hint: 'A multi-material printer (a Snapmaker U1, up to four heads) gives each head its '
