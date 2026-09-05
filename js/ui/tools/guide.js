@@ -13,11 +13,157 @@
  */
 
 import { el } from '../dom.js';
-import { section, statTile, muted, pill } from '../controls.js';
+import {
+  section, statTile, muted, pill, selectField, textField,
+} from '../controls.js';
+import { state, saveSoon } from '../../state.js';
 
 export const id = 'guide';
 export const name = 'How to use';
 export const short = 'Guide';
+
+/* --------------------------------------------------- step-by-step how-tos -- */
+
+/** Pick an action, get the steps. Short and practical; grows over time. */
+const HOWTOS = [
+  { id: 'add-client', title: 'Add a client', category: 'Customers', steps: [
+    'Open the Projects tab and open a project (or start a new one).',
+    'In the sidebar’s Project section, open the Customer dropdown.',
+    'Choose “New customer”, then fill in their name, email, phone and delivery address.',
+    'The customer is saved and attached to the project; pick them on any future project.',
+  ] },
+  { id: 'add-spool', title: 'Add a filament spool to stock', category: 'Inventory', steps: [
+    'Open the Inventory tab and click “Add a spool”.',
+    'In the sidebar, choose the material and colour, and set what a full spool weighs.',
+    'Enter a batch and a shelf location if you use them, and a reorder point.',
+    'Record a “Purchased” movement for how much you bought to put it on hand.',
+  ] },
+  { id: 'add-resin', title: 'Add resin to stock', category: 'Inventory', steps: [
+    'Open the Inventory tab and click “Add resin”.',
+    'Set how much a full bottle holds (in grams) and a reorder point.',
+    'Record a “Purchased” movement to put the bottle on hand.',
+    'Set “Resin used per cm²” in Settings → Labour → Post-processing so it draws down correctly.',
+  ] },
+  { id: 'add-hardware', title: 'Add hardware (magnet, insert, NFC tag)', category: 'Catalogues', steps: [
+    'To offer a new component, open Catalogues → Hardware and add it, with its price and part number.',
+    'To stock it, open Inventory → “Add hardware”, pick the component, and record a purchase movement.',
+    'On a part, open “Embedded hardware” and add the component with a quantity.',
+  ] },
+  { id: 'check-inventory', title: 'Check what stock is on hand', category: 'Inventory', steps: [
+    'Open the Inventory tab.',
+    'The “On hand” table lists every spool, resin bottle, hardware and packaging line and its balance.',
+    'Anything at or below its reorder point is flagged, with a warning banner at the top.',
+    'Open a project — it warns “buy before this can be made” if a tracked material or resin is short.',
+  ] },
+  { id: 'quote', title: 'Quote a customer', category: 'Orders', steps: [
+    'Bring the request in with “Upload project”, or start a project and add the parts.',
+    'Slice each part and paste the slicer TOTALS (grams per head, total print time) in Slicer figures.',
+    'In the Workflow panel, click “Create and send quotation”.',
+    'The order moves to Awaiting payment; send the customer the quote from Quotes & invoices.',
+  ] },
+  { id: 'take-payment', title: 'Take payment and start production', category: 'Orders', steps: [
+    'When the customer pays, open the project.',
+    'In the Workflow panel (Awaiting payment), click “Payment received”.',
+    'The paid invoice is raised and the order moves into Production.',
+  ] },
+  { id: 'record-print', title: 'Record a print', category: 'Production', steps: [
+    'Open the project and select the part in the Parts panel.',
+    'In the Production panel, click “Record a print”.',
+    'Correct the actual accepted, rejected, minutes and grams in the row.',
+    'Stock (filament, hardware, resin) is booked out automatically; delete a mistaken print to reverse it.',
+  ] },
+  { id: 'internal', title: 'Do an internal print', category: 'Orders', steps: [
+    'Open the project and set “Order type” in the sidebar.',
+    '“For an employee” prices at cost and still quotes and takes payment (they pay the cost).',
+    '“For the company” prices at cost, skips the quote and payment, and goes straight to production as an expense.',
+    'Both skip packaging and delivery.',
+  ] },
+  { id: 'expedite', title: 'Let a client pay the estimate (expedite)', category: 'Orders', steps: [
+    'Open Settings → Company → Customer self-quoting and set Expedite to Optional or Expedite-only.',
+    'Send the client the customer form link.',
+    'They tick Expedite, pay the estimate and attach proof of payment with their request.',
+    'When it imports, verify the proof and click “Payment received” to raise the invoice and start production.',
+  ] },
+  { id: 'delete', title: 'Delete a test project / quote / movement', category: 'Housekeeping', steps: [
+    'Projects: on the Projects list, use the Delete on the project’s row.',
+    'Quotes & invoices: use the Delete on the document’s row.',
+    'Inventory: use the Delete on a row in “Recent movements”.',
+    'Each asks to confirm; deleting a project also removes its stock movements.',
+  ] },
+];
+
+/** Questions worth a straight answer — grown from real clarifications. */
+const FAQS = [
+  { q: 'If I tick a finishing operation like “Removing support” in Settings → Labour, does it get added to every order?',
+    a: 'No. Support removal only charges on parts where the “Remove support” box is ticked in post-processing. '
+      + 'If no part is marked for it, it adds nothing. Ticking a client’s post-processing box and having the '
+      + 'operation on in Settings does NOT charge it twice — it is priced in that one place only.' },
+  { q: 'Are the slicer grams and time I enter per part or for the whole print?',
+    a: 'For the whole print. Enter the slicer TOTALS (grams per head and the total print time); the app divides '
+      + 'them across the quantity for you.' },
+  { q: 'Is coding an NFC tag automatic?',
+    a: 'No, it is opt-in. When a part has an embedded NFC tag, tick “Code the NFC tag” in post-processing to charge '
+      + 'the coding, and enter the link the tag should carry. Untouched, a tag is not coded.' },
+  { q: 'What does an internal (cost-only) order include?',
+    a: 'The physical cost: material, machine (with its depreciation and maintenance), electricity, hardware, the '
+      + 'rejection allowance and the general allowance. It excludes all labour and all profit/margin.' },
+  { q: 'What is the difference between an employee and a company internal print?',
+    a: 'An employee print is still quoted and paid — at cost. A company print (R&D, office use) is not quoted at '
+      + 'all; it is an expense that reduces profit, and goes straight to production.' },
+  { q: 'If the customer collects, do we still package it?',
+    a: 'Yes. Pickup keeps the packaging (it is still boxed for collection) but skips the courier and the Delivery '
+      + 'phase. “No packaging required” is the separate option that hands the parts over as they come off the printer.' },
+  { q: 'Why did the estimated print time look low against my slicer?',
+    a: 'The geometry estimate assumes a share of the machine’s rated flow (Settings → Estimator assumptions), which '
+      + 'is optimistic for small detailed parts — lower it to suit. Once sliced, the slicer figure overrides the '
+      + 'estimate, and recording actual prints calibrates it. A busy plate now also counts travel between objects.' },
+  { q: 'What is the difference between Open and Upload project?',
+    a: 'Open loads a whole company from a “Save all” backup and replaces what is on the device (for switching '
+      + 'companies). Upload project only merges in a customer request or a project file, leaving your settings alone.' },
+];
+
+function matches(text, q) {
+  if (!q) return true;
+  const hay = text.toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w));
+}
+
+function howtoSection(rerender) {
+  const query = state.ui.guideSearch || '';
+  const shown = HOWTOS.filter((h) => matches(`${h.title} ${h.category} ${h.steps.join(' ')}`, query));
+  const chosen = shown.find((h) => h.id === state.ui.guideHowto) || shown[0] || null;
+
+  return section('guide-howto', 'Step-by-step: how do I…', [
+    muted('Pick an action and follow the steps. Search to narrow the list — questions and how-tos both filter.'),
+    textField('guide-search', 'Search', query, (v) => {
+      state.ui.guideSearch = v;
+      saveSoon();
+      rerender();
+    }, { placeholder: 'e.g. resin, quote, client, delete' }),
+    shown.length
+      ? selectField('guide-howto-pick', 'Action',
+        shown.map((h) => ({ value: h.id, label: `${h.category} — ${h.title}` })),
+        chosen?.id, (v) => { state.ui.guideHowto = v; saveSoon(); rerender(); })
+      : muted('Nothing matches that search.'),
+    chosen ? el('div', { class: 'panel' }, [
+      el('h3', { text: chosen.title }),
+      el('ol', { class: 'howto-steps' }, chosen.steps.map((s) => el('li', { text: s }))),
+    ]) : null,
+  ].filter(Boolean), { open: true });
+}
+
+function faqSection() {
+  const query = state.ui.guideSearch || '';
+  const shown = FAQS.filter((f) => matches(`${f.q} ${f.a}`, query));
+  return section('guide-faq', 'Frequently asked questions', [
+    shown.length
+      ? el('div', {}, shown.map((f) => el('div', { class: 'faq' }, [
+        el('strong', { class: 'faq__q', text: f.q }),
+        el('p', { class: 'faq__a', text: f.a }),
+      ])))
+      : muted('No questions match that search.'),
+  ], { open: false });
+}
 
 function step(n, title, body, { lane }) {
   return el('div', { class: `guide__step guide__step--${lane}` }, [
@@ -38,7 +184,7 @@ function lane(title, tone, steps) {
   ]);
 }
 
-export function main() {
+export function main(ctx) {
   const companySteps = [
     step(1, 'Set the company up', 'Company details, your printers and what each '
       + 'costs to run, your filament and hardware, packaging, and the pricing model — '
@@ -77,6 +223,8 @@ export function main() {
   ];
 
   return [
+    howtoSection(ctx.rerender),
+    faqSection(),
     section('guide-intro', 'How this tool works', [
       muted('There are two people in this process: the company, who sets everything up and '
         + 'runs the workshop, and the client, who just wants a price. The flow below shows '

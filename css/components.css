@@ -739,3 +739,11 @@
   height: 100%; background: var(--accent); border-radius: 999px;
   transition: width .25s ease; min-width: 2px;
 }
+
+/* How-to step lists and FAQ entries (guide tab). */
+.howto-steps { margin: 6px 0 0; padding-left: 20px; }
+.howto-steps li { margin: 4px 0; line-height: 1.45; }
+.faq { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.faq:last-child { border-bottom: 0; }
+.faq__q { display: block; margin-bottom: 4px; }
+.faq__a { margin: 0; color: var(--text-dim); line-height: 1.5; }
