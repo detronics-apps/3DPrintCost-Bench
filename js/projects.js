@@ -29,34 +29,75 @@ export const PROJECT_STATUSES = [
   { id: 'archived', name: 'Archived', tone: 'info' },
 ];
 
-/**
- * The order a job actually moves through, which the Next / Previous stepper
- * walks. Quoting the customer comes before agreeing the work, the invoice is
- * raised and paid before it goes on a machine, and production ends in Complete.
- * Cancelled and archived sit OFF this line: they are somewhere a job can jump
- * to, not a step it steps through, so they are reached by their own controls.
- */
-export const PROJECT_PIPELINE = [
-  'draft', 'quoted', 'accepted', 'invoiced', 'paid', 'in-production', 'complete',
-];
-
 export function statusOf(id) {
   return PROJECT_STATUSES.find((s) => s.id === id) || PROJECT_STATUSES[0];
 }
 
-/** Where on the pipeline a status sits, or -1 for an off-pipeline one. */
-export const pipelineIndex = (id) => PROJECT_PIPELINE.indexOf(id);
-
-/** The next step along the pipeline, or null at the end / off it. */
-export function nextStatus(id) {
-  const i = PROJECT_PIPELINE.indexOf(id);
-  return i >= 0 && i < PROJECT_PIPELINE.length - 1 ? PROJECT_PIPELINE[i + 1] : null;
+/**
+ * The order now moves through PHASES (see js/workflow.js); `status` is kept as a
+ * compatibility shadow so the scheduler (which queues "in-production") and the
+ * dashboard filter keep working without change. This maps a phase to that
+ * shadow. Only `production` is a queued, on-a-machine state.
+ */
+export function statusFromPhase(phase) {
+  switch (phase) {
+    case 'awaiting-payment': return 'quoted';
+    case 'production': return 'in-production';
+    case 'post-processing':
+    case 'packaging':
+    case 'delivery':
+    case 'closeout': return 'complete';
+    case 'closed': return 'archived';
+    case 'cancelled': return 'cancelled';
+    case 'on-hold':
+    case 'quotation':
+    default: return 'draft';
+  }
 }
 
-/** The previous step, or null at the start / off the pipeline. */
-export function prevStatus(id) {
-  const i = PROJECT_PIPELINE.indexOf(id);
-  return i > 0 ? PROJECT_PIPELINE[i - 1] : null;
+/** Map an older stored `status` onto the phase it corresponds to. */
+export function phaseFromStatus(status) {
+  switch (status) {
+    case 'quoted':
+    case 'draft': return 'quotation';
+    case 'accepted':
+    case 'invoiced': return 'awaiting-payment';
+    case 'paid':
+    case 'in-production': return 'production';
+    case 'complete': return 'closeout';
+    case 'cancelled': return 'cancelled';
+    case 'archived': return 'closed';
+    default: return 'quotation';
+  }
+}
+
+/** The human-decision markers a phase workflow records, all empty to begin. */
+export function defaultWorkflow() {
+  return {
+    quoteIssue: null,
+    paymentReceivedAt: null,
+    productionStartedAt: null,
+    inspection: null,
+    postProcessingDoneAt: null,
+    readyForCollectionAt: null,
+    collectedAt: null,
+    deliveredAt: null,
+    closeout: null,
+    closedAt: null,
+    cancelledFrom: null,
+  };
+}
+
+/**
+ * Append one event to the order's history, returning a new project. The history
+ * is the audit trail the workflow keeps automatically — transitions and
+ * production actions log through here, so nobody maintains a separate log.
+ */
+export function logEvent(project, type, text, meta = {}) {
+  const entry = {
+    id: makeId('ev'), at: nowIso(), type, text, ...meta,
+  };
+  return { ...project, history: [...(project.history || []), entry] };
 }
 
 /**
@@ -125,7 +166,12 @@ export function makeProject(spec = {}) {
     name: 'New project',
     customerId: null,
     customerName: '',
+    // The workflow phase is the source of truth; `status` is the compatibility
+    // shadow the scheduler and dashboard still read (see statusFromPhase).
+    phase: 'quotation',
     status: 'draft',
+    onHoldFrom: null,
+    workflow: defaultWorkflow(),
     createdAt: at,
     modifiedAt: at,
     notes: '',
@@ -465,6 +511,17 @@ export function migrateProject(stored) {
     attempts: (part.attempts || []).map((a) => ({ ...makeAttempt(), ...a })),
   }));
   project.order = { ...base.order, ...(raw.order || {}) };
+
+  // Workflow phase is the source of truth. An already-migrated project keeps its
+  // phase; an older one has only `status`, so its phase is derived from that.
+  const PHASE_IDS = [
+    'quotation', 'awaiting-payment', 'production', 'post-processing',
+    'packaging', 'delivery', 'closeout', 'closed', 'cancelled', 'on-hold',
+  ];
+  project.phase = PHASE_IDS.includes(raw.phase) ? raw.phase : phaseFromStatus(raw.status);
+  project.onHoldFrom = raw.onHoldFrom || null;
+  project.workflow = { ...defaultWorkflow(), ...(raw.workflow || {}) };
+  project.status = statusFromPhase(project.phase);
   project.history = Array.isArray(raw.history) ? raw.history : [];
   project.quotes = Array.isArray(raw.quotes) ? raw.quotes : [];
   project.invoices = Array.isArray(raw.invoices) ? raw.invoices : [];

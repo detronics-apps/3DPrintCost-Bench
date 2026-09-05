@@ -4,7 +4,7 @@ import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart,
   duplicatePart, duplicateProject, nextRevision, setStatus, archiveProject,
   recordAttempt, removeAttempt, partStats, projectStats, migrateProject, orderFromProject,
-  PROJECT_STATUSES, PROJECT_PIPELINE, statusOf, nextStatus, prevStatus, pipelineIndex,
+  PROJECT_STATUSES, statusOf, statusFromPhase, phaseFromStatus,
 } from '../js/projects.js';
 import {
   makeQuote, invoiceFromQuote, recordPayment, outstanding, isOverdue, lockedPricing,
@@ -94,27 +94,32 @@ test('every status a project can hold has a name and a tone the UI honours', () 
   assert.equal(statusOf('nonsense').id, 'draft', 'unknown falls back by name');
 });
 
-test('the status pipeline steps forward and back, and stops at both ends', () => {
-  assert.equal(nextStatus('draft'), 'quoted');
-  assert.equal(nextStatus('invoiced'), 'paid');
-  assert.equal(nextStatus('paid'), 'in-production');
-  assert.equal(nextStatus('complete'), null, 'nothing after the last step');
-  assert.equal(prevStatus('quoted'), 'draft');
-  assert.equal(prevStatus('draft'), null, 'nothing before the first step');
+test('an old status migrates onto the right workflow phase', () => {
+  assert.equal(migrateProject({ status: 'draft' }).phase, 'quotation');
+  assert.equal(migrateProject({ status: 'quoted' }).phase, 'quotation');
+  assert.equal(migrateProject({ status: 'accepted' }).phase, 'awaiting-payment');
+  assert.equal(migrateProject({ status: 'invoiced' }).phase, 'awaiting-payment');
+  assert.equal(migrateProject({ status: 'paid' }).phase, 'production');
+  assert.equal(migrateProject({ status: 'in-production' }).phase, 'production');
+  assert.equal(migrateProject({ status: 'complete' }).phase, 'closeout');
+  assert.equal(migrateProject({ status: 'archived' }).phase, 'closed');
 });
 
-test('cancelled and archived sit off the pipeline, not on it', () => {
-  assert.equal(pipelineIndex('cancelled'), -1);
-  assert.equal(pipelineIndex('archived'), -1);
-  assert.equal(nextStatus('cancelled'), null, 'an off-pipeline status has no next step');
-  assert.equal(prevStatus('archived'), null);
-  // Every pipeline id is a real status with a name and a honoured tone.
+test('a project already on the phase model keeps its phase and markers', () => {
+  const already = migrateProject({ phase: 'delivery', workflow: { collectedAt: 'x' } });
+  assert.equal(already.phase, 'delivery');
+  assert.equal(already.workflow.collectedAt, 'x');
+  assert.ok('paymentReceivedAt' in already.workflow, 'the rest of the markers default in');
+  assert.equal(already.status, 'complete', 'the shadow status follows the phase');
+});
+
+test('phase and status shadow map to each other for the scheduler', () => {
+  assert.equal(statusFromPhase('production'), 'in-production', 'only production is on a machine');
+  assert.equal(statusFromPhase('awaiting-payment'), 'quoted', 'not yet queued');
+  assert.equal(statusFromPhase('closed'), 'archived');
+  assert.equal(phaseFromStatus('paid'), 'production');
   const tones = new Set(['info', 'ok', 'warn', 'danger']);
-  for (const id of PROJECT_PIPELINE) {
-    const s = statusOf(id);
-    assert.equal(s.id, id, `${id} is a real status`);
-    assert.ok(tones.has(s.tone), `${id} has a honoured tone`);
-  }
+  for (const s of PROJECT_STATUSES) assert.ok(tones.has(s.tone), `${s.id} tone`);
 });
 
 test('part statistics compare estimate with actual as a ratio', () => {
