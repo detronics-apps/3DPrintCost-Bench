@@ -51,6 +51,22 @@ export const id = 'estimate';
 export const name = 'Estimate';
 export const short = 'Estimate';
 
+/** The estimator's per-part slicer figures scaled to a whole-print total, which
+ *  is how a project stores them (a project divides them back down by quantity). */
+function totalSlicer(slicer, quantity) {
+  if (!slicer) return null;
+  const qty = Math.max(1, Math.round(num(quantity, 1)));
+  if (qty === 1) return { ...slicer };
+  return {
+    ...slicer,
+    grams: slicer.grams != null ? num(slicer.grams) * qty : slicer.grams,
+    minutes: slicer.minutes != null ? num(slicer.minutes) * qty : slicer.minutes,
+    heads: Array.isArray(slicer.heads)
+      ? slicer.heads.map((h) => ({ ...h, grams: num(h.grams) * qty }))
+      : slicer.heads,
+  };
+}
+
 /** One `quick.part` turned into an order line the engine understands. */
 function partToLine(part, quick) {
   return {
@@ -1143,9 +1159,15 @@ function exportSection(ctx) {
             geometry: part.geometry,
             manual: { ...part.manual },
             orientedSize: part.orientedSize,
+            // The bed's loaded filament is shared by every part; a project keeps
+            // it per part, so each carries a copy along with its own mix.
+            slots: (state.quick.slots || []).map((s) => ({ ...s })),
+            mix: Array.isArray(part.mix) ? part.mix.map((m) => ({ ...m })) : null,
             hardware: part.hardware.map((h) => ({ ...h })),
             complexity: part.complexity,
-            slicer: part.slicer,
+            // A project's slicer figures are totals for the whole print; the
+            // estimator's are per part, so scale them up on the way in.
+            slicer: totalSlicer(part.slicer, part.quantity),
             discount: state.quick.discount,
           }));
         }

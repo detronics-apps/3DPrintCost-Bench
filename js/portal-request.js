@@ -19,7 +19,7 @@
 import { makeProject, makePart, makeCustomer, makeAddressParts, formatAddress } from './projects.js';
 import { num } from './money.js';
 
-function partFrom(selection, printerId) {
+function partFrom(selection, printerId, slots) {
   return makePart({
     name: selection?.modelName || 'Part',
     quantity: Math.max(1, Math.round(num(selection?.quantity, 1))),
@@ -29,6 +29,14 @@ function partFrom(selection, printerId) {
     geometry: selection?.geometry || null,
     orientedSize: selection?.orientedSize || null,
     needsSupport: !!selection?.needsSupport,
+    // The bed's loaded filament and this part's share of it, so the workshop
+    // opens the request with every head already filled in — no re-picking the
+    // colours the customer chose. A single-spool request leaves these null and
+    // behaves exactly as a one-colour part.
+    slots: Array.isArray(selection?.slots) && selection.slots.length
+      ? selection.slots.map((s) => ({ ...s }))
+      : (Array.isArray(slots) && slots.length ? slots.map((s) => ({ ...s })) : null),
+    mix: Array.isArray(selection?.mix) && selection.mix.length ? selection.mix.map((m) => ({ ...m })) : null,
     colours: Math.max(1, Math.round(num(selection?.colours, 1))),
   });
 }
@@ -42,7 +50,7 @@ function partFrom(selection, printerId) {
  * the padded price they were shown, kept only as a note on the project.
  */
 export function portalRequest({
-  company, parts, printerId = null, customer, order, quotedTotal, currencyCode,
+  company, parts, printerId = null, slots = null, customer, order, quotedTotal, currencyCode,
   validityDays = null, now = Date.now(),
 }) {
   const exportedAt = new Date(now).toISOString();
@@ -64,7 +72,7 @@ export function portalRequest({
     notes: (customer?.notes || '').trim(),
   });
 
-  const projectParts = (parts || []).map((p) => partFrom(p, printerId));
+  const projectParts = (parts || []).map((p) => partFrom(p, printerId, slots));
   if (!projectParts.length) projectParts.push(makePart());
 
   const money = quotedTotal != null

@@ -106,6 +106,43 @@ test('a request can carry several parts, one project with many', () => {
   assert.equal(migrated.parts.length, 2, 'migration keeps both');
 });
 
+test('a request carries the loaded heads and each part’s mix, filled in for the workshop', () => {
+  const req = portalRequest({
+    company: { name: 'Detronics' },
+    printerId: 'snapmaker-u1',
+    slots: [{ id: 's1', materialId: 'petg-dark-grey' }, { id: 's2', materialId: 'pla-dark-grey' }],
+    parts: [{
+      ...selection(),
+      printerId: 'snapmaker-u1',
+      mix: [{ slotId: 's1', percent: 70 }, { slotId: 's2', percent: 30 }],
+    }],
+    customer: customer(),
+    order: {},
+    quotedTotal: null,
+  });
+  const part = req.project.parts[0];
+  assert.equal(part.slots.length, 2, 'both heads travel');
+  assert.equal(part.slots[1].materialId, 'pla-dark-grey');
+  assert.equal(part.mix.length, 2, 'and this part’s share of each');
+  assert.equal(part.mix[0].percent, 70);
+
+  const migrated = migrateProject(req.project);
+  assert.equal(migrated.parts[0].slots.length, 2, 'the heads survive migration');
+  assert.equal(migrated.parts[0].mix.length, 2);
+});
+
+test('a single-spool request leaves heads unset, so it prices as one colour', () => {
+  const req = portalRequest({
+    company: { name: 'Detronics' },
+    printerId: 'bambu-x1e',
+    parts: [selection()],
+    customer: customer(),
+    order: {},
+    quotedTotal: null,
+  });
+  assert.equal(req.project.parts[0].mix, null, 'no mix on a one-colour part');
+});
+
 test('a structured address composes into the customer, keeping both forms', () => {
   const req = portalRequest({
     company: { name: 'Detronics' },

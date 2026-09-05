@@ -47,20 +47,21 @@ export function main() {
     step(2, 'Set the commercial dials', 'Before anything goes to a client you set the '
       + 'discount and how busy you are — raising the price to slow demand when you '
       + 'cannot keep up. A client never sees or sets these; they are yours.', { lane: 'company' }),
-    step(3, 'Import the client’s estimate as a project', 'When a client accepts an '
-      + 'estimate, you pull it in as a project. Their material, colour and printer '
-      + 'choices come with it, so nothing is re-typed — and their contact and shipping '
-      + 'details become a new customer.', { lane: 'company' }),
-    step(4, 'Add the real numbers from the slicer', 'The estimate was geometry and rules '
-      + 'of thumb. Now you slice the actual part and fill in exactly what the slicer '
-      + 'says — grams of each colour, total print time. Only this changes; everything '
-      + 'else was already chosen.', { lane: 'company' }),
-    step(5, 'Invoice, and get paid', 'The invoice carries the exact figures, so it comes '
-      + 'in at or below the quote — a good surprise, never a bad one. Record the payment '
-      + 'when it lands.', { lane: 'company' }),
-    step(6, 'Schedule and make it', 'A paid job joins the queue for the printers, and the '
-      + 'bed is scheduled by priority and machine availability. You make it, pack it and '
-      + 'ship it — keeping the client posted at each step.', { lane: 'company' }),
+    step(3, 'Import the request — it lands in Quotation', 'When a client submits their '
+      + 'estimate, you bring it in with “Upload project” (top bar) and the order opens in '
+      + 'the Quotation phase. Their material, colours — every loaded head — printer and '
+      + 'quantities come with it, and their details become a new customer.', { lane: 'company' }),
+    step(4, 'Quotation → slice, verify, and send', 'Slice the actual parts and fill in the '
+      + 'slicer’s TOTALS (grams per head, total print time) to turn the preliminary '
+      + 'estimate into a real quotation. If something is wrong, return it to the client; '
+      + 'otherwise create and send the quote, and the order waits on payment.', { lane: 'company' }),
+    step(5, 'Payment approves production', 'Payment is the client’s acceptance. Record it '
+      + '(“Payment received”) and the paid invoice is raised and the order moves into '
+      + 'Production automatically — no separate approval step.', { lane: 'company' }),
+    step(6, 'Production → finish → deliver → close', 'Print, record results and inspect; a '
+      + 'failed part loops back to reprint without leaving Production. Then any '
+      + 'post-processing, packaging, courier delivery, and a short closeout to check the '
+      + 'client is happy. The Workflow panel shows progress and the next action throughout.', { lane: 'company' }),
   ];
 
   const clientSteps = [
@@ -192,6 +193,45 @@ export function main() {
             + 'automatically; a colour beyond that is a hand swap at its height — “at 12 mm: red → '
             + 'blue” — which costs labour, a machine wait, and can never run overnight.',
           tone: 'accent',
+        }),
+        statTile('Open vs Upload project', 'Top bar', {
+          hint: '“Open” loads a whole company from a “Save all” backup and replaces what is on '
+            + 'this device — how you switch between companies, or reopen your workshop after an '
+            + 'update; it asks first. “Upload project” only adds a customer’s request or a '
+            + 'colleague’s project file, and leaves your settings alone.',
+        }),
+        statTile('Project workflow steps', 'Projects', {
+          hint: 'A project walks a pipeline — draft → quoted → accepted → invoiced → paid → in '
+            + 'production → complete — with Previous / Next. Each stage says what it is for and '
+            + 'offers the move that advances it (quote, invoice); the sidebar still jumps '
+            + 'straight to any status, including Cancelled.',
+          tone: 'accent',
+        }),
+        statTile('Delete a print, remove a part', 'Projects', {
+          hint: 'Recorded a print twice, or planned one you did not run? Delete it — the stock '
+            + 'it booked out comes straight back. And a part can be removed from the parts list, '
+            + 'not only added.',
+        }),
+        statTile('Heads on a project part', 'Projects → Part', {
+          hint: 'A multi-material printer (a Snapmaker U1, up to four heads) gives each head its '
+            + 'own material and colour, filled in from the customer’s request. After slicing, '
+            + 'enter the TOTAL grams for each head and one total print time (for the whole '
+            + 'print, not per part) — every head is then costed at its own plastic’s price.',
+          tone: 'ok',
+        }),
+        statTile('Order workflow phases', 'Projects → Workflow', {
+          hint: 'An order walks six phases — Quotation, Awaiting payment, Production, '
+            + 'Post-processing, Packaging, Delivery, Closeout — with an overall and a '
+            + 'per-phase progress bar worked out from what you have actually recorded. It shows '
+            + 'only the next action, loops reprints inside Production, skips post-processing when '
+            + 'nothing needs it, and can Hold or Cancel from any phase.',
+          tone: 'accent',
+        }),
+        statTile('Event history & client updates', 'Projects → Workflow', {
+          hint: 'Every order keeps an automatic event history — quote sent, payment, prints, '
+            + 'inspection, reprints, delivery, closeout — so there is an audit trail nobody has '
+            + 'to maintain. “Copy client progress update” makes a short progress note for the '
+            + 'customer from the current phase.',
         }),
       ]),
     ], { open: false }),

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart,
   duplicatePart, duplicateProject, nextRevision, setStatus, archiveProject,
-  recordAttempt, partStats, projectStats, migrateProject, orderFromProject,
-  PROJECT_STATUSES, statusOf,
+  recordAttempt, removeAttempt, partStats, projectStats, migrateProject, orderFromProject,
+  PROJECT_STATUSES, statusOf, statusFromPhase, phaseFromStatus,
 } from '../js/projects.js';
 import {
   makeQuote, invoiceFromQuote, recordPayment, outstanding, isOverdue, lockedPricing,
@@ -94,6 +94,34 @@ test('every status a project can hold has a name and a tone the UI honours', () 
   assert.equal(statusOf('nonsense').id, 'draft', 'unknown falls back by name');
 });
 
+test('an old status migrates onto the right workflow phase', () => {
+  assert.equal(migrateProject({ status: 'draft' }).phase, 'quotation');
+  assert.equal(migrateProject({ status: 'quoted' }).phase, 'quotation');
+  assert.equal(migrateProject({ status: 'accepted' }).phase, 'awaiting-payment');
+  assert.equal(migrateProject({ status: 'invoiced' }).phase, 'awaiting-payment');
+  assert.equal(migrateProject({ status: 'paid' }).phase, 'production');
+  assert.equal(migrateProject({ status: 'in-production' }).phase, 'production');
+  assert.equal(migrateProject({ status: 'complete' }).phase, 'closeout');
+  assert.equal(migrateProject({ status: 'archived' }).phase, 'closed');
+});
+
+test('a project already on the phase model keeps its phase and markers', () => {
+  const already = migrateProject({ phase: 'delivery', workflow: { collectedAt: 'x' } });
+  assert.equal(already.phase, 'delivery');
+  assert.equal(already.workflow.collectedAt, 'x');
+  assert.ok('paymentReceivedAt' in already.workflow, 'the rest of the markers default in');
+  assert.equal(already.status, 'complete', 'the shadow status follows the phase');
+});
+
+test('phase and status shadow map to each other for the scheduler', () => {
+  assert.equal(statusFromPhase('production'), 'in-production', 'only production is on a machine');
+  assert.equal(statusFromPhase('awaiting-payment'), 'quoted', 'not yet queued');
+  assert.equal(statusFromPhase('closed'), 'archived');
+  assert.equal(phaseFromStatus('paid'), 'production');
+  const tones = new Set(['info', 'ok', 'warn', 'danger']);
+  for (const s of PROJECT_STATUSES) assert.ok(tones.has(s.tone), `${s.id} tone`);
+});
+
 test('part statistics compare estimate with actual as a ratio', () => {
   let project = addPart(makeProject(), samplePart());
   const id = project.parts[0].id;
@@ -112,6 +140,49 @@ test('part statistics compare estimate with actual as a ratio', () => {
 
   const rolled = projectStats(project);
   assert.equal(rolled.accepted, 3);
+});
+
+test('a recorded print can be deleted by id, leaving the others', () => {
+  let project = addPart(makeProject(), samplePart());
+  const partId = project.parts[0].id;
+  project = recordAttempt(project, partId, { quantity: 1, accepted: 1, minutes: 100, grams: 50 });
+  project = recordAttempt(project, partId, { quantity: 1, accepted: 1, minutes: 110, grams: 55 });
+  const [first, second] = project.parts[0].attempts;
+
+  const after = removeAttempt(project, partId, first.id);
+  assert.equal(after.parts[0].attempts.length, 1, 'one print is gone');
+  assert.equal(after.parts[0].attempts[0].id, second.id, 'the right one remained');
+  assert.equal(project.parts[0].attempts.length, 2, 'the original project is untouched');
+});
+
+test('deleting a missing attempt is a no-op that changes nothing important', () => {
+  let project = addPart(makeProject(), samplePart());
+  const partId = project.parts[0].id;
+  project = recordAttempt(project, partId, { quantity: 1, accepted: 1, minutes: 100, grams: 50 });
+  const after = removeAttempt(project, partId, 'no-such-run');
+  assert.equal(after.parts[0].attempts.length, 1);
+});
+
+test('the movements a print books out carry the run id, so a delete can reverse them', () => {
+  const settings = defaultSettings();
+  const part = samplePart({ hardware: [{ hardwareId: 'magnet-6x3', qty: 2 }] });
+  let project = addPart(makeProject(), part);
+  project = recordAttempt(project, part.id, { quantity: 4, accepted: 4, grams: 160 });
+  const created = project.parts[0].attempts.at(-1);
+
+  const movements = movementsForRun({
+    project, part, attempt: created, settings,
+  });
+  assert.ok(movements.length >= 1);
+  assert.ok(movements.every((m) => m.runId === created.id),
+    'every movement is tagged with the attempt it belongs to');
+
+  // The delete reverses exactly this run's movements and no other.
+  const other = makeMovement({ itemId: 'material:petg-dark-grey', reason: 'purchase', quantity: 1000 });
+  const log = [...movements, other];
+  const afterDelete = log.filter((m) => m.runId !== created.id);
+  assert.equal(afterDelete.length, 1);
+  assert.equal(afterDelete[0].id, other.id, 'unrelated stock is left alone');
 });
 
 test('a part never printed reports no data rather than a confident zero', () => {
@@ -150,6 +221,59 @@ test('a project becomes an order the engine can price', () => {
   const result = calculateOrder(order, defaultSettings());
   assert.equal(result.lines.length, 1);
   assert.equal(result.lines[0].quantity, 4);
+  assert.equal(result.separation.ok, true);
+});
+
+test('a project part with no loaded heads still prices as a single filament', () => {
+  const project = addPart(makeProject(), samplePart());
+  const result = calculateOrder(orderFromProject(project), defaultSettings());
+  assert.equal(result.lines[0].filaments.length, 1, 'unchanged single-colour behaviour');
+});
+
+test('per-head slicer grams are TOTALS: divided across the quantity, and they override the mix', () => {
+  const settings = defaultSettings();
+  const part = samplePart({
+    quantity: 4,
+    printerId: 'snapmaker-u1',
+    slots: [{ id: 's1', materialId: 'petg-dark-grey' }, { id: 's2', materialId: 'pla-dark-grey' }],
+    mix: [{ slotId: 's1', percent: 50 }, { slotId: 's2', percent: 50 }],
+    // The slicer's TOTAL for the whole print of four: 280 g PETG + 120 g PLA.
+    slicer: { grams: 400, minutes: 800, heads: [{ slotId: 's1', grams: 280 }, { slotId: 's2', grams: 120 }] },
+  });
+  const line = calculateOrder(orderFromProject(addPart(makeProject(), part)), settings).lines[0];
+  assert.equal(line.estimate.method, 'slicer', 'the sliced figures are the ones in use');
+  const one = line.filaments.find((f) => f.slotId === 's1');
+  const two = line.filaments.find((f) => f.slotId === 's2');
+  close(one.grams, 70, 1e-9, 'per part is the total ÷ quantity (280 / 4), not the whole 280');
+  close(two.grams, 30, 1e-9, 'likewise for the second head (120 / 4)');
+  // The order as a whole uses the slicer total, never total × quantity.
+  const orderG = line.filaments.reduce((t, f) => t + f.grams, 0) * line.quantity;
+  close(orderG, 400, 1e-9, 'the order material is 400 g, not 400 × 4');
+});
+
+test('a flat slicer total is divided across the quantity, not multiplied by it', () => {
+  const settings = defaultSettings();
+  const part = samplePart({ quantity: 5, slicer: { grams: 500, minutes: 1000 } });
+  const line = calculateOrder(orderFromProject(addPart(makeProject(), part)), settings).lines[0];
+  assert.equal(line.estimate.method, 'slicer');
+  close(line.estimate.minutes, 200, 1e-9, 'per-part print time is the total (1000) over the quantity (5)');
+  close(line.filaments[0].grams, 100, 0.6, 'per-part material is the total (500) over the quantity (5)');
+});
+
+test('a project part carries its loaded heads, and the engine prices every one', () => {
+  const settings = defaultSettings();
+  const part = samplePart({
+    printerId: 'snapmaker-u1',
+    slots: [{ id: 's1', materialId: 'petg-dark-grey' }, { id: 's2', materialId: 'pla-dark-grey' }],
+    mix: [{ slotId: 's1', percent: 60 }, { slotId: 's2', percent: 40 }],
+  });
+  const project = addPart(makeProject(), part);
+  const line = orderFromProject(project).lines[0];
+  assert.equal(line.slots.length, 2, 'both heads travel to the engine');
+  assert.equal(line.mix.length, 2, 'and this part’s share of each');
+
+  const result = calculateOrder(orderFromProject(project), settings);
+  assert.equal(result.lines[0].filaments.length, 2, 'both filaments are priced');
   assert.equal(result.separation.ok, true);
 });
 

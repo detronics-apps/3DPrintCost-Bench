@@ -103,7 +103,7 @@ export function dashboard({ projects = [], settings, filter = {} }, now = new Da
   return {
     counts: {
       projects: live.length,
-      active: live.filter((p) => !['archived', 'cancelled', 'complete'].includes(p.status)).length,
+      active: live.filter((p) => !['closed', 'cancelled'].includes(p.phase)).length,
       openQuotes: quotes.filter((q) => q.status === 'draft' || q.status === 'sent').length,
       invoices: invoices.length,
       overdue: overdue.length,

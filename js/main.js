@@ -13,7 +13,8 @@ import { el, clear, toast, download } from './ui/dom.js';
 import { capDiagramScale, captureFocus, restoreFocus, dualLabel } from './ui/patterns.js';
 import { configureSections } from './ui/controls.js';
 import {
-  state, load, save, saveSoon, sectionStore, exportAll, importFile, resetAll, MODES,
+  state, load, save, saveSoon, sectionStore, exportAll, importFile, restoreFromFile,
+  resetAll, MODES,
 } from './state.js';
 import { applyPreset as applyPresetTo } from './settings.js';
 import {
@@ -55,11 +56,14 @@ const THEME_GLYPH = { system: '◐', light: '☀', dark: '☾' };
 /* --------------------------------------------------------------- header -- */
 
 function buildHeader() {
-  const fileInput = el('input', {
+  // Two separate doors, because they do genuinely different things. "Upload
+  // project" MERGES a project in — a customer's request, or a project file a
+  // colleague sent — and deliberately leaves your company settings alone.
+  const uploadInput = el('input', {
     type: 'file',
     class: 'visually-hidden',
     accept: '.json',
-    'data-field': 'open-file',
+    'data-field': 'upload-project-file',
     on: {
       change: async (e) => {
         const file = e.target.files?.[0];
@@ -67,11 +71,41 @@ function buildHeader() {
         const report = importFile(await file.text(), { merge: true });
         if (!report.ok) toast(report.error);
         else {
-          toast(`Opened ${report.projects} project${report.projects === 1 ? '' : 's'}`
+          toast(`Added ${report.projects} project${report.projects === 1 ? '' : 's'}`
             + `${report.skipped ? `, skipped ${report.skipped}` : ''}`);
           state.tool = 'projects';
         }
         e.target.value = '';
+        render();
+      },
+    },
+  });
+
+  // "Open" loads a whole company — a "Save all" backup — and REPLACES what is on
+  // this device. It is how you switch between companies, or reopen your workshop
+  // after updating the app. It replaces everything, so it confirms first.
+  const workshopInput = el('input', {
+    type: 'file',
+    class: 'visually-hidden',
+    accept: '.json',
+    'data-field': 'open-workshop-file',
+    on: {
+      change: async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        e.target.value = '';
+        const hasData = state.projects.length || state.customers.length;
+        if (hasData && !window.confirm('Open this company? It replaces every project, '
+          + 'customer and setting currently on this device. Save the one you have open '
+          + 'first if you have not.')) return;
+        const report = restoreFromFile(text);
+        if (!report.ok) { toast(report.error); return; }
+        state.tool = 'projects';
+        toast(`Opened a workshop — ${report.projects} project`
+          + `${report.projects === 1 ? '' : 's'}, ${report.customers} customer`
+          + `${report.customers === 1 ? '' : 's'}`);
+        applyTheme();
         render();
       },
     },
@@ -88,9 +122,16 @@ function buildHeader() {
         class: 'btn',
         type: 'button',
         'data-field': 'open',
-        title: 'Open a saved workshop or project file',
-        on: { click: () => fileInput.click() },
+        title: 'Open a whole company from a “Save all” backup — replaces what is here',
+        on: { click: () => workshopInput.click() },
       }, dualLabel('Open', 'Open')),
+      el('button', {
+        class: 'btn',
+        type: 'button',
+        'data-field': 'upload-project',
+        title: 'Add a project a customer or colleague sent — keeps your settings',
+        on: { click: () => uploadInput.click() },
+      }, dualLabel('Upload project', 'Upload')),
       el('button', {
         class: 'btn',
         type: 'button',
@@ -124,7 +165,8 @@ function buildHeader() {
           },
         },
       }, [el('span', { 'aria-hidden': 'true', text: THEME_GLYPH[state.theme] })]),
-      fileInput,
+      workshopInput,
+      uploadInput,
     ]),
   ]);
 }

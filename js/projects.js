@@ -21,15 +21,83 @@ export const PROJECT_STATUSES = [
   { id: 'draft', name: 'Draft', tone: 'info' },
   { id: 'quoted', name: 'Quoted', tone: 'info' },
   { id: 'accepted', name: 'Accepted', tone: 'ok' },
+  { id: 'invoiced', name: 'Invoiced', tone: 'ok' },
+  { id: 'paid', name: 'Paid', tone: 'ok' },
   { id: 'in-production', name: 'In production', tone: 'warn' },
   { id: 'complete', name: 'Complete', tone: 'ok' },
-  { id: 'invoiced', name: 'Invoiced', tone: 'ok' },
   { id: 'cancelled', name: 'Cancelled', tone: 'danger' },
   { id: 'archived', name: 'Archived', tone: 'info' },
 ];
 
 export function statusOf(id) {
   return PROJECT_STATUSES.find((s) => s.id === id) || PROJECT_STATUSES[0];
+}
+
+/**
+ * The order now moves through PHASES (see js/workflow.js); `status` is kept as a
+ * compatibility shadow so the scheduler (which queues "in-production") and the
+ * dashboard filter keep working without change. This maps a phase to that
+ * shadow. Only `production` is a queued, on-a-machine state.
+ */
+export function statusFromPhase(phase) {
+  switch (phase) {
+    case 'awaiting-payment': return 'quoted';
+    case 'production': return 'in-production';
+    case 'post-processing':
+    case 'packaging':
+    case 'delivery':
+    case 'closeout': return 'complete';
+    case 'closed': return 'archived';
+    case 'cancelled': return 'cancelled';
+    case 'on-hold':
+    case 'quotation':
+    default: return 'draft';
+  }
+}
+
+/** Map an older stored `status` onto the phase it corresponds to. */
+export function phaseFromStatus(status) {
+  switch (status) {
+    case 'quoted':
+    case 'draft': return 'quotation';
+    case 'accepted':
+    case 'invoiced': return 'awaiting-payment';
+    case 'paid':
+    case 'in-production': return 'production';
+    case 'complete': return 'closeout';
+    case 'cancelled': return 'cancelled';
+    case 'archived': return 'closed';
+    default: return 'quotation';
+  }
+}
+
+/** The human-decision markers a phase workflow records, all empty to begin. */
+export function defaultWorkflow() {
+  return {
+    quoteIssue: null,
+    paymentReceivedAt: null,
+    productionStartedAt: null,
+    inspection: null,
+    postProcessingDoneAt: null,
+    readyForCollectionAt: null,
+    collectedAt: null,
+    deliveredAt: null,
+    closeout: null,
+    closedAt: null,
+    cancelledFrom: null,
+  };
+}
+
+/**
+ * Append one event to the order's history, returning a new project. The history
+ * is the audit trail the workflow keeps automatically — transitions and
+ * production actions log through here, so nobody maintains a separate log.
+ */
+export function logEvent(project, type, text, meta = {}) {
+  const entry = {
+    id: makeId('ev'), at: nowIso(), type, text, ...meta,
+  };
+  return { ...project, history: [...(project.history || []), entry] };
 }
 
 /**
@@ -62,6 +130,13 @@ export function makePart(spec = {}) {
     settingOverrides: {},
     printerId: 'bambu-x1e',
     materialId: 'petg-dark-grey',
+    // What is loaded to print this part, and how much of the part is each of it.
+    // `slots` is [{ id, materialId }] — one per head/spool; `mix` is
+    // [{ slotId, percent }]. Both null means "one spool of materialId", exactly
+    // the single-colour behaviour every older project already has, so the engine
+    // synthesises one slot from materialId and nothing changes.
+    slots: null,
+    mix: null,
     colours: 1,
     colourBands: [],
     hardware: [],
@@ -91,7 +166,12 @@ export function makeProject(spec = {}) {
     name: 'New project',
     customerId: null,
     customerName: '',
+    // The workflow phase is the source of truth; `status` is the compatibility
+    // shadow the scheduler and dashboard still read (see statusFromPhase).
+    phase: 'quotation',
     status: 'draft',
+    onHoldFrom: null,
+    workflow: defaultWorkflow(),
     createdAt: at,
     modifiedAt: at,
     notes: '',
@@ -255,7 +335,11 @@ export function duplicateProject(project, { name } = {}) {
     id: makeId('proj'),
     number: '',
     name: name || `${project.name} (copy)`,
+    // A copy starts a fresh order: back at Quotation, no history, no documents.
+    phase: 'quotation',
     status: 'draft',
+    onHoldFrom: null,
+    workflow: defaultWorkflow(),
     createdAt: at,
     modifiedAt: at,
     quotes: [],
@@ -310,6 +394,25 @@ export function recordAttempt(project, partId, attempt) {
     ...project,
     parts: project.parts.map((p) => (
       p.id === partId ? { ...p, attempts: [...p.attempts, makeAttempt(attempt)] } : p
+    )),
+  });
+}
+
+/**
+ * Drop a recorded print.
+ *
+ * A print gets recorded once too often - the button was clicked twice, or the
+ * plate was planned and never actually run - and there has to be a way to take
+ * it back out. The stock the print booked out is reversed by the caller, which
+ * owns the movement log; this only touches the part's own history.
+ */
+export function removeAttempt(project, partId, attemptId) {
+  return touch({
+    ...project,
+    parts: project.parts.map((p) => (
+      p.id === partId
+        ? { ...p, attempts: (p.attempts || []).filter((a) => a.id !== attemptId) }
+        : p
     )),
   });
 }
@@ -412,6 +515,17 @@ export function migrateProject(stored) {
     attempts: (part.attempts || []).map((a) => ({ ...makeAttempt(), ...a })),
   }));
   project.order = { ...base.order, ...(raw.order || {}) };
+
+  // Workflow phase is the source of truth. An already-migrated project keeps its
+  // phase; an older one has only `status`, so its phase is derived from that.
+  const PHASE_IDS = [
+    'quotation', 'awaiting-payment', 'production', 'post-processing',
+    'packaging', 'delivery', 'closeout', 'closed', 'cancelled', 'on-hold',
+  ];
+  project.phase = PHASE_IDS.includes(raw.phase) ? raw.phase : phaseFromStatus(raw.status);
+  project.onHoldFrom = raw.onHoldFrom || null;
+  project.workflow = { ...defaultWorkflow(), ...(raw.workflow || {}) };
+  project.status = statusFromPhase(project.phase);
   project.history = Array.isArray(raw.history) ? raw.history : [];
   project.quotes = Array.isArray(raw.quotes) ? raw.quotes : [];
   project.invoices = Array.isArray(raw.invoices) ? raw.invoices : [];
@@ -428,6 +542,11 @@ export function orderFromProject(project, { customer = null } = {}) {
       settingOverrides: part.settingOverrides,
       printerId: part.printerId,
       materialId: part.materialId,
+      // The loaded filament and this part's share of it, so a multi-material
+      // machine prices every head. Absent on older parts, which fall back to a
+      // single slot synthesised from materialId.
+      slots: part.slots || null,
+      mix: part.mix || null,
       geometry: part.geometry,
       manual: part.manual,
       orientedSize: part.orientedSize,
@@ -441,12 +560,34 @@ export function orderFromProject(project, { customer = null } = {}) {
       partsPerPlateOverride: part.partsPerPlateOverride,
       otherDirectCost: part.otherDirectCost,
       estimateMethod: part.estimateMethod,
-      slicer: part.slicer,
+      slicer: perPartSlicer(part),
       actual: latestActual(part),
       discount: part.discount || customer?.discount || null,
       partId: part.id,
       name: part.name,
     })),
+  };
+}
+
+/**
+ * Slicer figures on a project part are entered as TOTALS for the whole print of
+ * that part — the grams off each head and the print time the slicer reports for
+ * the plate as sliced, not per single unit. The engine works per part and
+ * multiplies back up by quantity, so the totals are divided down to a per-part
+ * share here. (Recorded production figures do the same, in `latestActual`.)
+ */
+function perPartSlicer(part) {
+  const slicer = part.slicer;
+  if (!slicer) return null;
+  const qty = Math.max(1, num(part.quantity, 1));
+  if (qty === 1) return slicer;
+  return {
+    ...slicer,
+    grams: slicer.grams != null ? num(slicer.grams) / qty : slicer.grams,
+    minutes: slicer.minutes != null ? num(slicer.minutes) / qty : slicer.minutes,
+    heads: Array.isArray(slicer.heads)
+      ? slicer.heads.map((h) => ({ ...h, grams: num(h.grams) / qty }))
+      : slicer.heads,
   };
 }
 
