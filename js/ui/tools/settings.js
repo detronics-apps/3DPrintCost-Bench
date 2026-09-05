@@ -704,10 +704,15 @@ function labourPanel(ctx) {
         },
         {
           label: '',
-          get: (op) => (op.builtIn ? '' : button('Remove', () => {
+          get: (op) => button('Remove', () => {
+            if (!window.confirm(`Remove the “${op.name}” operation for good? `
+              + '(Untick “On” instead if you only want to switch it off.)')) return;
             settings.labour.ops = settings.labour.ops.filter((x) => x.id !== op.id);
+            // Tombstone it so a shipped default is not topped back up on reload.
+            const removed = settings.removed || (settings.removed = {});
+            removed.labourOps = [...new Set([...(removed.labourOps || []), op.id])];
             touch(rerender);
-          }, { key: `op-remove-${op.id}` })),
+          }, { key: `op-remove-${op.id}`, danger: true }),
         },
       ], settings.labour.ops, { compact: true }),
       muted('“Happens” is what makes quantity pricing honest. Per-order work is done once '

@@ -33,7 +33,8 @@ import { makeQuote, invoiceFromQuote, recordPayment, lockedPricing } from '../..
 import { movementsForRun, materialStock } from '../../inventory.js';
 import { nextNumber } from '../../settings.js';
 import {
-  state, replaceProject, activeProject, activePart, saveSoon, customerFor, exportProject,
+  state, replaceProject, removeProject, activeProject, activePart, saveSoon,
+  customerFor, exportProject,
 } from '../../state.js';
 
 export const id = 'projects';
@@ -150,6 +151,15 @@ function projectList(ctx) {
       { label: 'Printed', align: 'right', mono: true, get: (r) => `${r.accepted}/${r.printed}` },
       { label: 'CTC', align: 'right', mono: true, get: (r) => fmtMoney(r.result.totals.costToCompany, code) },
       { label: 'Invoice', align: 'right', mono: true, get: (r) => fmtMoney(r.result.totals.finalInvoice, code) },
+      {
+        label: '',
+        get: (r) => button('Delete', () => {
+          if (!window.confirm(`Delete “${r.project.name}” for good? This cannot be undone.`)) return;
+          removeProject(r.project.id);
+          toast('Project deleted');
+          rerender();
+        }, { key: `delete-${r.project.id}`, danger: true }),
+      },
     ], rows),
   ];
 }

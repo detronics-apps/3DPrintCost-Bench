@@ -343,7 +343,10 @@ export function migrateSettings(stored) {
       return from ? { ...clone(from), ...stored } : stored;
     });
     const have = new Set(ops.map((op) => op.id));
-    for (const op of DEFAULT_LABOUR_OPS) if (!have.has(op.id)) ops.push(clone(op));
+    // A shipped operation the user deleted for good is tombstoned, so it is not
+    // topped back up here (the same rule the catalogues follow).
+    const goneOps = new Set(Array.isArray(merged.removed.labourOps) ? merged.removed.labourOps : []);
+    for (const op of DEFAULT_LABOUR_OPS) if (!have.has(op.id) && !goneOps.has(op.id)) ops.push(clone(op));
     // Deburring used to be automatic (per part); it is now a post-processing
     // choice. A workshop that stored the old shape keeps its own minutes but has
     // the scope moved, so a plain part is no longer charged for cleanup it did
