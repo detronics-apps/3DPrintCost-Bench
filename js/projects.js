@@ -21,15 +21,42 @@ export const PROJECT_STATUSES = [
   { id: 'draft', name: 'Draft', tone: 'info' },
   { id: 'quoted', name: 'Quoted', tone: 'info' },
   { id: 'accepted', name: 'Accepted', tone: 'ok' },
+  { id: 'invoiced', name: 'Invoiced', tone: 'ok' },
+  { id: 'paid', name: 'Paid', tone: 'ok' },
   { id: 'in-production', name: 'In production', tone: 'warn' },
   { id: 'complete', name: 'Complete', tone: 'ok' },
-  { id: 'invoiced', name: 'Invoiced', tone: 'ok' },
   { id: 'cancelled', name: 'Cancelled', tone: 'danger' },
   { id: 'archived', name: 'Archived', tone: 'info' },
 ];
 
+/**
+ * The order a job actually moves through, which the Next / Previous stepper
+ * walks. Quoting the customer comes before agreeing the work, the invoice is
+ * raised and paid before it goes on a machine, and production ends in Complete.
+ * Cancelled and archived sit OFF this line: they are somewhere a job can jump
+ * to, not a step it steps through, so they are reached by their own controls.
+ */
+export const PROJECT_PIPELINE = [
+  'draft', 'quoted', 'accepted', 'invoiced', 'paid', 'in-production', 'complete',
+];
+
 export function statusOf(id) {
   return PROJECT_STATUSES.find((s) => s.id === id) || PROJECT_STATUSES[0];
+}
+
+/** Where on the pipeline a status sits, or -1 for an off-pipeline one. */
+export const pipelineIndex = (id) => PROJECT_PIPELINE.indexOf(id);
+
+/** The next step along the pipeline, or null at the end / off it. */
+export function nextStatus(id) {
+  const i = PROJECT_PIPELINE.indexOf(id);
+  return i >= 0 && i < PROJECT_PIPELINE.length - 1 ? PROJECT_PIPELINE[i + 1] : null;
+}
+
+/** The previous step, or null at the start / off the pipeline. */
+export function prevStatus(id) {
+  const i = PROJECT_PIPELINE.indexOf(id);
+  return i > 0 ? PROJECT_PIPELINE[i - 1] : null;
 }
 
 /**

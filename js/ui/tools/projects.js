@@ -23,7 +23,7 @@ import { fmtMoney, fmtRate, num } from '../../money.js';
 import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart, duplicatePart,
   duplicateProject, setStatus, recordAttempt, removeAttempt, partStats, orderFromProject,
-  PROJECT_STATUSES, statusOf,
+  PROJECT_STATUSES, PROJECT_PIPELINE, statusOf, nextStatus, prevStatus, pipelineIndex,
 } from '../../projects.js';
 import { makeQuote, invoiceFromQuote, lockedPricing } from '../../documents.js';
 import { movementsForRun, materialStock } from '../../inventory.js';
@@ -42,6 +42,57 @@ function priceProject(project, settings) {
   const customer = customerFor(project);
   return calculateOrder(orderFromProject(project, { customer }), settings);
 }
+
+/* ------------------------------------------------ shared document actions -- */
+
+/**
+ * Create a quote and move the project to Quoted. Shared by the sidebar and the
+ * workflow stepper, so there is exactly one path that raises a quote.
+ */
+function createQuote(project, result, rerender) {
+  const settings = state.settings;
+  const { number, numbering } = nextNumber(settings, 'quote');
+  settings.numbering = numbering;
+  const quote = makeQuote({
+    number,
+    project,
+    customer: customerFor(project),
+    result,
+    order: orderFromProject(project),
+    settings,
+  });
+  commit(setStatus({ ...project, quotes: [...project.quotes, quote] }, 'quoted', `Quote ${number}`));
+  state.activeDocumentId = quote.id;
+  toast(`Quote ${number} created`);
+  rerender();
+}
+
+/** Invoice the latest quote and move the project to Invoiced. Shared likewise. */
+function createInvoice(project, rerender) {
+  const settings = state.settings;
+  const quote = project.quotes[project.quotes.length - 1];
+  const { number, numbering } = nextNumber(settings, 'invoice');
+  settings.numbering = numbering;
+  const invoice = invoiceFromQuote(quote, { number, dueDays: 14 });
+  commit(setStatus({ ...project, invoices: [...project.invoices, invoice] }, 'invoiced', `Invoice ${number}`));
+  state.activeDocumentId = invoice.id;
+  state.tool = 'documents';
+  toast(`Invoice ${number} created`);
+  rerender();
+}
+
+/** One line of guidance per stage: what it means, and what to do to advance. */
+const STAGE_GUIDE = {
+  draft: 'Getting the parts, printer and quantities right. Quote it when it looks complete.',
+  quoted: 'The customer has a price. Mark it Accepted when they say yes — or step back to change it.',
+  accepted: 'Agreed. Raise the invoice so the work can be scheduled and paid for.',
+  invoiced: 'Invoice sent. Mark it Paid once the money is in.',
+  paid: 'Paid. Move it into production.',
+  'in-production': 'On the machines. Record each print in the Production panel below as it happens.',
+  complete: 'Finished and delivered. Nothing more to do.',
+  cancelled: 'This job was cancelled. Step it back onto the pipeline to revive it.',
+  archived: 'Archived and out of the way.',
+};
 
 /* ----------------------------------------------------------------- list -- */
 
@@ -152,6 +203,59 @@ function projectHeader(ctx, project, result) {
         + `affect it. Today’s live estimate would be `
         + `${fmtMoney(result.totals.finalInvoice, code)}.`)
       : null,
+  ].filter(Boolean));
+}
+
+/**
+ * The workflow stepper: where the job is, and the one move that takes it on.
+ *
+ * The status used to be a bare dropdown that only flipped a flag. Here it is a
+ * line the job walks — Previous and Next step along the pipeline, the stage that
+ * matters shows what to do, and the action that actually advances it (quote,
+ * invoice) is offered right there rather than hunted for in the sidebar.
+ */
+function workflowPanel(ctx, project, result) {
+  const { rerender } = ctx;
+  const status = statusOf(project.status);
+  const onPipeline = pipelineIndex(project.status) >= 0;
+  const next = nextStatus(project.status);
+  const prev = prevStatus(project.status);
+  const cur = pipelineIndex(project.status);
+
+  const step = (to) => { commit(setStatus(project, to)); rerender(); };
+
+  const breadcrumb = el('div', { class: 'btn-row' }, PROJECT_PIPELINE.map((id) => {
+    const st = statusOf(id);
+    if (id === project.status) return pill(st.name, st.tone);
+    if (onPipeline && pipelineIndex(id) < cur) return pill(st.name, 'ok');
+    return el('span', { class: 'muted', text: st.name });
+  }));
+
+  // The action that advances THIS stage, beyond the plain Next button.
+  let action = null;
+  if (project.status === 'draft') {
+    action = button('Create a quote', () => createQuote(project, result, rerender),
+      { primary: true, key: 'wf-quote' });
+  } else if (project.status === 'accepted' && project.quotes.length) {
+    action = button('Invoice the latest quote', () => createInvoice(project, rerender),
+      { primary: true, key: 'wf-invoice' });
+  } else if (project.status === 'accepted') {
+    action = muted('Create a quote first — the invoice is made from it.');
+  }
+
+  return el('div', { class: 'panel' }, [
+    el('div', { class: 'panel__head' }, [
+      el('h3', { text: 'Workflow' }),
+      pill(status.name, status.tone),
+    ]),
+    breadcrumb,
+    muted(STAGE_GUIDE[project.status] || ''),
+    el('div', { class: 'btn-row' }, [
+      prev ? button(`← ${statusOf(prev).name}`, () => step(prev), { key: 'wf-prev' }) : null,
+      next ? button(`${statusOf(next).name} →`, () => step(next), { primary: !action, key: 'wf-next' }) : null,
+      !onPipeline ? button('Back to Draft', () => step('draft'), { key: 'wf-revive' }) : null,
+    ].filter(Boolean)),
+    action,
   ].filter(Boolean));
 }
 
@@ -366,9 +470,11 @@ function projectSidebar(ctx, project, result) {
         state.customers.push(customer);
         setProject({ customerId: customer.id });
       }, { key: 'new-customer' })]),
-      selectField('project-status', 'Status',
+      selectField('project-status', 'Status (jump directly)',
         PROJECT_STATUSES.map((s) => ({ value: s.id, label: s.name })),
-        project.status, (v) => { commit(setStatus(project, v)); rerender(); }),
+        project.status, (v) => { commit(setStatus(project, v)); rerender(); },
+        { hint: 'Use the Workflow steps for the normal path. This jumps straight to any '
+          + 'status — including Cancelled — when you need to.' }),
       textField('project-notes', 'Notes', project.notes, (v) => setProject({ notes: v }), { multiline: true }),
     ]),
   ];
@@ -390,37 +496,12 @@ function projectSidebar(ctx, project, result) {
 
   sections.push(section('project-docs', 'Quote and invoice', [
     buttonRow([
-      button('Create a quote', () => {
-        const { number, numbering } = nextNumber(settings, 'quote');
-        settings.numbering = numbering;
-        const quote = makeQuote({
-          number,
-          project,
-          customer: customerFor(project),
-          result,
-          order: orderFromProject(project),
-          settings,
-        });
-        commit(setStatus({ ...project, quotes: [...project.quotes, quote] }, 'quoted',
-          `Quote ${number}`));
-        state.activeDocumentId = quote.id;
-        toast(`Quote ${number} created`);
-        rerender();
-      }, { primary: true, key: 'make-quote' }),
+      button('Create a quote', () => createQuote(project, result, rerender),
+        { primary: true, key: 'make-quote' }),
     ]),
     project.quotes.length ? buttonRow([
-      button('Invoice the latest quote', () => {
-        const quote = project.quotes[project.quotes.length - 1];
-        const { number, numbering } = nextNumber(settings, 'invoice');
-        settings.numbering = numbering;
-        const invoice = invoiceFromQuote(quote, { number, dueDays: 14 });
-        commit(setStatus({ ...project, invoices: [...project.invoices, invoice] }, 'invoiced',
-          `Invoice ${number}`));
-        state.activeDocumentId = invoice.id;
-        state.tool = 'documents';
-        toast(`Invoice ${number} created`);
-        rerender();
-      }, { key: 'make-invoice' }),
+      button('Invoice the latest quote', () => createInvoice(project, rerender),
+        { key: 'make-invoice' }),
     ]) : muted('Create a quote first. It stores the assumptions it was priced under, so '
       + 'changing your settings later will not rewrite it.'),
     project.quotes.length || project.invoices.length
@@ -565,6 +646,8 @@ export function main(ctx) {
   const code = result.currencyCode;
 
   const nodes = [projectHeader(ctx, project, result)];
+
+  nodes.push(workflowPanel(ctx, project, result));
 
   for (const note of result.notes) nodes.push(banner(note.level, note.text));
 

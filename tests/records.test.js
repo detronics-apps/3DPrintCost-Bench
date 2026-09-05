@@ -4,7 +4,7 @@ import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart,
   duplicatePart, duplicateProject, nextRevision, setStatus, archiveProject,
   recordAttempt, removeAttempt, partStats, projectStats, migrateProject, orderFromProject,
-  PROJECT_STATUSES, statusOf,
+  PROJECT_STATUSES, PROJECT_PIPELINE, statusOf, nextStatus, prevStatus, pipelineIndex,
 } from '../js/projects.js';
 import {
   makeQuote, invoiceFromQuote, recordPayment, outstanding, isOverdue, lockedPricing,
@@ -92,6 +92,29 @@ test('every status a project can hold has a name and a tone the UI honours', () 
     }
   }
   assert.equal(statusOf('nonsense').id, 'draft', 'unknown falls back by name');
+});
+
+test('the status pipeline steps forward and back, and stops at both ends', () => {
+  assert.equal(nextStatus('draft'), 'quoted');
+  assert.equal(nextStatus('invoiced'), 'paid');
+  assert.equal(nextStatus('paid'), 'in-production');
+  assert.equal(nextStatus('complete'), null, 'nothing after the last step');
+  assert.equal(prevStatus('quoted'), 'draft');
+  assert.equal(prevStatus('draft'), null, 'nothing before the first step');
+});
+
+test('cancelled and archived sit off the pipeline, not on it', () => {
+  assert.equal(pipelineIndex('cancelled'), -1);
+  assert.equal(pipelineIndex('archived'), -1);
+  assert.equal(nextStatus('cancelled'), null, 'an off-pipeline status has no next step');
+  assert.equal(prevStatus('archived'), null);
+  // Every pipeline id is a real status with a name and a honoured tone.
+  const tones = new Set(['info', 'ok', 'warn', 'danger']);
+  for (const id of PROJECT_PIPELINE) {
+    const s = statusOf(id);
+    assert.equal(s.id, id, `${id} is a real status`);
+    assert.ok(tones.has(s.tone), `${id} has a honoured tone`);
+  }
 });
 
 test('part statistics compare estimate with actual as a ratio', () => {
