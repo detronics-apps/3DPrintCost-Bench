@@ -13,7 +13,7 @@ import {
 } from '../controls.js';
 import { fmtMoney, num } from '../../money.js';
 import {
-  makeSpool, makeStockItem, makeMovement, balances, lowStock, stockValue,
+  makeSpool, makeStockItem, makeResin, makeMovement, balances, lowStock, stockValue,
   MOVEMENT_REASONS, reason,
 } from '../../inventory.js';
 import { findMaterial } from '../../materials.js';
@@ -33,12 +33,21 @@ function nameOf(item) {
     const material = findMaterial(settings.materials, item.materialId);
     return `${material.name} · ${material.colour}${item.batch ? ` · batch ${item.batch}` : ''}`;
   }
+  if (item.kind === 'resin') return `Resin${item.batch ? ` · batch ${item.batch}` : ''}`;
   if (item.kind === 'hardware') return findHardware(settings.hardware, item.refId)?.name || item.refId || 'Hardware';
   return findPackaging(settings.packaging, item.refId)?.name || item.refId || 'Packaging';
 }
 
+// Filament and resin are grams; hardware and packaging are a plain count, so they
+// carry no unit suffix (the old “off” read as a typo to everyone not in the trade).
 function unitOf(item) {
-  return item.kind === 'filament' ? 'g' : 'off';
+  return (item.kind === 'filament' || item.kind === 'resin') ? 'g' : '';
+}
+
+/** A quantity with its unit, and no trailing space when there is no unit. */
+function qtyWithUnit(qty, item, decimals = 0) {
+  const u = unitOf(item);
+  return `${num(qty).toFixed(decimals)}${u ? ` ${u}` : ''}`;
 }
 
 /** The hardware component's logistics part number, for the stock table. */
@@ -88,7 +97,7 @@ export function main(ctx) {
     ]),
 
     ...low.map((b) => banner('warn',
-      `${nameOf(b.item)} is down to ${b.quantity.toFixed(0)} ${unitOf(b.item)} `
+      `${nameOf(b.item)} is down to ${qtyWithUnit(b.quantity, b.item)} `
       + `against a reorder point of ${num(b.item.reorderAt)}.`)),
 
     el('div', { class: 'panel' }, [
@@ -96,6 +105,7 @@ export function main(ctx) {
         el('h3', { text: 'On hand' }),
         el('div', { class: 'btn-row' }, [
           button('Add a spool', () => addSpool(rerender), { key: 'add-spool' }),
+          button('Add resin', () => addResin(rerender), { key: 'add-resin' }),
           button('Add hardware', () => addStock('hardware', rerender), { key: 'add-hardware' }),
           button('Add packaging', () => addStock('packaging', rerender), { key: 'add-packaging' }),
           button('Print spool labels', () => printSpoolLabels(), { key: 'print-labels' }),
@@ -110,9 +120,9 @@ export function main(ctx) {
           label: 'On hand',
           align: 'right',
           mono: true,
-          get: (r) => `${r.quantity.toFixed(r.item.kind === 'filament' ? 0 : 0)} ${r.unit}`,
+          get: (r) => qtyWithUnit(r.quantity, r.item),
         },
-        { label: 'Reorder at', align: 'right', mono: true, get: (r) => `${num(r.item.reorderAt)} ${r.unit}` },
+        { label: 'Reorder at', align: 'right', mono: true, get: (r) => qtyWithUnit(r.item.reorderAt, r.item) },
         { label: 'Movements', align: 'right', mono: true, get: (r) => String(r.movements) },
         {
           label: '',
@@ -141,7 +151,20 @@ export function main(ctx) {
           get: (r) => `${num(r.movement.quantity) > 0 ? '+' : ''}${num(r.movement.quantity).toFixed(0)}`,
         },
         { label: 'Note', get: (r) => r.movement.note || '—' },
+        {
+          label: '',
+          get: (r) => button('Delete', () => {
+            if (!window.confirm('Delete this stock movement? The on-hand balance is '
+              + 'recalculated without it.')) return;
+            state.inventory.movements = state.inventory.movements
+              .filter((m) => m.id !== r.movement.id);
+            toast('Movement deleted');
+            touch(ctx.rerender);
+          }, { key: `del-mv-${r.movement.id}`, danger: true }),
+        },
       ], recent, { compact: true }),
+      muted('Deleting a movement recalculates the balance from what is left — use it for a '
+        + 'mistaken entry. A production movement can be deleted too, but its print record stays.'),
     ]) : null,
   ];
 }
@@ -175,6 +198,13 @@ function addStock(kind, rerender) {
   touch(rerender);
 }
 
+function addResin(rerender) {
+  const item = makeResin();
+  state.inventory.items.push(item);
+  state.ui.adjustItem = item.id;
+  touch(rerender);
+}
+
 export function sidebar(ctx) {
   const { rerender } = ctx;
   const items = state.inventory.items;
@@ -198,20 +228,22 @@ export function sidebar(ctx) {
         ? selectField('stock-material', 'Material',
           settings.materials.map((m) => ({ value: m.id, label: `${m.name} · ${m.colour}` })),
           selected.materialId, set('materialId'))
-        : selectField('stock-ref', 'Item',
-          (selected.kind === 'hardware' ? settings.hardware : settings.packaging)
-            .map((x) => ({ value: x.id, label: x.name })),
-          selected.refId, set('refId')),
-      selected.kind === 'filament'
-        ? numberField('stock-starting', 'Spool as bought', selected.startingG,
-          (v) => set('startingG')(Math.max(0, num(v))), { min: 0, suffix: 'g' })
+        : selected.kind === 'resin'
+          ? muted('A resin bottle, tracked by weight. Set how much a full bottle holds below.')
+          : selectField('stock-ref', 'Item',
+            (selected.kind === 'hardware' ? settings.hardware : settings.packaging)
+              .map((x) => ({ value: x.id, label: x.name })),
+            selected.refId, set('refId')),
+      (selected.kind === 'filament' || selected.kind === 'resin')
+        ? numberField('stock-starting', selected.kind === 'resin' ? 'Bottle as bought' : 'Spool as bought',
+          selected.startingG, (v) => set('startingG')(Math.max(0, num(v))), { min: 0, suffix: 'g' })
         : null,
       textField('stock-batch', 'Batch', selected.batch || '', set('batch')),
       textField('stock-location', 'Location', selected.location, set('location')),
       numberField('stock-reorder', 'Reorder point', selected.reorderAt,
         (v) => set('reorderAt')(Math.max(0, num(v))), { min: 0, suffix: unitOf(selected) }),
       el('div', { class: 'summary-grid' }, [
-        statTile('On hand', `${(balance?.quantity ?? 0).toFixed(0)} ${unitOf(selected)}`),
+        statTile('On hand', qtyWithUnit(balance?.quantity ?? 0, selected)),
       ]),
     ]),
 

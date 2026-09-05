@@ -354,10 +354,11 @@ export function calculateLine(line, settings, context = {}) {
     supportUnits: line.needsSupport ? quantity : 0,
     // Likewise deburring/cleanup: only the parts marked for it in post-processing.
     deburrUnits: line.needsDeburring ? quantity : 0,
-    // Packing and booking a courier only happen if the order ships. The order
-    // decides this and passes it down; a standalone line leaves it undefined,
-    // which labourCost reads as "it ships" - unchanged from before.
+    // Booking a courier happens unless the customer collects; packing happens
+    // unless the order needs no packaging. The order decides both and passes
+    // them down; a standalone line leaves them undefined ("yes"), unchanged.
     shipped: context.shipped,
+    packs: context.packs,
   }, { rate: labourRate, globalComplexity: num(line.complexity, 1) });
 
   // Scrap wastes the print, not the invoicing. Order-scope labour survives a
@@ -378,7 +379,9 @@ export function calculateLine(line, settings, context = {}) {
   const postProcess = postProcessing({
     needsResin: !!line.needsResin,
     areaCm2: topAreaCm2(orientedSize),
-    nfcCount: hardware.nfc,
+    // NFC coding is opt-in: only the parts the operator ticked to code are
+    // charged for it, never automatically because a tag is embedded.
+    nfcCount: line.nfcCode ? hardware.nfc : 0,
     // Fitting after-print hardware onto the finished part is post-processing too.
     fitMinutes: hardware.fitMinutes,
     config: settings.postProcessing,
@@ -684,14 +687,15 @@ export function calculateOrder(order, settings, context = {}) {
     }
   }
 
-  // Collection means nothing is boxed and no courier is booked, so the labour
-  // for those steps is dropped from every line. The explicit "customer collects"
-  // toggle and the collection delivery method both say the same thing.
+  // Collection means no courier is booked (but the order is still boxed for the
+  // customer to fetch). "No packaging" means nothing is boxed at all. The two are
+  // separate now: pickup keeps packaging, no-packaging drops it.
   const collected = !!order.packagingCollected || order.shippingMethodId === 'collect';
+  const packs = !order.noPackaging;
 
   const lines = rawLines
     .map((line, i) => calculateLine(line, settings, {
-      ...context, demand, plate, bedPlacement: bedPlacements[i], shipped: !collected,
+      ...context, demand, plate, bedPlacement: bedPlacements[i], shipped: !collected, packs,
     }));
   for (const line of lines) notes.push(...line.notes.filter((n) => n.level !== 'info'));
   notes.push(...bedNotes);
@@ -709,7 +713,7 @@ export function calculateOrder(order, settings, context = {}) {
     return v > best.v ? { v, size: l.geometry.size } : best;
   }, { v: 0, size: { x: 0, y: 0, z: 0 } }).size;
 
-  const packaging = order.packagingCollected
+  const packaging = order.noPackaging
     ? { container: null, lines: [], cost: 0, weightG: 0, outerDims: biggest, fits: true }
     : choosePackaging(settings.packaging, {
       dims: biggest,
@@ -761,7 +765,8 @@ export function calculateOrder(order, settings, context = {}) {
     lineValues: lines.map((l) => l.lineTotal),
   });
   const freeApplies = free.free && (method?.qualifiesForFree !== false);
-  const shippingCharged = freeApplies ? 0 : shipping.total;
+  // A collection is not couriered, so no shipping is charged for it.
+  const shippingCharged = (collected || freeApplies) ? 0 : shipping.total;
 
   if (free.free && method && method.qualifiesForFree === false) {
     notes.push(note('info',

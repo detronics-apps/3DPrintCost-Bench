@@ -146,6 +146,47 @@ test('cancel is a terminal off-ramp that can be reopened to where it was', () =>
   assert.equal(reopened.phase, 'packaging');
 });
 
+/* --------------------------------------------- pickup / no-packaging ------ */
+
+test('no packaging skips the Packaging phase', () => {
+  const p = order();
+  p.order = { ...p.order, noPackaging: true };
+  const routed = advance(toProduction(p), 'inspection-pass');
+  assert.equal(routed.phase, 'delivery', 'no packaging → straight to Delivery');
+});
+
+test('pickup keeps Packaging but skips Delivery, ending at Closeout', () => {
+  const p = order();
+  p.order = { ...p.order, packagingCollected: true };
+  let q = advance(toProduction(p), 'inspection-pass');
+  assert.equal(q.phase, 'packaging', 'still packaged for collection');
+  q = advance(q, 'ready-for-collection');
+  assert.equal(q.phase, 'closeout', 'no Delivery — collected then closeout');
+});
+
+/* --------------------------------------------------- internal orders ------ */
+
+test('an employee internal order still quotes and pays, but skips packaging and delivery', () => {
+  const p = order();
+  p.internal = 'employee';
+  let s = advance(p, 'send-quote');
+  assert.equal(s.phase, 'awaiting-payment', 'still quoted');
+  s = advance(s, 'payment-received');
+  assert.equal(s.phase, 'production', 'still pays');
+  s = advance(s, 'inspection-pass');
+  assert.equal(s.phase, 'closeout', 'production → closeout, skipping packaging + delivery');
+});
+
+test('a company internal order skips quote and payment — straight to production', () => {
+  const p = order();
+  p.internal = 'company';
+  const ws = workflowState(p);
+  assert.equal(ws.effectivePhase, 'production', 'reads as Production from the start');
+  assert.ok(ws.actions.some((a) => a.id === 'inspection-pass'), 'production actions, not a quote');
+  const done = advance(p, 'inspection-pass');
+  assert.equal(done.phase, 'closeout', 'production → done, packaging and delivery skipped');
+});
+
 /* ------------------------------------------------------- back a phase ----- */
 
 test('back a phase returns to the previous one and reopens its decision', () => {

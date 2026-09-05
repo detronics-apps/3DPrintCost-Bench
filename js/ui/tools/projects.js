@@ -27,12 +27,15 @@ import {
   duplicateProject, recordAttempt, removeAttempt, partStats, orderFromProject, logEvent,
 } from '../../projects.js';
 import {
-  workflowState, advance, clientProgressReport, phaseName, PHASES,
+  workflowState, advance, clientProgressReport, phaseName, PHASES, isInternal, displayPhase,
+  phaseSkipped,
 } from '../../workflow.js';
 import {
   makeQuote, invoiceFromQuote, recordPayment, agreeTotal, lockedPricing,
 } from '../../documents.js';
-import { movementsForRun, materialStock } from '../../inventory.js';
+import {
+  movementsForRun, materialStock, resinStock, resinGramsForPart, resinItemFor, makeMovement,
+} from '../../inventory.js';
 import { nextNumber } from '../../settings.js';
 import {
   state, replaceProject, removeProject, activeProject, activePart, saveSoon,
@@ -47,7 +50,7 @@ const commit = (project) => { replaceProject(project); };
 
 function priceProject(project, settings) {
   const customer = customerFor(project);
-  return calculateOrder(orderFromProject(project, { customer }), settings, { internal: !!project.internal });
+  return calculateOrder(orderFromProject(project, { customer }), settings, { internal: isInternal(project) });
 }
 
 /* ------------------------------------------------ shared document actions -- */
@@ -148,7 +151,7 @@ function projectList(ctx) {
         }, { key: `open-${r.project.id}` }),
       },
       { label: 'Customer', get: (r) => r.project.customerName || customerFor(r.project)?.name || '—' },
-      { label: 'Phase', get: (r) => pill(phaseName(r.project.phase), phaseTone(r.project.phase)) },
+      { label: 'Phase', get: (r) => pill(phaseName(displayPhase(r.project)), phaseTone(displayPhase(r.project))) },
       { label: 'Parts', align: 'right', mono: true, get: (r) => String(r.project.parts.length) },
       { label: 'Printed', align: 'right', mono: true, get: (r) => `${r.accepted}/${r.printed}` },
       { label: 'CTC', align: 'right', mono: true, get: (r) => fmtMoney(r.result.totals.costToCompany, code) },
@@ -200,7 +203,7 @@ function projectHeader(ctx, project, result) {
       ]),
       el('div', { class: 'btn-row' }, [
         locked ? pill(`Locked · ${locked.number}`, 'ok') : null,
-        pill(phaseName(project.phase), phaseTone(project.phase)),
+        pill(phaseName(displayPhase(project)), phaseTone(displayPhase(project))),
         button('Back to the list', () => {
           state.activeProjectId = null;
           saveSoon();
@@ -244,7 +247,9 @@ function phaseStrip(project, eff) {
   const order = PHASES.map((p) => p.id);
   const curIdx = order.indexOf(eff);
   return el('div', { class: 'btn-row' }, PHASES.map((ph) => {
-    if (ph.id === project.phase) return pill(ph.name, phaseTone(ph.id));
+    // A phase that does not apply to this order reads muted, never as "done".
+    if (phaseSkipped(project, ph.id)) return el('span', { class: 'muted', text: ph.name });
+    if (ph.id === eff) return pill(ph.name, phaseTone(ph.id));
     if (curIdx >= 0 && order.indexOf(ph.id) < curIdx) return pill(ph.name, 'ok');
     return el('span', { class: 'muted', text: ph.name });
   }));
@@ -364,7 +369,7 @@ function workflowPanel(ctx, project, result) {
   return el('div', { class: 'panel' }, [
     el('div', { class: 'panel__head' }, [
       el('h3', { text: 'Workflow' }),
-      pill(phaseName(project.phase), phaseTone(project.phase)),
+      pill(phaseName(displayPhase(project)), phaseTone(displayPhase(project))),
     ]),
     progressBar('Overall progress', ws.overallProgress),
     phaseStrip(project, ws.effectivePhase),
@@ -501,6 +506,23 @@ function productionPanel(ctx, project, result) {
           project: next, part, attempt: created, result: line, settings: state.settings,
         });
         state.inventory.movements.push(...movements);
+        // A resined part draws resin from a bottle in stock, if one is tracked.
+        if (part.needsResin) {
+          const size = part.orientedSize || part.geometry?.size;
+          const resinG = resinGramsForPart(part, size, state.settings) * Math.max(0, num(created.accepted));
+          const bottle = resinItemFor(state.inventory);
+          if (bottle && resinG > 0) {
+            state.inventory.movements.push(makeMovement({
+              itemId: bottle.id,
+              reason: created.failed ? 'scrap' : 'production',
+              quantity: -resinG,
+              projectId: next.id,
+              partId: part.id,
+              runId: created.id,
+              note: `Resin on ${part.name}`,
+            }));
+          }
+        }
         saveSoon();
         toast('Print recorded — correct the actual figures below');
         rerender();
@@ -618,12 +640,16 @@ function projectSidebar(ctx, project, result) {
         state.customers.push(customer);
         setProject({ customerId: customer.id });
       }, { key: 'new-customer' })]),
-      checkField('project-internal', 'Internal order (cost only — no labour, no profit)',
-        !!project.internal, (v) => setProject({ internal: v }), {
-          hint: 'For prints the company makes for itself. Prices at the physical cost — material, '
-            + 'machine, electricity, hardware, the rejection and general allowances — with no '
-            + 'labour and no profit or margin.',
-        }),
+      selectField('project-internal', 'Order type', [
+        { value: 'off', label: 'Customer order' },
+        { value: 'employee', label: 'Internal — for an employee (cost, they pay)' },
+        { value: 'company', label: 'Internal — for the company (cost, an expense)' },
+      ], project.internal || 'off', (v) => setProject({ internal: v }), {
+        hint: 'Internal orders price at the physical cost — material, machine, electricity, '
+          + 'hardware, the rejection and general allowances — with no labour and no profit, and '
+          + 'they skip packaging and delivery. An employee still gets quoted and pays the cost; a '
+          + 'company print skips the quote and payment and goes straight to production as an expense.',
+      }),
       textField('project-notes', 'Notes', project.notes, (v) => setProject({ notes: v }), { multiline: true }),
     ]),
   ];
@@ -639,8 +665,16 @@ function projectSidebar(ctx, project, result) {
           .map((s) => ({ value: s.id, label: s.name }))],
       project.order.shippingMethodId,
       (v) => setProject({ order: { ...project.order, shippingMethodId: v } })),
-    checkField('project-collect', 'Customer collects', project.order.packagingCollected,
-      (v) => setProject({ order: { ...project.order, packagingCollected: v } })),
+    checkField('project-collect', 'Customer collects (pickup — no courier)', project.order.packagingCollected,
+      (v) => setProject({ order: { ...project.order, packagingCollected: v } }), {
+        hint: 'Still boxed for collection, but no courier and no Delivery phase — the client '
+          + 'picks it up, then it goes to Closeout.',
+      }),
+    checkField('project-nopack', 'No packaging required', project.order.noPackaging,
+      (v) => setProject({ order: { ...project.order, noPackaging: v } }), {
+        hint: 'Hand the parts over as they come off the printer — skips the Packaging phase and '
+          + 'its cost.',
+      }),
   ], { open: false }));
 
   sections.push(section('project-docs', 'Quotes and invoices', [
@@ -869,6 +903,16 @@ export function main(ctx) {
     const s = materialStock(state.inventory, id, entry.grams);
     if (s.tracked && !s.enough) {
       toBuy.push(`${entry.name} — need ${entry.grams.toFixed(0)} g, have ${s.onHandG.toFixed(0)} g`);
+    }
+  }
+  // Resin, across every resined part, checked against the bottles in stock.
+  const resinNeed = project.parts.reduce((t, p) => t
+    + resinGramsForPart(p, p.orientedSize || p.geometry?.size, state.settings)
+      * Math.max(1, num(p.quantity, 1)), 0);
+  if (resinNeed > 0) {
+    const rs = resinStock(state.inventory, resinNeed);
+    if (rs.tracked && !rs.enough) {
+      toBuy.push(`Resin — need ${resinNeed.toFixed(0)} g, have ${rs.onHandG.toFixed(0)} g`);
     }
   }
   if (toBuy.length) {

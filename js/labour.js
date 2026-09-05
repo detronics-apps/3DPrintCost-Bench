@@ -98,11 +98,12 @@ export const DEFAULT_LABOUR_OPS = [
   op('cleaning', 'Cleaning and finishing', 2, 'deburrUnit', 'Finishing',
     'Deburring, trimming seams, wiping down. Only on parts marked for cleanup.'),
 
-  // Both of these only happen if the order is actually going somewhere. If the
-  // customer collects, nobody boxes it and nobody books a courier, so `shipping`
-  // marks them to be dropped when the delivery method is collection.
+  // Packing happens whenever the order is boxed — including a collection, which
+  // is still boxed for the customer to fetch. `packing` drops it only when the
+  // order needs no packaging at all. Booking a courier (`shipping`) is dropped
+  // when the customer collects, because nobody books one.
   { ...op('packaging', 'Packaging', 3, 'order', 'Fulfilment',
-    'Boxing, padding, labelling.'), shipping: true },
+    'Boxing, padding, labelling.'), packing: true },
   { ...op('book-shipment', 'Booking the shipment', 4, 'order', 'Fulfilment',
     'Booking the courier or locker and printing the waybill.'), shipping: true },
   op('book-parts', 'Booking parts in and out', 2, 'order', 'Fulfilment',
@@ -153,9 +154,10 @@ export function labourCost(ops, counts, { rate, globalComplexity = 1 } = {}) {
   const hourly = Math.max(0, num(rate));
   const quantity = Math.max(1, Math.round(num(counts.quantity, 1)));
   const jobs = Math.max(1, Math.round(num(counts.jobs, 1)));
-  // Whether the order actually ships. Undefined means "assume it does", so every
-  // existing caller and the standalone line calculation behave exactly as before.
+  // Whether the order actually ships (a courier is booked) and whether it is
+  // packed at all. Undefined means "yes" so existing callers are unchanged.
   const shipped = counts.shipped !== false;
+  const packs = counts.packs !== false;
   const multipliers = {
     order: 1,
     job: jobs,
@@ -176,9 +178,10 @@ export function labourCost(ops, counts, { rate, globalComplexity = 1 } = {}) {
 
   for (const operation of ops) {
     if (operation.enabled === false) continue;
-    // A packing or courier-booking step on an order the customer collects is
-    // work nobody does, so it is dropped rather than charged.
+    // Courier booking is dropped on a collection; packing is dropped only when
+    // the order needs no packaging at all.
     if (operation.shipping && !shipped) continue;
+    if (operation.packing && !packs) continue;
     const scope = SCOPE_IDS.includes(operation.per) ? operation.per : 'order';
     const count = multipliers[scope];
     if (count <= 0) continue;

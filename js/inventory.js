@@ -12,12 +12,17 @@ import { num } from './money.js';
 import { makeId, nowIso } from './projects.js';
 import { pricePerGram, findMaterial } from './materials.js';
 import { itemPrice, findHardware, findPackaging } from './packaging.js';
+import { topAreaCm2 } from './postprocessing.js';
 
 export const STOCK_KINDS = [
   { id: 'filament', name: 'Filament', unit: 'g' },
+  { id: 'resin', name: 'Resin', unit: 'g' },
   { id: 'hardware', name: 'Hardware', unit: 'off' },
   { id: 'packaging', name: 'Packaging', unit: 'off' },
 ];
+
+/** Both filament and resin are stocked by weight, booked in as a full spool/bottle. */
+const byWeight = (item) => item.kind === 'filament' || item.kind === 'resin';
 
 export const MOVEMENT_REASONS = [
   { id: 'purchase', name: 'Purchased', sign: 1 },
@@ -59,6 +64,27 @@ export function makeStockItem(spec = {}) {
   };
 }
 
+/** A resin bottle, stocked by weight like a spool. */
+export function makeResin(spec = {}) {
+  return {
+    id: makeId('resin'),
+    kind: 'resin',
+    batch: '',
+    location: '',
+    startingG: 1000,
+    reorderAt: 200,
+    archived: false,
+    ...spec,
+  };
+}
+
+/** The resin one resined part uses: its top area × the grams-per-cm² setting. */
+export function resinGramsForPart(part, size, settings) {
+  if (!part?.needsResin) return 0;
+  const perCm2 = Math.max(0, num(settings?.postProcessing?.resin?.gramsPerCm2, 0));
+  return topAreaCm2(size || part?.orientedSize || part?.geometry?.size) * perCm2;
+}
+
 export function makeMovement(spec = {}) {
   return {
     id: makeId('mv'),
@@ -84,7 +110,7 @@ export function balances(items, movements) {
   for (const item of items) {
     totals.set(item.id, {
       item,
-      quantity: item.kind === 'filament' ? num(item.startingG) : 0,
+      quantity: byWeight(item) ? num(item.startingG) : 0,
       movements: 0,
       lastAt: null,
     });
@@ -214,6 +240,40 @@ export function spoolsFor(items, movements, materialId) {
  * Once even one spool is recorded, the numbers are believed and a shortfall is
  * flagged.
  */
+/**
+ * Resin on hand, across every resin bottle, and whether it covers a job.
+ *
+ * Like materialStock: untracked (no bottle recorded) means "do not nag". Once a
+ * bottle is booked in, a shortfall is flagged so a resined job is not started
+ * without enough resin to finish it.
+ */
+export function resinStock(inventory, requiredG = 0) {
+  const items = inventory?.items || [];
+  const movements = inventory?.movements || [];
+  const tracked = items.some((i) => i.kind === 'resin' && !i.archived);
+  const onHandG = balances(items, movements)
+    .filter((b) => b.item.kind === 'resin' && !b.item.archived)
+    .reduce((t, b) => t + Math.max(0, num(b.quantity)), 0);
+  const req = Math.max(0, num(requiredG));
+  return {
+    tracked,
+    onHandG,
+    inStock: onHandG > 0,
+    enough: !tracked || onHandG >= req,
+    shortG: Math.max(0, req - onHandG),
+  };
+}
+
+/** The resin bottle to book production against — the one with the least left. */
+export function resinItemFor(inventory) {
+  const items = inventory?.items || [];
+  const movements = inventory?.movements || [];
+  const resin = balances(items, movements)
+    .filter((b) => b.item.kind === 'resin' && !b.item.archived && b.quantity > 0)
+    .sort((a, b) => a.quantity - b.quantity);
+  return resin[0]?.item || items.find((i) => i.kind === 'resin' && !i.archived) || null;
+}
+
 export function materialStock(inventory, materialId, requiredG = 0) {
   const items = inventory?.items || [];
   const movements = inventory?.movements || [];

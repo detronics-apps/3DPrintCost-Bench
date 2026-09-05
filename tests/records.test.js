@@ -12,8 +12,9 @@ import {
   QUOTE_STATUSES, INVOICE_STATUSES,
 } from '../js/documents.js';
 import {
-  makeSpool, makeStockItem, makeMovement, balances, balanceOf, lowStock,
-  movementsForRun, movementsForDespatch, stockValue, spoolsFor, MOVEMENT_REASONS, reason,
+  makeSpool, makeStockItem, makeResin, makeMovement, balances, balanceOf, lowStock,
+  movementsForRun, movementsForDespatch, stockValue, spoolsFor, resinStock, resinGramsForPart,
+  MOVEMENT_REASONS, reason,
 } from '../js/inventory.js';
 import { calibrate, samplesFrom, correctionFor, errorReport, DEFAULT_CALIBRATION } from '../js/calibration.js';
 import { dashboard, committedLoad, revenueByMonth } from '../js/analytics.js';
@@ -222,6 +223,35 @@ test('a project becomes an order the engine can price', () => {
   assert.equal(result.lines.length, 1);
   assert.equal(result.lines[0].quantity, 4);
   assert.equal(result.separation.ok, true);
+});
+
+test('NFC coding is opt-in — charged only when the part is ticked to code it', () => {
+  const settings = defaultSettings();
+  settings.postProcessing = {
+    ...settings.postProcessing,
+    nfc: { ...(settings.postProcessing?.nfc || {}), codingMinutes: 5 },
+  };
+  const tagged = () => samplePart({ hardware: [{ hardwareId: 'nfc-ntag215', qty: 1 }] });
+  const off = calculateOrder(orderFromProject(
+    addPart(makeProject(), { ...tagged(), nfcCode: false })), settings).lines[0];
+  const on = calculateOrder(orderFromProject(
+    addPart(makeProject(), { ...tagged(), nfcCode: true })), settings).lines[0];
+
+  assert.equal(off.detail.postProcess.nfcTags, 0, 'a tag embedded is not coded automatically');
+  assert.ok(on.detail.postProcess.nfcTags > 0, 'it is coded once ticked');
+  assert.ok(on.production.postProcess > off.production.postProcess, 'and only then does it cost');
+});
+
+test('pickup keeps packaging but drops shipping; no-packaging drops packaging', () => {
+  const settings = defaultSettings();
+  const base = orderFromProject(addPart(makeProject(), samplePart()));
+  const normal = calculateOrder({ ...base }, settings);
+  const pickup = calculateOrder({ ...base, packagingCollected: true }, settings);
+  const nopack = calculateOrder({ ...base, noPackaging: true }, settings);
+
+  close(pickup.orderExtras.packaging, normal.orderExtras.packaging, 1e-9, 'pickup is still boxed');
+  assert.equal(pickup.orderExtras.shipping, 0, 'but no courier is charged');
+  assert.equal(nopack.orderExtras.packaging, 0, 'no packaging means no packaging cost');
 });
 
 test('an internal order is priced at cost — no labour, no profit', () => {
@@ -507,6 +537,22 @@ test('spool picking finishes the part-used spool first', () => {
   assert.equal(list[0].item.id, part.id, 'the 300 g spool comes first');
 });
 
+test('resin is drawn per resined part and checked against the bottles in stock', () => {
+  const settings = defaultSettings();
+  settings.postProcessing = {
+    ...settings.postProcessing,
+    resin: { ...settings.postProcessing.resin, gramsPerCm2: 2 },
+  };
+  const part = samplePart({ needsResin: true }); // 50×50 top = 25 cm²
+  close(resinGramsForPart(part, part.geometry.size, settings), 50, 1e-6, '25 cm² × 2 g/cm²');
+  close(resinGramsForPart(samplePart(), part.geometry.size, settings), 0, 1e-9, 'no resin, no grams');
+
+  const inv = { items: [makeResin({ startingG: 500 })], movements: [] };
+  assert.equal(resinStock(inv, 100).enough, true, '500 g covers 100');
+  assert.equal(resinStock(inv, 600).enough, false, 'but not 600 — flag it');
+  assert.equal(resinStock({ items: [], movements: [] }, 999).enough, true, 'untracked resin never nags');
+});
+
 test('every movement reason has a name, and an unknown one is not silent', () => {
   for (const r of MOVEMENT_REASONS) assert.ok(r.name && Number.isInteger(r.sign));
   assert.equal(reason('nonsense').id, 'adjustment');
@@ -638,6 +684,26 @@ test('the dashboard adds up revenue, cost and profit from real invoices', () => 
   close(d.money.costToCompany, quote.internal.costToCompany, 1e-9, 'CTC');
   close(d.money.profit, quote.total - quote.internal.costToCompany, 1e-9, 'profit');
   assert.equal(d.conversion, 1);
+});
+
+test('a company-internal print reduces profit as an expense, earning no revenue', () => {
+  const settings = defaultSettings();
+  const { quote, project } = pricedQuote();
+  const invoice = recordPayment(invoiceFromQuote(quote, { number: 'INV1' }), quote.total);
+  const paid = { ...project, invoices: [invoice], quotes: [{ ...quote, status: 'accepted' }] };
+
+  let internal = addPart(makeProject({ internal: 'company' }), samplePart());
+  internal = recordAttempt(internal, internal.parts[0].id,
+    { quantity: 4, accepted: 4, minutes: 200, grams: 160, costPerAttempt: 30 });
+
+  const without = dashboard({ projects: [paid], settings });
+  const withIt = dashboard({ projects: [paid, internal], settings });
+
+  assert.ok(withIt.money.internalExpense > 0, 'the company print is booked as an expense');
+  close(withIt.money.internalExpense, 120, 1e-9, '30 per attempt × 4');
+  close(withIt.money.revenue, without.money.revenue, 1e-9, 'it adds no revenue');
+  close(withIt.money.profit, without.money.profit - withIt.money.internalExpense, 1e-6,
+    'and it lowers profit by exactly its cost');
 });
 
 test('committed load counts accepted work only, never open quotes', () => {

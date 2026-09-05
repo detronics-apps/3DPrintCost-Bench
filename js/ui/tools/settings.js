@@ -768,6 +768,12 @@ function postProcessingPanel(ctx) {
       ]),
       numberField('resin-cure', 'Curing time', pp.resin.curingMinutes, setResin('curingMinutes'),
         { min: 0, step: 1, suffix: 'min', hint: 'Unattended — it adds finishing time, not labour.' }),
+      numberField('resin-grams-cm2', 'Resin used per cm²', num(pp.resin.gramsPerCm2, 2),
+        setResin('gramsPerCm2'), {
+          min: 0, step: 0.1, suffix: 'g/cm²',
+          hint: 'How much resin a cm² of coverage actually uses, in grams — used to book it '
+            + 'out of Inventory and warn when a bottle runs low.',
+        }),
     ]),
     subsection('NFC coding', [
       numberField('nfc-code-min', 'Coding time per tag', pp.nfc.codingMinutes,

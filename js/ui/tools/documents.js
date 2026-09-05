@@ -46,6 +46,13 @@ function persist(project, document_) {
   replaceProject({ ...project, [key]: list });
 }
 
+/** Remove a quote or invoice from its project — for clearing test/training entries. */
+function removeDocument(project, doc) {
+  const key = doc.kind === 'invoice' ? 'invoices' : 'quotes';
+  replaceProject({ ...project, [key]: (project[key] || []).filter((d) => d.id !== doc.id) });
+  if (state.activeDocumentId === doc.id) state.activeDocumentId = null;
+}
+
 /* ----------------------------------------------------------------- list -- */
 
 function documentList(ctx) {
@@ -102,6 +109,15 @@ function documentList(ctx) {
         mono: true,
         get: (r) => (r.document.kind === 'invoice'
           ? fmtMoney(outstanding(r.document), r.document.currencyCode) : '—'),
+      },
+      {
+        label: '',
+        get: (r) => button('Delete', () => {
+          if (!window.confirm(`Delete ${r.document.kind} ${r.document.number} for good?`)) return;
+          removeDocument(r.project, r.document);
+          toast(`${r.document.kind === 'invoice' ? 'Invoice' : 'Quote'} deleted`);
+          touch(rerender);
+        }, { key: `del-doc-${r.document.id}`, danger: true }),
       },
     ], rows),
     muted('A status marked * is worked out from the date rather than stored, so it is '

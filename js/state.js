@@ -54,6 +54,10 @@ export function defaultPart(spec = {}) {
     needsSupport: false,
     needsResin: false,
     needsDeburring: false,
+    // Coding an embedded NFC tag is opt-in, not automatic: tick it and give the
+    // link the tag should carry.
+    nfcCode: false,
+    nfcUrl: '',
     // The colours this part loads, as material ids. Used by the multi-colour
     // plate planner to split a bed when the parts on it need more distinct
     // colours than the machine can hold at once.
@@ -90,6 +94,7 @@ export function defaultQuick() {
       shippingMethodId: 'auto',
       packagingContainerId: null,
       packagingCollected: false,
+      noPackaging: false,
       insured: false,
       extras: [],
     },
