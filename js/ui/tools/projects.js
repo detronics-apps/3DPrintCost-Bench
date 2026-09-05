@@ -18,7 +18,8 @@ import { readMesh } from '../../mesh.js';
 import { platformInflate } from '../../zip.js';
 import { analyse, fmtSize, mm3ToCm3 } from '../../geometry.js';
 import { calculateOrder } from '../../engine.js';
-import { materialPickerWithAdd } from '../material-picker.js';
+import { filamentSlots, mixEditor } from '../filament-slots.js';
+import { reconcileSlots, defaultSlots } from '../../filaments.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart, duplicatePart,
@@ -536,7 +537,19 @@ function projectSidebar(ctx, project, result) {
 function partSidebar(ctx, project, part) {
   const { rerender } = ctx;
   const settings = state.settings;
-  const set = (patch) => { commit(updatePart(project, part.id, patch)); rerender(); };
+  // Read the freshest project each time: adding a head fires two updates in one
+  // click (the new slot, and the mix reseeded to give it a share), and the
+  // second must build on the first rather than on a stale closure.
+  const set = (patch) => {
+    const current = state.projects.find((p) => p.id === project.id) || project;
+    commit(updatePart(current, part.id, patch));
+    rerender();
+  };
+
+  const printer = settings.printers.find((p) => p.id === part.printerId) || settings.printers[0];
+  const liveSlots = reconcileSlots(
+    part.slots || defaultSlots(printer, part.materialId), printer, settings.materials,
+  ).slots;
 
   const fileInput = el('input', {
     type: 'file',
@@ -576,21 +589,29 @@ function partSidebar(ctx, project, part) {
     selectField('part-printer', 'Printer',
       settings.printers.filter((p) => !p.archived).map((p) => ({ value: p.id, label: p.name })),
       part.printerId, (v) => set({ printerId: v })),
-    ...materialPickerWithAdd({
-      keyPrefix: 'part',
+    // The loaded filament, driven by the printer: a single-colour machine asks
+    // for one material and one colour; a multi-material one (a Snapmaker U1, up
+    // to four heads) gives every head its own material and colour — filled in
+    // already when the project came from a customer request.
+    ...filamentSlots({
+      printer,
+      slots: liveSlots,
       materials: settings.materials,
-      materialId: part.materialId,
-      expectedType: settings.profiles.find((p) => p.id === part.profileId)?.settings.materialType,
       countryId: settings.countryId,
       currencyCode: settings.currencyCode,
-      onChange: (id) => set({ materialId: id }),
-      onAdd: (entry) => {
-        settings.materials.push(entry);
-        set({ materialId: entry.id });
-      },
+      keyPrefix: `part-${part.id}`,
+      mix: part.mix,
+      onMix: (next) => set({ mix: next }),
+      onSlots: (next) => set({ slots: next, materialId: next[0]?.materialId || part.materialId }),
     }),
-    numberField('part-colours', 'Colours', part.colours,
-      (v) => set({ colours: Math.max(1, Math.min(6, Math.round(num(v, 1)))) }), { min: 1, max: 6, step: 1 }),
+    ...mixEditor({
+      slots: liveSlots,
+      materials: settings.materials,
+      mix: part.mix,
+      keyPrefix: `partmix-${part.id}`,
+      partName: part.name,
+      onMix: (next) => set({ mix: next }),
+    }),
 
     subsection('Model', [
       part.geometry

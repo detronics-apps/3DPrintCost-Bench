@@ -89,6 +89,13 @@ export function makePart(spec = {}) {
     settingOverrides: {},
     printerId: 'bambu-x1e',
     materialId: 'petg-dark-grey',
+    // What is loaded to print this part, and how much of the part is each of it.
+    // `slots` is [{ id, materialId }] — one per head/spool; `mix` is
+    // [{ slotId, percent }]. Both null means "one spool of materialId", exactly
+    // the single-colour behaviour every older project already has, so the engine
+    // synthesises one slot from materialId and nothing changes.
+    slots: null,
+    mix: null,
     colours: 1,
     colourBands: [],
     hardware: [],
@@ -474,6 +481,11 @@ export function orderFromProject(project, { customer = null } = {}) {
       settingOverrides: part.settingOverrides,
       printerId: part.printerId,
       materialId: part.materialId,
+      // The loaded filament and this part's share of it, so a multi-material
+      // machine prices every head. Absent on older parts, which fall back to a
+      // single slot synthesised from materialId.
+      slots: part.slots || null,
+      mix: part.mix || null,
       geometry: part.geometry,
       manual: part.manual,
       orientedSize: part.orientedSize,

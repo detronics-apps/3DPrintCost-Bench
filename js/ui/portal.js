@@ -522,6 +522,9 @@ function render() {
   const makePayload = () => portalRequest({
     company: state.config.company,
     printerId: state.printerId,
+    // The loaded filament travels with the request, so the workshop opens it
+    // with every head already filled in with the colours the customer chose.
+    slots: slots.map((s) => ({ ...s })),
     parts: state.parts.map((p) => ({
       modelName: p.modelName,
       quantity: p.quantity,
@@ -530,6 +533,8 @@ function render() {
       materialId: partMaterialId(p, slots),
       geometry: p.geometry,
       needsSupport: p.needsSupport,
+      // This part's share of each loaded spool, keyed to the slots above.
+      mix: p.mix,
       colours: Math.max(1, normaliseMix(p.mix, slots).entries.filter((e) => e.percent > 0).length),
     })),
     customer: state.customer,

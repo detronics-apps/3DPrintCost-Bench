@@ -219,6 +219,29 @@ test('a project becomes an order the engine can price', () => {
   assert.equal(result.separation.ok, true);
 });
 
+test('a project part with no loaded heads still prices as a single filament', () => {
+  const project = addPart(makeProject(), samplePart());
+  const result = calculateOrder(orderFromProject(project), defaultSettings());
+  assert.equal(result.lines[0].filaments.length, 1, 'unchanged single-colour behaviour');
+});
+
+test('a project part carries its loaded heads, and the engine prices every one', () => {
+  const settings = defaultSettings();
+  const part = samplePart({
+    printerId: 'snapmaker-u1',
+    slots: [{ id: 's1', materialId: 'petg-dark-grey' }, { id: 's2', materialId: 'pla-dark-grey' }],
+    mix: [{ slotId: 's1', percent: 60 }, { slotId: 's2', percent: 40 }],
+  });
+  const project = addPart(makeProject(), part);
+  const line = orderFromProject(project).lines[0];
+  assert.equal(line.slots.length, 2, 'both heads travel to the engine');
+  assert.equal(line.mix.length, 2, 'and this part’s share of each');
+
+  const result = calculateOrder(orderFromProject(project), settings);
+  assert.equal(result.lines[0].filaments.length, 2, 'both filaments are priced');
+  assert.equal(result.separation.ok, true);
+});
+
 /* ------------------------------------------------------------ documents -- */
 
 const pricedQuote = (settingsOverrides = {}) => {
