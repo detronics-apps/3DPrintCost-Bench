@@ -48,9 +48,9 @@ export function main() {
       + 'discount and how busy you are — raising the price to slow demand when you '
       + 'cannot keep up. A client never sees or sets these; they are yours.', { lane: 'company' }),
     step(3, 'Import the client’s estimate as a project', 'When a client accepts an '
-      + 'estimate, you pull it in as a project. Their material, colour and printer '
-      + 'choices come with it, so nothing is re-typed — and their contact and shipping '
-      + 'details become a new customer.', { lane: 'company' }),
+      + 'estimate, you bring it in with “Upload project” (top bar). Their material, '
+      + 'colours — every loaded head — printer and quantities come with it, so nothing '
+      + 'is re-typed, and their contact and shipping details become a new customer.', { lane: 'company' }),
     step(4, 'Add the real numbers from the slicer', 'The estimate was geometry and rules '
       + 'of thumb. Now you slice the actual part and fill in exactly what the slicer '
       + 'says — grams of each colour, total print time. Only this changes; everything '
@@ -192,6 +192,31 @@ export function main() {
             + 'automatically; a colour beyond that is a hand swap at its height — “at 12 mm: red → '
             + 'blue” — which costs labour, a machine wait, and can never run overnight.',
           tone: 'accent',
+        }),
+        statTile('Open vs Upload project', 'Top bar', {
+          hint: '“Open” loads a whole company from a “Save all” backup and replaces what is on '
+            + 'this device — how you switch between companies, or reopen your workshop after an '
+            + 'update; it asks first. “Upload project” only adds a customer’s request or a '
+            + 'colleague’s project file, and leaves your settings alone.',
+        }),
+        statTile('Project workflow steps', 'Projects', {
+          hint: 'A project walks a pipeline — draft → quoted → accepted → invoiced → paid → in '
+            + 'production → complete — with Previous / Next. Each stage says what it is for and '
+            + 'offers the move that advances it (quote, invoice); the sidebar still jumps '
+            + 'straight to any status, including Cancelled.',
+          tone: 'accent',
+        }),
+        statTile('Delete a print, remove a part', 'Projects', {
+          hint: 'Recorded a print twice, or planned one you did not run? Delete it — the stock '
+            + 'it booked out comes straight back. And a part can be removed from the parts list, '
+            + 'not only added.',
+        }),
+        statTile('Heads on a project part', 'Projects → Part', {
+          hint: 'A multi-material printer (a Snapmaker U1, up to four heads) gives each head its '
+            + 'own material and colour, filled in from the customer’s request. After slicing, '
+            + 'enter the grams for each head and one total print time — every head is then '
+            + 'costed at its own plastic’s price, not an average.',
+          tone: 'ok',
         }),
       ]),
     ], { open: false }),
