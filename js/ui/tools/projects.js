@@ -33,7 +33,9 @@ import {
 import {
   makeQuote, invoiceFromQuote, recordPayment, agreeTotal, lockedPricing,
 } from '../../documents.js';
-import { movementsForRun, materialStock } from '../../inventory.js';
+import {
+  movementsForRun, materialStock, resinStock, resinGramsForPart, resinItemFor, makeMovement,
+} from '../../inventory.js';
 import { nextNumber } from '../../settings.js';
 import {
   state, replaceProject, removeProject, activeProject, activePart, saveSoon,
@@ -504,6 +506,23 @@ function productionPanel(ctx, project, result) {
           project: next, part, attempt: created, result: line, settings: state.settings,
         });
         state.inventory.movements.push(...movements);
+        // A resined part draws resin from a bottle in stock, if one is tracked.
+        if (part.needsResin) {
+          const size = part.orientedSize || part.geometry?.size;
+          const resinG = resinGramsForPart(part, size, state.settings) * Math.max(0, num(created.accepted));
+          const bottle = resinItemFor(state.inventory);
+          if (bottle && resinG > 0) {
+            state.inventory.movements.push(makeMovement({
+              itemId: bottle.id,
+              reason: created.failed ? 'scrap' : 'production',
+              quantity: -resinG,
+              projectId: next.id,
+              partId: part.id,
+              runId: created.id,
+              note: `Resin on ${part.name}`,
+            }));
+          }
+        }
         saveSoon();
         toast('Print recorded — correct the actual figures below');
         rerender();
@@ -884,6 +903,16 @@ export function main(ctx) {
     const s = materialStock(state.inventory, id, entry.grams);
     if (s.tracked && !s.enough) {
       toBuy.push(`${entry.name} — need ${entry.grams.toFixed(0)} g, have ${s.onHandG.toFixed(0)} g`);
+    }
+  }
+  // Resin, across every resined part, checked against the bottles in stock.
+  const resinNeed = project.parts.reduce((t, p) => t
+    + resinGramsForPart(p, p.orientedSize || p.geometry?.size, state.settings)
+      * Math.max(1, num(p.quantity, 1)), 0);
+  if (resinNeed > 0) {
+    const rs = resinStock(state.inventory, resinNeed);
+    if (rs.tracked && !rs.enough) {
+      toBuy.push(`Resin — need ${resinNeed.toFixed(0)} g, have ${rs.onHandG.toFixed(0)} g`);
     }
   }
   if (toBuy.length) {

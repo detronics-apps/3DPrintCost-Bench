@@ -80,6 +80,7 @@ export function defaultSettings() {
         minutesPerCm2: 0.5, // labour to brush/pour resin over a cm² of top area
         costPerCm2: 0,      // resin consumed per cm² of coverage, in money
         curingMinutes: 15,  // unattended cure per part - station time, not labour
+        gramsPerCm2: 2,     // resin USED per cm² of top area, in grams - for stock
       },
       nfc: {
         codingMinutes: 2,   // labour to program and verify one tag
@@ -392,6 +393,10 @@ export function migrateSettings(stored) {
   }
   if (!merged.postProcessing.resin || typeof merged.postProcessing.resin !== 'object') {
     merged.postProcessing.resin = clone(defaults.postProcessing.resin);
+  }
+  // The resin grams-per-cm² (for stock tracking) is newer than the resin block.
+  if (merged.postProcessing.resin.gramsPerCm2 == null) {
+    merged.postProcessing.resin.gramsPerCm2 = defaults.postProcessing.resin.gramsPerCm2;
   }
   if (!merged.postProcessing.nfc || typeof merged.postProcessing.nfc !== 'object') {
     merged.postProcessing.nfc = clone(defaults.postProcessing.nfc);

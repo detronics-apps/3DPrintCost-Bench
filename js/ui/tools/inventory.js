@@ -13,7 +13,7 @@ import {
 } from '../controls.js';
 import { fmtMoney, num } from '../../money.js';
 import {
-  makeSpool, makeStockItem, makeMovement, balances, lowStock, stockValue,
+  makeSpool, makeStockItem, makeResin, makeMovement, balances, lowStock, stockValue,
   MOVEMENT_REASONS, reason,
 } from '../../inventory.js';
 import { findMaterial } from '../../materials.js';
@@ -33,14 +33,15 @@ function nameOf(item) {
     const material = findMaterial(settings.materials, item.materialId);
     return `${material.name} · ${material.colour}${item.batch ? ` · batch ${item.batch}` : ''}`;
   }
+  if (item.kind === 'resin') return `Resin${item.batch ? ` · batch ${item.batch}` : ''}`;
   if (item.kind === 'hardware') return findHardware(settings.hardware, item.refId)?.name || item.refId || 'Hardware';
   return findPackaging(settings.packaging, item.refId)?.name || item.refId || 'Packaging';
 }
 
-// Filament is grams; hardware and packaging are a plain count, so they carry no
-// unit suffix (the old “off” read as a typo to everyone who is not in the trade).
+// Filament and resin are grams; hardware and packaging are a plain count, so they
+// carry no unit suffix (the old “off” read as a typo to everyone not in the trade).
 function unitOf(item) {
-  return item.kind === 'filament' ? 'g' : '';
+  return (item.kind === 'filament' || item.kind === 'resin') ? 'g' : '';
 }
 
 /** A quantity with its unit, and no trailing space when there is no unit. */
@@ -104,6 +105,7 @@ export function main(ctx) {
         el('h3', { text: 'On hand' }),
         el('div', { class: 'btn-row' }, [
           button('Add a spool', () => addSpool(rerender), { key: 'add-spool' }),
+          button('Add resin', () => addResin(rerender), { key: 'add-resin' }),
           button('Add hardware', () => addStock('hardware', rerender), { key: 'add-hardware' }),
           button('Add packaging', () => addStock('packaging', rerender), { key: 'add-packaging' }),
           button('Print spool labels', () => printSpoolLabels(), { key: 'print-labels' }),
@@ -196,6 +198,13 @@ function addStock(kind, rerender) {
   touch(rerender);
 }
 
+function addResin(rerender) {
+  const item = makeResin();
+  state.inventory.items.push(item);
+  state.ui.adjustItem = item.id;
+  touch(rerender);
+}
+
 export function sidebar(ctx) {
   const { rerender } = ctx;
   const items = state.inventory.items;
@@ -219,13 +228,15 @@ export function sidebar(ctx) {
         ? selectField('stock-material', 'Material',
           settings.materials.map((m) => ({ value: m.id, label: `${m.name} · ${m.colour}` })),
           selected.materialId, set('materialId'))
-        : selectField('stock-ref', 'Item',
-          (selected.kind === 'hardware' ? settings.hardware : settings.packaging)
-            .map((x) => ({ value: x.id, label: x.name })),
-          selected.refId, set('refId')),
-      selected.kind === 'filament'
-        ? numberField('stock-starting', 'Spool as bought', selected.startingG,
-          (v) => set('startingG')(Math.max(0, num(v))), { min: 0, suffix: 'g' })
+        : selected.kind === 'resin'
+          ? muted('A resin bottle, tracked by weight. Set how much a full bottle holds below.')
+          : selectField('stock-ref', 'Item',
+            (selected.kind === 'hardware' ? settings.hardware : settings.packaging)
+              .map((x) => ({ value: x.id, label: x.name })),
+            selected.refId, set('refId')),
+      (selected.kind === 'filament' || selected.kind === 'resin')
+        ? numberField('stock-starting', selected.kind === 'resin' ? 'Bottle as bought' : 'Spool as bought',
+          selected.startingG, (v) => set('startingG')(Math.max(0, num(v))), { min: 0, suffix: 'g' })
         : null,
       textField('stock-batch', 'Batch', selected.batch || '', set('batch')),
       textField('stock-location', 'Location', selected.location, set('location')),

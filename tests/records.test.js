@@ -12,8 +12,9 @@ import {
   QUOTE_STATUSES, INVOICE_STATUSES,
 } from '../js/documents.js';
 import {
-  makeSpool, makeStockItem, makeMovement, balances, balanceOf, lowStock,
-  movementsForRun, movementsForDespatch, stockValue, spoolsFor, MOVEMENT_REASONS, reason,
+  makeSpool, makeStockItem, makeResin, makeMovement, balances, balanceOf, lowStock,
+  movementsForRun, movementsForDespatch, stockValue, spoolsFor, resinStock, resinGramsForPart,
+  MOVEMENT_REASONS, reason,
 } from '../js/inventory.js';
 import { calibrate, samplesFrom, correctionFor, errorReport, DEFAULT_CALIBRATION } from '../js/calibration.js';
 import { dashboard, committedLoad, revenueByMonth } from '../js/analytics.js';
@@ -534,6 +535,22 @@ test('spool picking finishes the part-used spool first', () => {
   const movements = [makeMovement({ itemId: part.id, reason: 'production', quantity: -700 })];
   const list = spoolsFor([full, part], movements, 'pla-dark-grey');
   assert.equal(list[0].item.id, part.id, 'the 300 g spool comes first');
+});
+
+test('resin is drawn per resined part and checked against the bottles in stock', () => {
+  const settings = defaultSettings();
+  settings.postProcessing = {
+    ...settings.postProcessing,
+    resin: { ...settings.postProcessing.resin, gramsPerCm2: 2 },
+  };
+  const part = samplePart({ needsResin: true }); // 50×50 top = 25 cm²
+  close(resinGramsForPart(part, part.geometry.size, settings), 50, 1e-6, '25 cm² × 2 g/cm²');
+  close(resinGramsForPart(samplePart(), part.geometry.size, settings), 0, 1e-9, 'no resin, no grams');
+
+  const inv = { items: [makeResin({ startingG: 500 })], movements: [] };
+  assert.equal(resinStock(inv, 100).enough, true, '500 g covers 100');
+  assert.equal(resinStock(inv, 600).enough, false, 'but not 600 — flag it');
+  assert.equal(resinStock({ items: [], movements: [] }, 999).enough, true, 'untracked resin never nags');
 });
 
 test('every movement reason has a name, and an unknown one is not silent', () => {
