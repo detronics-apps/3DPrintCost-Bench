@@ -224,6 +224,23 @@ test('a project becomes an order the engine can price', () => {
   assert.equal(result.separation.ok, true);
 });
 
+test('an internal order is priced at cost — no labour, no profit', () => {
+  const settings = defaultSettings();
+  const order = orderFromProject(addPart(makeProject({ internal: true }), samplePart()));
+  const internalR = calculateOrder(order, settings, { internal: true });
+  const customerR = calculateOrder(order, settings, {});
+
+  const line = internalR.lines[0];
+  assert.equal(line.production.labour, 0, 'no labour in an internal line');
+  assert.equal(line.price.commercial, 0, 'no growth tank');
+  assert.equal(line.price.profit, 0, 'no profit tank');
+  close(line.unitPrice, line.ctc, 1e-9, 'the price is exactly the cost to company');
+  close(internalR.totals.partPrice, internalR.totals.costToCompany, 1e-6, 'part price equals CTC');
+  assert.equal(internalR.separation.ok, true, 'the order is still internally consistent');
+  assert.ok(internalR.totals.partPrice < customerR.totals.partPrice,
+    'and it comes in below the customer price');
+});
+
 test('toolhead travel between objects lengthens a busy plate estimate', () => {
   const none = { ...defaultSettings() };
   none.estimate = { ...none.estimate, assumptions: { ...none.estimate.assumptions, travelSecondsPerObjectLayer: 0 } };

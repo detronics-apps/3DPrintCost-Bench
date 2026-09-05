@@ -258,6 +258,14 @@ function companyPanel(ctx) {
             text: 'Open the form',
           }),
         ]),
+        buttonRow([
+          button('Copy an internal (cost-only) link', () => {
+            copyText(portalLink(settings, { internal: true }));
+          }, { key: 'copy-internal-link' }),
+        ]),
+        muted('The internal link is for staff: it prices at cost only — no labour, no profit — '
+          + 'and skips the quote buffer and expedite. Use it to see what a print actually costs '
+          + 'to make.'),
         banner('warn', 'The link carries your prices and your cost model in its URL '
           + 'fragment, because there is no server to hold them. The form never renders '
           + 'your costs — but somebody who reads the link itself could find them. Treat '

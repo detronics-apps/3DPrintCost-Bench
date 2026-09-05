@@ -47,7 +47,7 @@ const commit = (project) => { replaceProject(project); };
 
 function priceProject(project, settings) {
   const customer = customerFor(project);
-  return calculateOrder(orderFromProject(project, { customer }), settings);
+  return calculateOrder(orderFromProject(project, { customer }), settings, { internal: !!project.internal });
 }
 
 /* ------------------------------------------------ shared document actions -- */
@@ -618,6 +618,12 @@ function projectSidebar(ctx, project, result) {
         state.customers.push(customer);
         setProject({ customerId: customer.id });
       }, { key: 'new-customer' })]),
+      checkField('project-internal', 'Internal order (cost only — no labour, no profit)',
+        !!project.internal, (v) => setProject({ internal: v }), {
+          hint: 'For prints the company makes for itself. Prices at the physical cost — material, '
+            + 'machine, electricity, hardware, the rejection and general allowances — with no '
+            + 'labour and no profit or margin.',
+        }),
       textField('project-notes', 'Notes', project.notes, (v) => setProject({ notes: v }), { multiline: true }),
     ]),
   ];
