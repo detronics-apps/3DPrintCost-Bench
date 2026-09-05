@@ -224,6 +224,18 @@ test('a project becomes an order the engine can price', () => {
   assert.equal(result.separation.ok, true);
 });
 
+test('toolhead travel between objects lengthens a busy plate estimate', () => {
+  const none = { ...defaultSettings() };
+  none.estimate = { ...none.estimate, assumptions: { ...none.estimate.assumptions, travelSecondsPerObjectLayer: 0 } };
+  const lots = clone(none);
+  lots.estimate.assumptions.travelSecondsPerObjectLayer = 5;
+
+  const order = orderFromProject(addPart(makeProject(), samplePart({ quantity: 8 })));
+  const t0 = calculateOrder(order, none).lines[0].detail.machineMinutes;
+  const t1 = calculateOrder(order, lots).lines[0].detail.machineMinutes;
+  assert.ok(t1 > t0, 'more travel per object per layer means more machine time on a shared plate');
+});
+
 test('a project part with no loaded heads still prices as a single filament', () => {
   const project = addPart(makeProject(), samplePart());
   const result = calculateOrder(orderFromProject(project), defaultSettings());

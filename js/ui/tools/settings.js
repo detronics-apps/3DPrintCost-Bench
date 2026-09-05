@@ -813,6 +813,13 @@ function estimatorPanel(ctx) {
         }),
       numberField('layer-overhead', 'Fixed cost of a layer', a.layerOverheadSeconds,
         set('layerOverheadSeconds'), { min: 0, step: 0.1, suffix: 's' }),
+      numberField('travel-per-object', 'Travel between objects on a plate',
+        num(a.travelSecondsPerObjectLayer, 0.8), set('travelSecondsPerObjectLayer'), {
+          min: 0, step: 0.1, suffix: 's / object / layer',
+          info: 'On a plate of several parts the toolhead hops between them on every layer. '
+            + 'This is that travel, per extra object per layer — so a plate of many small parts '
+            + 'is not under-estimated. Zero counts none.',
+        }),
       numberField('support-scale', 'Support material scale', a.supportScale, set('supportScale'),
         { min: 0, step: 0.05, suffix: '×',
           hint: 'The app assumes every overhang is held from the build plate, which '

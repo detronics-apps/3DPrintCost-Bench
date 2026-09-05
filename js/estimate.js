@@ -98,6 +98,10 @@ export const DEFAULT_ESTIMATE_ASSUMPTIONS = {
   skinLayers: 4,
   flowEfficiency: 0.55,
   layerOverheadSeconds: 2.0,
+  /** Toolhead travel between objects on a shared plate: seconds per extra object,
+   *  per layer. A plate of many small parts spends real time hopping between
+   *  them, which is not extrusion. Zero counts no inter-object travel. */
+  travelSecondsPerObjectLayer: 0.8,
   /** A wall stack cannot be thicker than this share of the part's own volume. */
   solidAllowance: 1.02,
   supportScale: 1.0,

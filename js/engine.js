@@ -236,6 +236,16 @@ export function calculateLine(line, settings, context = {}) {
     : Math.max(1, Math.ceil(quantity / perPlate));
   const purgeVolumePerPart = changes.purgeVolume * plateJobs / quantity;
   const changeMinutesPerPart = (changes.machineSeconds * plateJobs / quantity) / 60;
+  // Toolhead travel between the objects on a shared plate: on every layer the
+  // head hops between each object, and none of that is extrusion. It scales with
+  // how many objects are actually on the plate, so a plate of many small parts
+  // is no longer under-counted. Per plate, spread across the parts on it — and
+  // it only touches the geometry-based estimate, since a slicer figure already
+  // has the travel in it.
+  const onPlate = Math.max(1, Math.min(perPlate, quantity));
+  const travelSecondsPerPlate = Math.max(0, onPlate - 1) * layerCount
+    * Math.max(0, num(settings.estimate?.assumptions?.travelSecondsPerObjectLayer, 0.8));
+  const travelMinutesPerPart = (travelSecondsPerPlate * plateJobs / quantity) / 60;
   // A hand swap is once per plate too, so it is charged for every plate, never
   // for every part.
   const manualChanges = changes.manualChanges * plateJobs;
@@ -259,9 +269,10 @@ export function calculateLine(line, settings, context = {}) {
     // plastic is being flushed, so it converts against the one in the machine.
     // This is one part's SHARE of the plate's purge, not a whole plate's worth.
     purgeG: gramsFor(purgeVolumePerPart, material),
-    // Machine seconds, not labour: the printer does this by itself. Also one
-    // part's share of the plate's change time.
-    changeMinutes: changeMinutesPerPart,
+    // Machine seconds, not labour: the printer does this by itself. One part's
+    // share of the plate's change time, plus the toolhead travel between the
+    // objects sharing the plate.
+    changeMinutes: changeMinutesPerPart + travelMinutesPerPart,
     hardwareExtraG: hardware.extraMaterialG,
     slicer: line.slicer,
     actual: line.actual,
