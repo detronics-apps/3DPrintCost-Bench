@@ -19,7 +19,7 @@ import { num } from './money.js';
 const PRICING_KEYS = [
   'version', 'countryId', 'currencyCode', 'electricityAlternativeId', 'countries',
   'tax', 'printers', 'materials', 'profiles', 'shipping', 'packaging', 'hardware',
-  'labour', 'factorModel', 'estimate', 'ctc', 'scrap', 'thirds', 'allocations',
+  'labour', 'postProcessing', 'factorModel', 'estimate', 'ctc', 'scrap', 'thirds', 'allocations',
   'demand', 'volumeTiers', 'freeShipping', 'defaultShippingId', 'handling',
   'storage', 'capacity',
 ];

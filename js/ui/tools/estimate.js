@@ -247,8 +247,6 @@ function partBlock(ctx, part, index, canRemove) {
         + 'are spread across the batch and more fit on a plate.',
     }));
 
-  modelBody.push(postProcessingSubsection(part, key, set, rerender, state.settings.hardware));
-
   /* -- print intent -------------------------------------------------------- */
 
   const profiles = state.settings.profiles;
@@ -397,7 +395,8 @@ function partBlock(ctx, part, index, canRemove) {
     subsection('Model', modelBody),
     subsection('Print intent', intentBody),
     ...mixBody,
-    subsection('Embedded hardware', hardwareBody, { open: part.hardware.length > 0 }),
+    subsection('Components', hardwareBody, { open: part.hardware.length > 0 }),
+    postProcessingSubsection(part, key, set, rerender, state.settings.hardware),
     state.mode !== 'simple' ? subsection('Advanced', advancedBody) : null,
     state.mode !== 'simple' ? subsection('Slicer figures', slicerBody) : null,
   ].filter(Boolean));

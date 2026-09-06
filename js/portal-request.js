@@ -32,6 +32,19 @@ function partFrom(selection, printerId, slots) {
     geometry: selection?.geometry || null,
     orientedSize: selection?.orientedSize || null,
     needsSupport: !!selection?.needsSupport,
+    needsResin: !!selection?.needsResin,
+    needsDeburring: !!selection?.needsDeburring,
+    nfcCode: !!selection?.nfcCode,
+    nfcUrl: (selection?.nfcUrl || '').trim(),
+    // The components the customer asked for, each keeping whether they want it
+    // fitted (an after-print component) rather than shipped loose in the box.
+    hardware: Array.isArray(selection?.hardware)
+      ? selection.hardware.map((h) => ({
+        hardwareId: h.hardwareId,
+        qty: Math.max(1, Math.round(num(h.qty, 1))),
+        ...(h.fit === true ? { fit: true } : {}),
+      }))
+      : [],
     // The bed's loaded filament and this part's share of it, so the workshop
     // opens the request with every head already filled in — no re-picking the
     // colours the customer chose. A single-spool request leaves these null and

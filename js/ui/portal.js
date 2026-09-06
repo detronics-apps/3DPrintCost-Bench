@@ -24,7 +24,7 @@
 import { el, clear, toast, download } from './dom.js';
 import { capDiagramScale, captureFocus, restoreFocus } from './patterns.js';
 import {
-  numberField, selectField, checkField, chips, button, buttonRow, banner, statTile, table, muted, emptyState,
+  numberField, selectField, checkField, textField, chips, button, buttonRow, banner, statTile, table, muted, emptyState, section,
 } from './controls.js';
 import { readMesh } from '../mesh.js';
 import { platformInflate } from '../zip.js';
@@ -57,6 +57,10 @@ function makePortalPart(spec = {}) {
     mix: null,
     quantity: 1,
     needsSupport: false,
+    needsResin: false,
+    needsDeburring: false,
+    nfcCode: false,
+    nfcUrl: '',
     hardware: [],
     ...spec,
   };
@@ -122,6 +126,9 @@ function toLine(part) {
     // The colours belong to the bed; the mix says how much of each is this part.
     mix: part.mix,
     needsSupport: part.needsSupport,
+    needsResin: part.needsResin,
+    needsDeburring: part.needsDeburring,
+    nfcCode: part.nfcCode,
     hardware: (part.hardware || []).filter((h) => h.hardwareId),
     name: part.modelName || 'Part',
   };
@@ -294,12 +301,10 @@ function partPanel(ctx, part, index, line) {
       (v) => { part.quantity = Math.max(1, Math.round(num(v, 1))); render(); }, {
         min: 1, step: 1, hint: 'More of the same part costs less each.',
       }),
-    checkField(`portal-support-${part.id}`, 'This part needs support removed',
-      part.needsSupport, (v) => { part.needsSupport = v; render(); }, {
-        hint: 'Tick if the shape overhangs and will print with support that has to be cleaned off.',
-      }),
 
     ...hardwareEditor(part, config),
+
+    portalPostProcessing(part, config),
 
     line
       ? muted(`About ${fmtMoney(line.unitPrice * (1 + buffer), code)} each · `
@@ -344,14 +349,68 @@ function hardwareEditor(part, config) {
   ]));
 
   return [
-    el('h3', { text: 'Anything embedded in it?' }),
+    el('h3', { text: 'Components' }),
     part.hardware.length
       ? el('div', {}, rows)
       : muted('Magnets, threaded inserts, an NFC tag — added during the print. Skip this if the '
         + 'part is just plastic.'),
-    button('Add hardware', () => { part.hardware.push({ hardwareId: catalogue[0].id, qty: 1 }); render(); },
+    button('Add a component', () => { part.hardware.push({ hardwareId: catalogue[0].id, qty: 1 }); render(); },
       { key: `portal-hwadd-${part.id}` }),
   ];
+}
+
+/**
+ * The customer's own post-processing choices - the same five the estimator
+ * offers, in a collapsed section so a part that ships straight off the printer
+ * needs none of it. The NFC coding option only appears once an NFC component is
+ * on the part, and "Fit the …" only once an after-print component is added, so
+ * the customer is never asked about finishing work that does not apply.
+ */
+function portalPostProcessing(part, config) {
+  // The pick-list (config.hardware) is trimmed to id/name; the full specs — with
+  // the `nfc` flag and the during/after stage — travel in config.pricing.hardware,
+  // which is what tells us whether to offer NFC coding or a "fit it" option.
+  const catalogue = config.pricing?.hardware || [];
+  const specOf = (e) => catalogue.find((h) => h.id === e.hardwareId);
+  const hw = Array.isArray(part.hardware) ? part.hardware : [];
+  const nfcOnPart = hw.some((e) => specOf(e)?.nfc && num(e.qty, 1) > 0);
+  const afterEntries = hw
+    .map((e, i) => ({ e, i, spec: specOf(e) }))
+    .filter((x) => x.spec && x.spec.stage === 'after' && num(x.e.qty, 1) > 0);
+
+  const body = [
+    checkField(`portal-support-${part.id}`, 'Remove support', part.needsSupport,
+      (v) => { part.needsSupport = v; render(); }, {
+        hint: 'Cut away and clean off support material — only on parts that print with it.',
+      }),
+    checkField(`portal-resin-${part.id}`, 'Resin coat (top surface)', part.needsResin,
+      (v) => { part.needsResin = v; render(); }, {
+        hint: 'A resin coat over the top face for a smoother finish.',
+      }),
+    checkField(`portal-deburr-${part.id}`, 'Deburring / cleanup', part.needsDeburring,
+      (v) => { part.needsDeburring = v; render(); }, {
+        hint: 'Deburr, trim seams and wipe down. Leave off to have it exactly as it comes off the printer.',
+      }),
+    ...afterEntries.map(({ e, i, spec }) => checkField(`portal-fit-${part.id}-${i}`,
+      `Fit the ${spec.name.toLowerCase()}`, e.fit === true,
+      (v) => { e.fit = v; render(); }, {
+        hint: e.fit === true
+          ? 'Assembled onto the part before it ships — a finished product.'
+          : 'Otherwise it ships loose in the box for you to fit yourself.',
+      })),
+  ];
+  if (nfcOnPart) {
+    body.push(checkField(`portal-nfc-${part.id}`, 'Code the NFC tag', !!part.nfcCode,
+      (v) => { part.nfcCode = v; render(); }, {
+        hint: 'This part has an embedded NFC tag. Tick to have it coded before it ships.',
+      }));
+    if (part.nfcCode) {
+      body.push(textField(`portal-nfc-url-${part.id}`, 'Link to code onto the tag', part.nfcUrl || '',
+        (v) => { part.nfcUrl = v; render(); }, { placeholder: 'https://…' }));
+    }
+  }
+
+  return section(`portal-pp-${part.id}`, 'Post-processing', body, { open: false });
 }
 
 function requestText(result) {
@@ -567,6 +626,13 @@ function render() {
       materialId: partMaterialId(p, slots),
       geometry: p.geometry,
       needsSupport: p.needsSupport,
+      needsResin: p.needsResin,
+      needsDeburring: p.needsDeburring,
+      nfcCode: p.nfcCode,
+      nfcUrl: p.nfcUrl,
+      // The components the customer asked for, each carrying whether they want
+      // it fitted (an after-print component) rather than shipped loose.
+      hardware: (p.hardware || []).map((h) => ({ ...h })),
       // This part's share of each loaded spool, keyed to the slots above.
       mix: p.mix,
       colours: Math.max(1, normaliseMix(p.mix, slots).entries.filter((e) => e.percent > 0).length),
