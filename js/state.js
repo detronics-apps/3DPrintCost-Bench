@@ -16,7 +16,27 @@
 
 import { migrateSettings, defaultSettings } from './settings.js';
 import { migrateProject, makeProject, makeCustomer } from './projects.js';
+import { normalizePostSelection, entryPostOps } from './postprocessing.js';
 import { num } from './money.js';
+
+/**
+ * Fold a stored quick-estimate part's old post-processing shape (the fixed
+ * needsResin/needsSupport/… booleans and a `fit` flag on each component) into
+ * the configurable-operation shape, so the estimator shows what was chosen.
+ */
+function normalizeQuickPart(part) {
+  const next = { ...part, postProcessing: normalizePostSelection(part) };
+  delete next.needsSupport;
+  delete next.needsResin;
+  delete next.needsDeburring;
+  delete next.nfcCode;
+  next.hardware = (next.hardware || []).map((h) => {
+    const ops = entryPostOps(h);
+    const { fit, ...rest } = h;
+    return Object.keys(ops).length ? { ...rest, ops } : rest;
+  });
+  return next;
+}
 
 const KEY = '3d-printing-bench';
 export const STATE_VERSION = 1;
@@ -51,12 +71,11 @@ export function defaultPart(spec = {}) {
     mix: null,
     hardware: [],
     complexity: 1,
-    needsSupport: false,
-    needsResin: false,
-    needsDeburring: false,
-    // Coding an embedded NFC tag is opt-in, not automatic: tick it and give the
-    // link the tag should carry.
-    nfcCode: false,
+    // Post-processing chosen for this part, { [operationId]: true } for the
+    // whole-part ops; per-component ops (fit) store on the component entry.
+    // The operation list lives in Settings → Post-processing.
+    postProcessing: {},
+    // The link to code onto an embedded NFC tag, when the coding op is chosen.
     nfcUrl: '',
     // The colours this part loads, as material ids. Used by the multi-colour
     // plate planner to split a bed when the parts on it need more distinct
@@ -187,7 +206,7 @@ function migrateQuickParts(storedQuick) {
   const q = storedQuick || {};
 
   if (Array.isArray(q.parts) && q.parts.length) {
-    return q.parts.map((p) => ({ ...defaultPart(), ...p }));
+    return q.parts.map((p) => normalizeQuickPart({ ...defaultPart(), ...p }));
   }
 
   // Only migrate the old single-part shape if it actually looks like one -

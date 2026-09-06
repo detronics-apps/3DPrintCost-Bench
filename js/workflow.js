@@ -20,6 +20,7 @@ import { num } from './money.js';
 import {
   projectStats, logEvent, statusFromPhase, nowIso, defaultWorkflow,
 } from './projects.js';
+import { partHasPostProcessing } from './postprocessing.js';
 
 /** The six operational phases, weighted by effort for the overall bar. */
 export const PHASES = [
@@ -48,8 +49,7 @@ export const phaseInfo = (id) => PHASES.find((p) => p.id === id) || null;
 
 /** Post-processing is required if any part asks for finishing work. */
 export function postProcessingRequired(project) {
-  return (project.parts || []).some((p) => p.needsResin || p.needsSupport || p.needsDeburring
-    || (p.hardware || []).some((h) => h && h.fit === true));
+  return (project.parts || []).some((p) => partHasPostProcessing(p));
 }
 
 /** A part counts as sliced once it carries any slicer figure. */

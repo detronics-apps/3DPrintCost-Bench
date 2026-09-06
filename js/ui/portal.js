@@ -34,6 +34,7 @@ import { migrateSettings } from '../settings.js';
 import { defaultSlots, reconcileSlots, normaliseMix } from '../filaments.js';
 import { fmtMoney, num } from '../money.js';
 import { portalConfig, settingsFromConfig } from '../portal-config.js';
+import { gateMatches, entryPostOps } from '../postprocessing.js';
 import { portalRequest } from '../portal-request.js';
 import { makeAddressParts, formatAddress, ADDRESS_TYPES } from '../projects.js';
 import { filamentSlots, mixEditor } from './filament-slots.js';
@@ -56,10 +57,9 @@ function makePortalPart(spec = {}) {
     profileId: null,
     mix: null,
     quantity: 1,
-    needsSupport: false,
-    needsResin: false,
-    needsDeburring: false,
-    nfcCode: false,
+    // Post-processing chosen for this part, { [operationId]: true } for the
+    // whole-part ops; per-component ops (fit) store on the component entry.
+    postProcessing: {},
     nfcUrl: '',
     hardware: [],
     ...spec,
@@ -125,10 +125,7 @@ function toLine(part) {
     geometry: part.geometry,
     // The colours belong to the bed; the mix says how much of each is this part.
     mix: part.mix,
-    needsSupport: part.needsSupport,
-    needsResin: part.needsResin,
-    needsDeburring: part.needsDeburring,
-    nfcCode: part.nfcCode,
+    postProcessing: part.postProcessing,
     hardware: (part.hardware || []).filter((h) => h.hardwareId),
     name: part.modelName || 'Part',
   };
@@ -367,47 +364,62 @@ function hardwareEditor(part, config) {
  * the customer is never asked about finishing work that does not apply.
  */
 function portalPostProcessing(part, config) {
-  // The pick-list (config.hardware) is trimmed to id/name; the full specs — with
-  // the `nfc` flag and the during/after stage — travel in config.pricing.hardware,
-  // which is what tells us whether to offer NFC coding or a "fit it" option.
+  // The operations are the company's configured list (it travels in the pricing
+  // slice); the pick-list (config.hardware) is trimmed to id/name, so the full
+  // specs — the `nfc` flag and the during/after stage that gate the options —
+  // come from config.pricing.hardware.
+  const ops = config.pricing?.postProcessing?.ops || [];
   const catalogue = config.pricing?.hardware || [];
   const specOf = (e) => catalogue.find((h) => h.id === e.hardwareId);
-  const hw = Array.isArray(part.hardware) ? part.hardware : [];
-  const nfcOnPart = hw.some((e) => specOf(e)?.nfc && num(e.qty, 1) > 0);
-  const afterEntries = hw
+  const matchesFor = (gate) => (part.hardware || [])
     .map((e, i) => ({ e, i, spec: specOf(e) }))
-    .filter((x) => x.spec && x.spec.stage === 'after' && num(x.e.qty, 1) > 0);
+    .filter(({ e, spec }) => spec && num(e.qty, 1) > 0 && gateMatches(gate, spec));
 
-  const body = [
-    checkField(`portal-support-${part.id}`, 'Remove support', part.needsSupport,
-      (v) => { part.needsSupport = v; render(); }, {
-        hint: 'Cut away and clean off support material — only on parts that print with it.',
-      }),
-    checkField(`portal-resin-${part.id}`, 'Resin coat (top surface)', part.needsResin,
-      (v) => { part.needsResin = v; render(); }, {
-        hint: 'A resin coat over the top face for a smoother finish.',
-      }),
-    checkField(`portal-deburr-${part.id}`, 'Deburring / cleanup', part.needsDeburring,
-      (v) => { part.needsDeburring = v; render(); }, {
-        hint: 'Deburr, trim seams and wipe down. Leave off to have it exactly as it comes off the printer.',
-      }),
-    ...afterEntries.map(({ e, i, spec }) => checkField(`portal-fit-${part.id}-${i}`,
-      `Fit the ${spec.name.toLowerCase()}`, e.fit === true,
-      (v) => { e.fit = v; render(); }, {
-        hint: e.fit === true
-          ? 'Assembled onto the part before it ships — a finished product.'
-          : 'Otherwise it ships loose in the box for you to fit yourself.',
-      })),
-  ];
-  if (nfcOnPart) {
-    body.push(checkField(`portal-nfc-${part.id}`, 'Code the NFC tag', !!part.nfcCode,
-      (v) => { part.nfcCode = v; render(); }, {
-        hint: 'This part has an embedded NFC tag. Tick to have it coded before it ships.',
-      }));
-    if (part.nfcCode) {
+  const setWholePart = (opId, on) => {
+    const map = { ...(part.postProcessing || {}) };
+    if (on) map[opId] = true; else delete map[opId];
+    part.postProcessing = map;
+    render();
+  };
+  const setComponent = (entry, opId, on) => {
+    const map = { ...(entry.ops || {}) };
+    if (on) map[opId] = true; else delete map[opId];
+    entry.ops = map;
+    delete entry.fit;
+    render();
+  };
+
+  const body = [];
+  for (const op of ops) {
+    if (op.archived) continue;
+    const gate = op.gate || { kind: 'always' };
+    const matches = matchesFor(gate);
+
+    if (op.perComponent) {
+      for (const { e, i, spec } of matches) {
+        const on = entryPostOps(e)[op.id] === true;
+        body.push(checkField(`portal-pp-${op.id}-${part.id}-${i}`,
+          `${op.name} the ${spec.name.toLowerCase()}`, on, (v) => setComponent(e, op.id, v), {
+            hint: on
+              ? 'Assembled onto the part before it ships — a finished product.'
+              : 'Otherwise it ships loose in the box for you to fit yourself.',
+          }));
+      }
+      continue;
+    }
+
+    if (gate.kind && gate.kind !== 'always' && matches.length === 0) continue;
+    const on = (part.postProcessing || {})[op.id] === true;
+    body.push(checkField(`portal-pp-${op.id}-${part.id}`, op.name, on,
+      (v) => setWholePart(op.id, v), { hint: op.hint }));
+    if (gate.kind === 'nfc' && on) {
       body.push(textField(`portal-nfc-url-${part.id}`, 'Link to code onto the tag', part.nfcUrl || '',
         (v) => { part.nfcUrl = v; render(); }, { placeholder: 'https://…' }));
     }
+  }
+
+  if (!body.length) {
+    body.push(muted('Nothing to finish — this part ships straight off the printer.'));
   }
 
   return section(`portal-pp-${part.id}`, 'Post-processing', body, { open: false });
@@ -625,13 +637,12 @@ function render() {
       printerId: state.printerId,
       materialId: partMaterialId(p, slots),
       geometry: p.geometry,
-      needsSupport: p.needsSupport,
-      needsResin: p.needsResin,
-      needsDeburring: p.needsDeburring,
-      nfcCode: p.nfcCode,
+      // The post-processing chosen, as an operation map; per-component choices
+      // (fit) ride on the hardware entries below.
+      postProcessing: p.postProcessing,
       nfcUrl: p.nfcUrl,
-      // The components the customer asked for, each carrying whether they want
-      // it fitted (an after-print component) rather than shipped loose.
+      // The components the customer asked for, each carrying its own per-op
+      // choices (e.g. fitted rather than shipped loose).
       hardware: (p.hardware || []).map((h) => ({ ...h })),
       // This part's share of each loaded spool, keyed to the slots above.
       mix: p.mix,

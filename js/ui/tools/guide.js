@@ -42,12 +42,20 @@ const HOWTOS = [
     'Open the Inventory tab and click “Add resin”.',
     'Set how much a full bottle holds (in grams) and a reorder point.',
     'Record a “Purchased” movement to put the bottle on hand.',
-    'Set “Resin used per cm²” in Settings → Labour → Post-processing so it draws down correctly.',
+    'Set “Consumable used” on the Resin coat step in Settings → Post-processing so it draws down correctly.',
   ] },
   { id: 'add-hardware', title: 'Add hardware (magnet, insert, NFC tag)', category: 'Catalogues', steps: [
     'To offer a new component, open Catalogues → Hardware and add it, with its price and part number.',
     'To stock it, open Inventory → “Add hardware”, pick the component, and record a purchase movement.',
-    'On a part, open “Embedded hardware” and add the component with a quantity.',
+    'On a part, open “Components” and add the component with a quantity.',
+  ] },
+  { id: 'add-postproc', title: 'Add or change a post-processing step', category: 'Settings', steps: [
+    'Open Settings → Post-processing.',
+    'Edit a step, or click “Add a post-processing step”.',
+    'Choose how it is priced: per part (a flat time), per cm² of top area (resin), or per matching component.',
+    'Choose when it is offered: always, or only when an NFC / after-print / category component is present.',
+    'Turn on “one choice per matching component” for a per-component step like fitting inserts.',
+    'It then appears under Post-processing on both the estimate and the client form.',
   ] },
   { id: 'check-inventory', title: 'Check what stock is on hand', category: 'Inventory', steps: [
     'Open the Inventory tab.',
@@ -94,10 +102,11 @@ const HOWTOS = [
 
 /** Questions worth a straight answer — grown from real clarifications. */
 const FAQS = [
-  { q: 'If I tick a finishing operation like “Removing support” in Settings → Labour, does it get added to every order?',
-    a: 'No. Support removal only charges on parts where the “Remove support” box is ticked in post-processing. '
-      + 'If no part is marked for it, it adds nothing. Ticking a client’s post-processing box and having the '
-      + 'operation on in Settings does NOT charge it twice — it is priced in that one place only.' },
+  { q: 'Where do I set up post-processing, and does a step get added to every order?',
+    a: 'In Settings → Post-processing. Each step there (remove support, resin coat, deburring, code the NFC tag, '
+      + 'fit a component, or any you add) is only charged on the parts whose box you tick under Post-processing on '
+      + 'the estimate or the client form — never automatically. A step can be gated on hardware, so “code the tag” '
+      + 'only appears once an NFC component is added and “fit” once an after-print component is added.' },
   { q: 'Are the slicer grams and time I enter per part or for the whole print?',
     a: 'For the whole print. Enter the slicer TOTALS (grams per head and the total print time); the app divides '
       + 'them across the quantity for you.' },
@@ -302,10 +311,11 @@ export function main(ctx) {
           tone: 'ok',
         }),
         statTile('Post-processing', 'Estimate + Settings', {
-          hint: 'Tick “Resin coat” on a part and the resin and the time to lay it on are priced '
-            + 'by the top area, with a curing time after. If a part has an embedded NFC tag, tick '
-            + '“Code the NFC tag” to charge the coding and enter the link it should carry — it is '
-            + 'opt-in, never automatic. Set the rates in Settings → Labour → Post-processing.',
+          hint: 'A configurable list of finishing steps you edit in Settings → Post-processing. Each '
+            + 'step is priced per part, per cm² of top area, or per matching component, and can be '
+            + 'gated on hardware so it only appears when relevant (code the NFC tag once a tag is '
+            + 'added, fit once an after-print component is added). Add your own steps too. They are '
+            + 'ticked per part on the estimate and the client form, and charged on surviving parts.',
         }),
         statTile('Fill a plate, save', 'Estimate + customer form', {
           hint: 'A chart shows the price per part for one against a full plate, so a customer can '

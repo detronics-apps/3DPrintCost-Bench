@@ -227,18 +227,18 @@ test('a project becomes an order the engine can price', () => {
 
 test('NFC coding is opt-in — charged only when the part is ticked to code it', () => {
   const settings = defaultSettings();
-  settings.postProcessing = {
-    ...settings.postProcessing,
-    nfc: { ...(settings.postProcessing?.nfc || {}), codingMinutes: 5 },
-  };
-  const tagged = () => samplePart({ hardware: [{ hardwareId: 'nfc-ntag215', qty: 1 }] });
+  settings.postProcessing.ops.find((o) => o.id === 'nfc-coding').minutes = 5;
+  const tagged = (postProcessing) => samplePart({
+    hardware: [{ hardwareId: 'nfc-ntag215', qty: 1 }], postProcessing,
+  });
   const off = calculateOrder(orderFromProject(
-    addPart(makeProject(), { ...tagged(), nfcCode: false })), settings).lines[0];
+    addPart(makeProject(), tagged({}))), settings).lines[0];
   const on = calculateOrder(orderFromProject(
-    addPart(makeProject(), { ...tagged(), nfcCode: true })), settings).lines[0];
+    addPart(makeProject(), tagged({ 'nfc-coding': true }))), settings).lines[0];
 
-  assert.equal(off.detail.postProcess.nfcTags, 0, 'a tag embedded is not coded automatically');
-  assert.ok(on.detail.postProcess.nfcTags > 0, 'it is coded once ticked');
+  const codeStep = (l) => l.detail.postProcess.applied.find((a) => a.id === 'nfc-coding');
+  assert.equal(codeStep(off), undefined, 'a tag embedded is not coded automatically');
+  assert.ok(codeStep(on), 'it is coded once ticked');
   assert.ok(on.production.postProcess > off.production.postProcess, 'and only then does it cost');
 });
 
@@ -539,11 +539,8 @@ test('spool picking finishes the part-used spool first', () => {
 
 test('resin is drawn per resined part and checked against the bottles in stock', () => {
   const settings = defaultSettings();
-  settings.postProcessing = {
-    ...settings.postProcessing,
-    resin: { ...settings.postProcessing.resin, gramsPerCm2: 2 },
-  };
-  const part = samplePart({ needsResin: true }); // 50×50 top = 25 cm²
+  settings.postProcessing.ops.find((o) => o.id === 'resin-coat').materialGrams = 2;
+  const part = samplePart({ postProcessing: { 'resin-coat': true } }); // 50×50 top = 25 cm²
   close(resinGramsForPart(part, part.geometry.size, settings), 50, 1e-6, '25 cm² × 2 g/cm²');
   close(resinGramsForPart(samplePart(), part.geometry.size, settings), 0, 1e-9, 'no resin, no grams');
 

@@ -263,6 +263,21 @@
   border-bottom: 1px dashed var(--border);
 }
 
+/* A row-editor that stacks its fields instead of a single grid row — for a
+   post-processing step, which carries several fields and its own header. */
+.row-editor--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.row-editor__head {
+  display: flex;
+  gap: var(--space-2);
+  align-items: end;
+}
+.row-editor__head > :first-child { flex: 1 1 auto; }
+
 .part-block {
   display: flex;
   flex-direction: column;

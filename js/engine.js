@@ -34,7 +34,7 @@ import {
 } from './filaments.js';
 import { findMaterial, pricePerGram, materialType, gramsFor } from './materials.js';
 import { labourCost, resolveLabourRate } from './labour.js';
-import { postProcessing, topAreaCm2 } from './postprocessing.js';
+import { postProcessing, topAreaCm2, normalizePostSelection } from './postprocessing.js';
 import { partColourPlan, swapCost } from './colourplan.js';
 import { hardwareCost, choosePackaging } from './packaging.js';
 import { findShipping, shippingCost, freeShipping, autoSelectShipping, packageFits } from './shipping.js';
@@ -349,11 +349,8 @@ export function calculateLine(line, settings, context = {}) {
     // AMS purge cost machine time and plastic; nobody is standing there.
     colourChanges: manualChanges,
     hardwareInserts: hardware.inserts * quantity,
-    // Support removal is charged only on parts the customer/operator marked as
-    // needing it - one clean-up per such part.
-    supportUnits: line.needsSupport ? quantity : 0,
-    // Likewise deburring/cleanup: only the parts marked for it in post-processing.
-    deburrUnits: line.needsDeburring ? quantity : 0,
+    // Support removal and deburring are no longer labour operations — they are
+    // configurable post-processing steps, priced below on the surviving parts.
     // Booking a courier happens unless the customer collects; packing happens
     // unless the order needs no packaging. The order decides both and passes
     // them down; a standalone line leaves them undefined ("yes"), unchanged.
@@ -377,14 +374,14 @@ export function calculateLine(line, settings, context = {}) {
   // of the finished part, so it rides in the CTC but is NOT multiplied by scrap
   // - a failed print never got as far as being resined or coded.
   const postProcess = postProcessing({
-    needsResin: !!line.needsResin,
+    ops: settings.postProcessing?.ops || [],
+    // The part's whole-part choices (resin, coding…); each gated op only bites
+    // when its component is present, and per-component ops (fit) read the choice
+    // off each component entry.
+    selected: normalizePostSelection(line),
     areaCm2: topAreaCm2(orientedSize),
-    // NFC coding is opt-in: only the parts the operator ticked to code are
-    // charged for it, never automatically because a tag is embedded.
-    nfcCount: line.nfcCode ? hardware.nfc : 0,
-    // Fitting after-print hardware onto the finished part is post-processing too.
-    fitMinutes: hardware.fitMinutes,
-    config: settings.postProcessing,
+    hardware: line.hardware,
+    catalogue: settings.hardware,
     rate: labourRate,
   });
 

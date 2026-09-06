@@ -18,6 +18,7 @@ import { DEFAULT_PROFILES, DEFAULT_FACTOR_MODEL } from './profiles.js';
 import { DEFAULT_LABOUR_OPS } from './labour.js';
 import { DEFAULT_SHIPPING, DEFAULT_FREE_SHIPPING } from './shipping.js';
 import { DEFAULT_PACKAGING, DEFAULT_HARDWARE } from './packaging.js';
+import { DEFAULT_POST_OPS, migratePostProcessing } from './postprocessing.js';
 import { DEFAULT_DEMAND } from './demand.js';
 import {
   DEFAULT_THIRDS, DEFAULT_ALLOCATIONS, DEFAULT_VOLUME_TIERS, DEFAULT_PRESETS,
@@ -72,19 +73,11 @@ export function defaultSettings() {
     hardware: clone(DEFAULT_HARDWARE),
 
     // Finishing steps that happen AFTER the print, on the parts that survived.
-    // Resin coats the top surface, so its cost and its labour scale with the
-    // top area; curing is unattended station time. NFC coding is the labour of
-    // programming a tag that was embedded during the print.
+    // A configurable list the workshop edits in Settings → Post-processing; each
+    // operation prices per part, per cm² of top area, or per matching component,
+    // and is offered only when its hardware gate is met. See postprocessing.js.
     postProcessing: {
-      resin: {
-        minutesPerCm2: 0.5, // labour to brush/pour resin over a cm² of top area
-        costPerCm2: 0,      // resin consumed per cm² of coverage, in money
-        curingMinutes: 15,  // unattended cure per part - station time, not labour
-        gramsPerCm2: 2,     // resin USED per cm² of top area, in grams - for stock
-      },
-      nfc: {
-        codingMinutes: 2,   // labour to program and verify one tag
-      },
+      ops: clone(DEFAULT_POST_OPS),
     },
 
     // Manual colour swaps: a plate reaching more colours than the machine's
@@ -232,6 +225,11 @@ export function migrateSettings(stored) {
   let raw = clone(stored);
   const from = num(raw.version, 0);
 
+  // Support/deburr minutes lifted out of the old labour ops, handed to the
+  // post-processing migration further down (see the labour block).
+  let ppSupportMinutes = null;
+  let ppDeburrMinutes = null;
+
   // v0 -> v1: the first shipped shape. Earlier drafts kept a single
   // `markupPercent`; the rule of thirds replaced it, and a stored markup is
   // translated into an equivalent commercial share rather than dropped.
@@ -342,22 +340,26 @@ export function migrateSettings(stored) {
   // a workshop that already exists. It is not in the loop above because it is
   // nested under `labour`, and forgetting it is exactly how this went wrong the
   // first two times.
+  // Support removal and deburring used to be labour operations. They are now
+  // configurable post-processing steps, so their stored minutes are lifted out
+  // here and handed to the post-processing migration below; the labour ops
+  // themselves are dropped and tombstoned so they never top back up.
+  const stored0 = Array.isArray(merged.labour.ops) ? merged.labour.ops : [];
+  ppSupportMinutes = stored0.find((o) => o.id === 'support-removal')?.minutes ?? null;
+  ppDeburrMinutes = stored0.find((o) => o.id === 'cleaning')?.minutes ?? null;
   {
     const shippedOps = new Map(DEFAULT_LABOUR_OPS.map((op) => [op.id, op]));
-    const ops = merged.labour.ops.map((stored) => {
-      const from = shippedOps.get(stored.id);
-      return from ? { ...clone(from), ...stored } : stored;
-    });
+    const ops = merged.labour.ops
+      .filter((op) => op.id !== 'support-removal' && op.id !== 'cleaning')
+      .map((stored) => {
+        const from = shippedOps.get(stored.id);
+        return from ? { ...clone(from), ...stored } : stored;
+      });
     const have = new Set(ops.map((op) => op.id));
     // A shipped operation the user deleted for good is tombstoned, so it is not
     // topped back up here (the same rule the catalogues follow).
     const goneOps = new Set(Array.isArray(merged.removed.labourOps) ? merged.removed.labourOps : []);
     for (const op of DEFAULT_LABOUR_OPS) if (!have.has(op.id) && !goneOps.has(op.id)) ops.push(clone(op));
-    // Deburring used to be automatic (per part); it is now a post-processing
-    // choice. A workshop that stored the old shape keeps its own minutes but has
-    // the scope moved, so a plain part is no longer charged for cleanup it did
-    // not get.
-    for (const op of ops) if (op.id === 'cleaning' && op.per === 'unit') op.per = 'deburrUnit';
     merged.labour = { ...merged.labour, ops };
   }
 
@@ -386,21 +388,14 @@ export function migrateSettings(stored) {
   if (!merged.scheduler || typeof merged.scheduler !== 'object') {
     merged.scheduler = clone(defaults.scheduler);
   }
-  // Post-processing is newer still. Fill the block and its two halves so a
-  // stored workshop can reach the resin and NFC settings.
-  if (!merged.postProcessing || typeof merged.postProcessing !== 'object') {
-    merged.postProcessing = clone(defaults.postProcessing);
-  }
-  if (!merged.postProcessing.resin || typeof merged.postProcessing.resin !== 'object') {
-    merged.postProcessing.resin = clone(defaults.postProcessing.resin);
-  }
-  // The resin grams-per-cm² (for stock tracking) is newer than the resin block.
-  if (merged.postProcessing.resin.gramsPerCm2 == null) {
-    merged.postProcessing.resin.gramsPerCm2 = defaults.postProcessing.resin.gramsPerCm2;
-  }
-  if (!merged.postProcessing.nfc || typeof merged.postProcessing.nfc !== 'object') {
-    merged.postProcessing.nfc = clone(defaults.postProcessing.nfc);
-  }
+  // Post-processing is a configurable operation list now. Convert the old
+  // { resin, nfc } shape into it, carrying the support/deburr minutes lifted
+  // from the labour ops above; an install already on the list shape is kept,
+  // with any missing default operations appended.
+  merged.postProcessing = migratePostProcessing(merged.postProcessing, {
+    supportMinutes: ppSupportMinutes,
+    deburrMinutes: ppDeburrMinutes,
+  });
   if (!merged.colour || typeof merged.colour !== 'object') merged.colour = clone(defaults.colour);
   // Branding fields are newer than the company block.
   if (merged.company.accentColour == null) merged.company.accentColour = defaults.company.accentColour;

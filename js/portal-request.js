@@ -31,18 +31,19 @@ function partFrom(selection, printerId, slots) {
     materialId: selection?.materialId,
     geometry: selection?.geometry || null,
     orientedSize: selection?.orientedSize || null,
-    needsSupport: !!selection?.needsSupport,
-    needsResin: !!selection?.needsResin,
-    needsDeburring: !!selection?.needsDeburring,
-    nfcCode: !!selection?.nfcCode,
+    // The whole-part post-processing the customer chose, as an operation map;
+    // per-component choices (fit) ride on the hardware entries below.
+    postProcessing: (selection?.postProcessing && typeof selection.postProcessing === 'object')
+      ? { ...selection.postProcessing } : {},
     nfcUrl: (selection?.nfcUrl || '').trim(),
-    // The components the customer asked for, each keeping whether they want it
-    // fitted (an after-print component) rather than shipped loose in the box.
+    // The components the customer asked for, each keeping its own per-op choices
+    // (fit an after-print component rather than ship it loose in the box).
     hardware: Array.isArray(selection?.hardware)
       ? selection.hardware.map((h) => ({
         hardwareId: h.hardwareId,
         qty: Math.max(1, Math.round(num(h.qty, 1))),
-        ...(h.fit === true ? { fit: true } : {}),
+        ...(h.ops && typeof h.ops === 'object' ? { ops: { ...h.ops } } : {}),
+        ...(h.fit === true ? { ops: { fit: true } } : {}),
       }))
       : [],
     // The bed's loaded filament and this part's share of it, so the workshop

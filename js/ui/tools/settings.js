@@ -741,46 +741,124 @@ function labourPanel(ctx) {
   ];
 }
 
+/** The gate options an operation can pick, given the hardware categories in use. */
+function postGateOptions(settings) {
+  const categories = [...new Set((settings.hardware || [])
+    .filter((h) => !h.archived).map((h) => h.category).filter(Boolean))];
+  return [
+    { value: 'always', label: 'Always available' },
+    { value: 'nfc', label: 'When an NFC component is present' },
+    { value: 'after', label: 'When an after-print component is present' },
+    ...categories.map((c) => ({ value: `category:${c}`, label: `When a ${c} component is present` })),
+  ];
+}
+
+const gateToValue = (g) => (g?.kind === 'category' ? `category:${g.category}` : (g?.kind || 'always'));
+const valueToGate = (v) => (v.startsWith('category:')
+  ? { kind: 'category', category: v.slice('category:'.length) }
+  : { kind: v });
+
+/** One editable post-processing operation. */
+function postOpEditor(op, ctx, settings) {
+  const { rerender } = ctx;
+  const set = (key, value) => { op[key] = value; touch(rerender); };
+  const setNum = (key) => (v) => set(key, Math.max(0, num(v)));
+
+  const basisLabel = op.basis === 'perArea' ? 'Labour per cm²'
+    : op.basis === 'perUnit' ? 'Labour per component' : 'Labour per part';
+  const basisSuffix = op.basis === 'perArea' ? 'min/cm²' : 'min';
+  const gramsSuffix = op.basis === 'perArea' ? 'g/cm²' : 'g';
+
+  const fields = [
+    el('div', { class: 'field-grid' }, [
+      selectField(`pp-basis-${op.id}`, 'Priced', [
+        { value: 'perPart', label: 'Per part (a flat time)' },
+        { value: 'perArea', label: 'Per cm² of top area' },
+        { value: 'perUnit', label: 'Per matching component' },
+      ], op.basis, (v) => set('basis', v)),
+      selectField(`pp-gate-${op.id}`, 'Offered', postGateOptions(settings),
+        gateToValue(op.gate), (v) => set('gate', valueToGate(v))),
+    ]),
+    checkField(`pp-percomp-${op.id}`, 'One choice per matching component',
+      op.perComponent === true, (v) => set('perComponent', v), {
+        hint: 'On: a labelled toggle for each component (fit this one, ship that one loose). '
+          + 'Off: a single choice for the part.',
+      }),
+  ];
+
+  // The per-component fitting time can come from each component rather than a
+  // flat figure — a big module then costs more to fit than a small insert.
+  if (op.basis === 'perUnit') {
+    fields.push(selectField(`pp-minfrom-${op.id}`, 'Time source', [
+      { value: 'op', label: 'This step’s own time (below)' },
+      { value: 'component', label: 'Each component’s own fitting time' },
+    ], op.minutesFrom || 'op', (v) => set('minutesFrom', v)));
+  }
+
+  const numbers = [];
+  if (!(op.basis === 'perUnit' && op.minutesFrom === 'component')) {
+    numbers.push(numberField(`pp-min-${op.id}`, basisLabel, op.minutes, setNum('minutes'),
+      { min: 0, step: 0.05, suffix: basisSuffix }));
+  }
+  numbers.push(moneyField(`pp-mcost-${op.id}`, 'Consumable cost', op.materialCost || 0,
+    (v) => set('materialCost', Math.max(0, num(v))), settings.currencyCode, {
+      hint: op.basis === 'perArea' ? 'Per cm².' : 'Per part.',
+    }));
+  numbers.push(numberField(`pp-mgrams-${op.id}`, 'Consumable used', op.materialGrams || 0,
+    setNum('materialGrams'), {
+      min: 0, step: 0.1, suffix: gramsSuffix,
+      hint: 'In grams — booked out of Inventory (resin uses this).',
+    }));
+  numbers.push(numberField(`pp-cure-${op.id}`, 'Curing / station time', op.stationMinutes || 0,
+    setNum('stationMinutes'), {
+      min: 0, step: 1, suffix: 'min', hint: 'Unattended — adds finishing time, not labour.',
+    }));
+  fields.push(el('div', { class: 'field-grid' }, numbers));
+
+  return el('div', { class: 'row-editor row-editor--stacked' }, [
+    el('div', { class: 'row-editor__head' }, [
+      textField(`pp-name-${op.id}`, 'Name', op.name, (v) => set('name', v)),
+      button('Remove', () => {
+        settings.postProcessing.ops = settings.postProcessing.ops.filter((o) => o.id !== op.id);
+        touch(rerender);
+      }, { key: `pp-remove-${op.id}`, danger: true }),
+    ]),
+    op.hint != null
+      ? textField(`pp-hint-${op.id}`, 'Note shown on the estimate', op.hint, (v) => set('hint', v))
+      : null,
+    ...fields,
+  ].filter(Boolean));
+}
+
 /**
- * The rates behind the post-processing steps a part can be marked for on the
- * estimate: a resin coat priced by top area, and coding an embedded NFC tag.
+ * The configurable post-processing operations: the finishing a part can be
+ * marked for on the estimate and the client portal, each priced its own way and
+ * offered only when its hardware gate is met.
  */
 function postProcessingPanel(ctx) {
   const { rerender } = ctx;
   const settings = state.settings;
-  const code = settings.currencyCode;
-  const pp = settings.postProcessing;
-  const setResin = (key) => (v) => { pp.resin[key] = Math.max(0, num(v)); touch(rerender); };
+  if (!settings.postProcessing || !Array.isArray(settings.postProcessing.ops)) {
+    settings.postProcessing = { ops: [] };
+  }
+  const ops = settings.postProcessing.ops;
 
   return el('div', { class: 'panel' }, [
     el('h3', { text: 'Post-processing' }),
-    muted('These are charged on the parts that survive the print, so they are never multiplied '
-      + 'by the scrap rate. Tick a part for resin on the estimate; NFC coding is added on its own '
-      + 'whenever a part has an NFC tag.'),
-    subsection('Resin coat (by top area)', [
-      muted('Set the rate for one square centimetre of top surface and it is interpolated to the '
-        + 'part’s real top area. The top area is taken from the part’s footprint.'),
-      el('div', { class: 'field-grid' }, [
-        numberField('resin-min-cm2', 'Time per cm²', pp.resin.minutesPerCm2, setResin('minutesPerCm2'),
-          { min: 0, step: 0.05, suffix: 'min/cm²' }),
-        moneyField('resin-cost-cm2', 'Resin cost per cm²', pp.resin.costPerCm2,
-          (v) => setResin('costPerCm2')(v), code, { hint: 'The resin consumed per cm² of coverage.' }),
-      ]),
-      numberField('resin-cure', 'Curing time', pp.resin.curingMinutes, setResin('curingMinutes'),
-        { min: 0, step: 1, suffix: 'min', hint: 'Unattended — it adds finishing time, not labour.' }),
-      numberField('resin-grams-cm2', 'Resin used per cm²', num(pp.resin.gramsPerCm2, 2),
-        setResin('gramsPerCm2'), {
-          min: 0, step: 0.1, suffix: 'g/cm²',
-          hint: 'How much resin a cm² of coverage actually uses, in grams — used to book it '
-            + 'out of Inventory and warn when a bottle runs low.',
-        }),
-    ]),
-    subsection('NFC coding', [
-      numberField('nfc-code-min', 'Coding time per tag', pp.nfc.codingMinutes,
-        (v) => { pp.nfc.codingMinutes = Math.max(0, num(v)); touch(rerender); },
-        { min: 0, step: 0.5, suffix: 'min', hint: 'Applied for every embedded NFC tag. Mark a '
-          + 'component as an NFC tag in Catalogues → Hardware.' }),
-    ]),
+    muted('The finishing steps a part can be marked for, on both the estimate and the client form. '
+      + 'They are charged on the parts that survive the print, so they are never multiplied by the '
+      + 'scrap rate. A step is only offered when its hardware gate is met — code the NFC tag appears '
+      + 'once an NFC component is added, fit once an after-print component is added.'),
+    ...ops.map((op) => postOpEditor(op, ctx, settings)),
+    ops.length ? null : muted('No steps yet.'),
+    buttonRow([button('Add a post-processing step', () => {
+      ops.push({
+        id: makeId('pp'), name: 'New step', hint: '', basis: 'perPart', minutes: 0,
+        materialCost: 0, materialGrams: 0, stationMinutes: 0, minutesFrom: 'op',
+        gate: { kind: 'always' }, perComponent: false, archived: false,
+      });
+      touch(rerender);
+    })]),
     subsection('Manual colour swaps', [
       muted('When a part uses more colours than the machine’s heads, the extra ones are reached '
         + 'by pausing at a height and swapping a spool by hand. Each swap is this much labour plus '

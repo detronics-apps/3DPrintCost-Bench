@@ -14,6 +14,7 @@
  */
 
 import { num } from './money.js';
+import { normalizePostSelection, entryPostOps } from './postprocessing.js';
 
 export const PROJECT_VERSION = 1;
 
@@ -141,11 +142,12 @@ export function makePart(spec = {}) {
     colourBands: [],
     hardware: [],
     complexity: 1,
-    needsSupport: false,
-    needsResin: false,
-    needsDeburring: false,
-    // Coding an embedded NFC tag is opt-in; nfcUrl is the link it should carry.
-    nfcCode: false,
+    // Post-processing chosen for this part, as { [operationId]: true } for the
+    // whole-part operations (support, resin, deburr, coding…). Per-component
+    // operations (fit) store their choice on the component entry (entry.ops).
+    // The operations themselves live in Settings → Post-processing.
+    postProcessing: {},
+    // The link to code onto an embedded NFC tag, when the coding op is chosen.
     nfcUrl: '',
     partsPerPlateOverride: 0,
     otherDirectCost: 0,
@@ -520,11 +522,27 @@ export function migrateProject(stored) {
 
   const base = makeProject();
   const project = { ...base, ...raw, version: PROJECT_VERSION };
-  project.parts = (raw.parts || []).map((part) => ({
-    ...makePart(),
-    ...part,
-    attempts: (part.attempts || []).map((a) => ({ ...makeAttempt(), ...a })),
-  }));
+  project.parts = (raw.parts || []).map((part) => {
+    const next = {
+      ...makePart(),
+      ...part,
+      attempts: (part.attempts || []).map((a) => ({ ...makeAttempt(), ...a })),
+    };
+    // Post-processing used to be fixed booleans (needsResin, needsSupport…) and a
+    // `fit` flag on each component. Fold both into the configurable-operation
+    // shape so an older project prices exactly as before, then drop the old keys.
+    next.postProcessing = normalizePostSelection(next);
+    delete next.needsSupport;
+    delete next.needsResin;
+    delete next.needsDeburring;
+    delete next.nfcCode;
+    next.hardware = (next.hardware || []).map((h) => {
+      const ops = entryPostOps(h);
+      const { fit, ...rest } = h;
+      return Object.keys(ops).length ? { ...rest, ops } : rest;
+    });
+    return next;
+  });
   project.order = { ...base.order, ...(raw.order || {}) };
 
   // Workflow phase is the source of truth. An already-migrated project keeps its
@@ -568,10 +586,10 @@ export function orderFromProject(project, { customer = null } = {}) {
       colourBands: part.colourBands,
       hardware: part.hardware,
       complexity: part.complexity,
-      needsSupport: part.needsSupport,
-      needsResin: part.needsResin,
-      needsDeburring: part.needsDeburring,
-      nfcCode: part.nfcCode,
+      // The part's post-processing choices; the engine reads the operation list
+      // from settings and prices each chosen op. Per-component choices ride on
+      // the hardware entries above.
+      postProcessing: part.postProcessing,
       partsPerPlateOverride: part.partsPerPlateOverride,
       otherDirectCost: part.otherDirectCost,
       estimateMethod: part.estimateMethod,
