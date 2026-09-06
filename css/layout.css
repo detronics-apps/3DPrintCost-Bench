@@ -3,6 +3,12 @@
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
 
+/* The `hidden` attribute must win. Author rules that set `display` (e.g.
+   .section__body { display: flex }) otherwise override the browser's built-in
+   [hidden] { display: none }, which is why toggling el.hidden left collapsible
+   sections visible. This makes hidden actually hide, everywhere. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font: 400 14px/1.5 var(--font);
