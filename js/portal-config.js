@@ -71,6 +71,10 @@ export function portalConfig(settings, { internal = false } = {}) {
       .map((p) => ({ id: p.id, name: p.name, blurb: p.blurb })),
     printers: allowed(settings.printers, portal.allowedPrinters)
       .map((p) => ({ id: p.id, name: p.name })),
+    // The machine the form opens on: the company default when it is offered,
+    // otherwise the first allowed one (filled in by the portal).
+    defaultPrinterId: allowed(settings.printers, portal.allowedPrinters)
+      .some((p) => p.id === settings.defaultPrinterId) ? settings.defaultPrinterId : null,
     materials: allowed(settings.materials, portal.allowedMaterials)
       .map((m) => ({ id: m.id, name: m.name, colour: m.colour, type: m.type })),
     // The embedded hardware a customer may ask for - magnets, inserts, an NFC

@@ -395,20 +395,21 @@ function materialEditor(ctx) {
       textField('material-storage', 'Storage', selected.storage, set('storage'), { multiline: true, rows: 2 }),
     ]),
 
-    section('material-prices', 'Price per country', [
-      muted('One spool, in each country’s own currency.'),
-      ...settings.countries.map((c) => numberField(
-        `material-price-${c.id}`,
-        `${c.name} (${c.currency})`,
-        selected.prices?.[c.id] ?? '',
+    section('material-prices', 'Price', [
+      muted('What one spool costs where you buy it, in your currency. Change your country in '
+        + 'Settings → Company to price in another currency.'),
+      numberField(
+        `material-price-${settings.countryId}`,
+        `Price (${code})`,
+        selected.prices?.[settings.countryId] ?? '',
         (v) => {
           selected.prices = { ...(selected.prices || {}) };
-          if (v == null) delete selected.prices[c.id];
-          else selected.prices[c.id] = num(v);
+          if (v == null) delete selected.prices[settings.countryId];
+          else selected.prices[settings.countryId] = num(v);
           touch(rerender);
         },
-        { min: 0, step: 0.01 },
-      )),
+        { min: 0, step: 0.01, suffix: code },
+      ),
       numberField('material-override', 'Override for this workshop',
         selected.priceOverride ?? '', (v) => { selected.priceOverride = v; touch(rerender); },
         { min: 0, step: 0.01, suffix: code, hint: 'Beats the catalogue price. Leave empty to use it.' }),
@@ -561,11 +562,11 @@ function packagingParts(ctx) {
         ))),
       ]) : null,
       numberField('pack-weight', 'Weight', p.weightG, set('weightG'), { min: 0, suffix: 'g' }),
-      ...settings.countries.map((c) => numberField(
-        `pack-price-${c.id}`, `${c.name} (${c.currency})`, p.prices?.[c.id] ?? '',
-        (v) => { p.prices = { ...(p.prices || {}), [c.id]: num(v) }; set('prices')(p.prices); },
-        { min: 0, step: 0.01 },
-      )),
+      numberField(
+        `pack-price-${settings.countryId}`, `Price (${code})`, p.prices?.[settings.countryId] ?? '',
+        (v) => { p.prices = { ...(p.prices || {}), [settings.countryId]: num(v) }; set('prices')(p.prices); },
+        { min: 0, step: 0.01, suffix: code },
+      ),
       textField('pack-supplier', 'Supplier', p.supplier || '', set('supplier')),
     ],
   });
@@ -595,18 +596,18 @@ function hardwareParts(ctx) {
           + 'system through it, so the supplier and their SKU stay where you already keep them.',
       }),
       textField('hw-category', 'Category', h.category, set('category')),
-      ...settings.countries.map((c) => numberField(
-        `hw-price-${c.id}`, `${c.name} (${c.currency})`, h.prices?.[c.id] ?? '',
-        (v) => { h.prices = { ...(h.prices || {}), [c.id]: num(v) }; set('prices')(h.prices); },
-        { min: 0, step: 0.01 },
-      )),
+      numberField(
+        `hw-price-${settings.countryId}`, `Price (${code})`, h.prices?.[settings.countryId] ?? '',
+        (v) => { h.prices = { ...(h.prices || {}), [settings.countryId]: num(v) }; set('prices')(h.prices); },
+        { min: 0, step: 0.01, suffix: code },
+      ),
       numberField('hw-pause', 'Pause the print', h.pauseMinutes, set('pauseMinutes'), { min: 0, suffix: 'min' }),
       numberField('hw-insert', 'Fitting time', h.insertMinutes, set('insertMinutes'), { min: 0, suffix: 'min' }),
       numberField('hw-material', 'Extra material', h.extraMaterialG, set('extraMaterialG'), { min: 0, suffix: 'g' }),
       percentField('hw-risk', 'Chance fitting ruins the part', h.failureRisk, set('failureRisk')),
       checkField('hw-nfc', 'This is an NFC tag', !!h.nfc, set('nfc'), {
         hint: 'Adds the NFC-coding step to post-processing on any part this is embedded in. '
-          + 'Set the coding time in Settings → Labour → Post-processing.',
+          + 'Set the coding time in Settings → Post-processing.',
       }),
       textField('hw-note', 'Operator note', h.note || '', set('note'), { multiline: true, rows: 2 }),
     ],

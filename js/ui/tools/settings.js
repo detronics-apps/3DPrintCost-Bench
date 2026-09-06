@@ -141,6 +141,11 @@ function companyPanel(ctx) {
         numberField('handling-days', 'Handling days before despatch', settings.company.handlingDays,
           (v) => set('handlingDays')(Math.max(0, Math.round(num(v, 1)))), { min: 0, step: 1, suffix: 'days' }),
       ]),
+      selectField('default-printer', 'Default printer',
+        settings.printers.filter((p) => !p.archived).map((p) => ({ value: p.id, label: p.name })),
+        settings.defaultPrinterId, (v) => { settings.defaultPrinterId = v; touch(rerender); }, {
+          hint: 'A new estimate, a new project part and the client form all start on this machine.',
+        }),
       companyBranding(settings, set),
     ]),
 

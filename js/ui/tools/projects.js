@@ -170,7 +170,7 @@ function projectList(ctx) {
 }
 
 function newProject(rerender) {
-  const project = addPart(makeProject(), makePart());
+  const project = addPart(makeProject(), makePart({ printerId: state.settings.defaultPrinterId }));
   commit(project);
   state.activeProjectId = project.id;
   state.activePartId = project.parts[0].id;
@@ -423,7 +423,7 @@ function partsPanel(ctx, project, result) {
     el('div', { class: 'panel__head' }, [
       el('h3', { text: 'Parts' }),
       button('Add a part', () => {
-        commit(addPart(project, makePart()));
+        commit(addPart(project, makePart({ printerId: state.settings.defaultPrinterId })));
         rerender();
       }, { key: 'add-part' }),
     ]),

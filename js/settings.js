@@ -66,6 +66,9 @@ export function defaultSettings() {
     },
 
     printers: clone(DEFAULT_PRINTERS),
+    // The machine a new estimate, a new project part and the client form all
+    // start on, unless changed. See settings.js migrate for the fallback.
+    defaultPrinterId: DEFAULT_PRINTERS[0].id,
     materials: clone(DEFAULT_MATERIALS),
     profiles: clone(DEFAULT_PROFILES),
     shipping: clone(DEFAULT_SHIPPING),
@@ -396,6 +399,12 @@ export function migrateSettings(stored) {
     supportMinutes: ppSupportMinutes,
     deburrMinutes: ppDeburrMinutes,
   });
+  // The default printer is newer than the printers list. Point it at a real,
+  // unarchived machine so a new estimate always opens on something valid.
+  if (!merged.defaultPrinterId || !merged.printers.some((p) => p.id === merged.defaultPrinterId)) {
+    merged.defaultPrinterId = merged.printers.find((p) => !p.archived)?.id
+      || merged.printers[0]?.id || defaults.defaultPrinterId;
+  }
   if (!merged.colour || typeof merged.colour !== 'object') merged.colour = clone(defaults.colour);
   // Branding fields are newer than the company block.
   if (merged.company.accentColour == null) merged.company.accentColour = defaults.company.accentColour;

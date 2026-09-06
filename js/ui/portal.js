@@ -731,7 +731,8 @@ function init() {
   state.config = config;
   if (config) {
     state.settings = config.settings;
-    state.printerId = config.printers[0]?.id || state.settings.printers[0].id;
+    state.printerId = config.defaultPrinterId
+      || config.printers[0]?.id || state.settings.printers[0].id;
     state.materialId = config.materials[0]?.id || state.settings.materials[0].id;
     state.slots = null;
     state.parts = [makePortalPart({ profileId: config.profiles[0]?.id || state.settings.profiles[0].id })];

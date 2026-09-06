@@ -192,6 +192,13 @@ export function migrateState(stored) {
   }
   next.quick.order = { ...defaultQuick().order, ...(stored.quick?.order || {}) };
   next.quick.parts = migrateQuickParts(stored.quick);
+  // A fresh bed, or one whose printer no longer exists, opens on the company
+  // default printer. A bed the user already set to a valid machine is left alone.
+  const bedPrinterValid = next.settings.printers.some(
+    (p) => p.id === next.quick.printerId && !p.archived);
+  if (!stored.quick || !bedPrinterValid) {
+    next.quick.printerId = next.settings.defaultPrinterId;
+  }
   return next;
 }
 
