@@ -2,6 +2,17 @@
 
 Things to do later, not yet scheduled. Newest first.
 
+## Features / ideas
+
+- **Colour swatches on filament colours** — give each material/colour a colour
+  code (a hex value) and show a small coloured square next to the colour name
+  wherever a material is listed or picked: the Materials catalogue, the estimator
+  and project filament/head pickers, the client form, spool labels, and slicer
+  head rows. Would need a `colourHex` field on a material (with a sensible default
+  and an editor/colour-picker in Catalogues → Materials), a migration to add it,
+  and a small reusable swatch element. Consider a multi-colour/gradient material
+  (e.g. silk rainbow) — maybe two stops or a "varies" marker. (Raised 2026-09-07.)
+
 ## How-to / guide additions
 
 _Both of the previously-listed FAQ additions (internal-vs-customer pricing; team
