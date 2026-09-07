@@ -19,6 +19,7 @@ import { demandMultiplier, utilisation, CAPACITY_SOURCES } from '../../demand.js
 import { downloadCsv } from '../export.js';
 import { returnsOnMachines, surplusPool } from '../../roi.js';
 import { state, saveSoon } from '../../state.js';
+import { printsDueToday } from './scheduler.js';
 
 export const id = 'dashboard';
 export const name = 'Dashboard';
@@ -77,7 +78,27 @@ export function main(ctx) {
   const corrections = calibrate(samples, settings.calibration || DEFAULT_CALIBRATION);
   const errors = errorReport(samples);
 
-  const nodes = [
+  const nodes = [];
+
+  // Prints that should be on a machine today but are not yet marked in
+  // production. A dismissible flag, so it clears for the day once acknowledged
+  // and returns tomorrow if anything is still waiting.
+  const today = new Date().toISOString().slice(0, 10);
+  const dueToday = printsDueToday(state);
+  if (dueToday.length && state.ui.dueFlagDismissedOn !== today) {
+    const names = dueToday.map((j) => j.name).join(', ');
+    nodes.push(banner('warn',
+      `${dueToday.length} print${dueToday.length === 1 ? ' is' : 's are'} scheduled to start today `
+      + `and not yet marked in production: ${names}.`, {
+        action: button('Dismiss for today', () => {
+          state.ui.dueFlagDismissedOn = today;
+          saveSoon();
+          rerender();
+        }, { key: 'due-today-dismiss' }),
+      }));
+  }
+
+  nodes.push(
     el('div', { class: 'summary-grid' }, [
       statTile('Active projects', String(d.counts.active), { hint: `${d.counts.projects} in total` }),
       statTile('Open quotes', String(d.counts.openQuotes)),
@@ -88,7 +109,7 @@ export function main(ctx) {
       statTile('Outstanding', fmtMoney(d.money.owed, code), { tone: d.money.owed ? 'warn' : null }),
       statTile('Overdue', String(d.counts.overdue), { tone: d.counts.overdue ? 'danger' : null }),
     ]),
-  ];
+  );
 
   if (d.counts.overdue) {
     nodes.push(banner('warn', `${d.counts.overdue} invoice${d.counts.overdue === 1 ? ' is' : 's are'} `
