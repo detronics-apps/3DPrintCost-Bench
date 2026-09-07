@@ -239,6 +239,12 @@ function companyPanel(ctx) {
           + 'payment) and skip the quote — the order jumps straight to payment and into production. '
           + 'The padding is what keeps the estimate at or above the final cost.',
       }),
+      checkField('portal-newsletter', 'Show a newsletter / deals opt-in on the form',
+        settings.customerPortal.newsletter,
+        (v) => { settings.customerPortal.newsletter = v; touch(rerender); }, {
+          hint: 'Adds a tick-box the client can opt in to. It is consent, so a client is only added '
+            + 'to your list when they tick it themselves — it arrives on their imported customer record.',
+        }),
       subsection('Print intents customers may choose', settings.profiles.map((p) => checkField(
         `portal-profile-${p.id}`, p.name,
         settings.customerPortal.allowedProfiles.includes(p.id),

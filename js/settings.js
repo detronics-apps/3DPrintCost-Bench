@@ -157,6 +157,9 @@ export function defaultSettings() {
       //   'optional' the client chooses to expedite or ask for a quote
       //   'only'     no manual quote at all — every order is pay-the-estimate
       expediteMode: 'off',
+      // Show a newsletter/deals opt-in on the client form. Off by default; the
+      // opt-in itself is consent, so a client is only ever added when they tick it.
+      newsletter: false,
     },
 
     // How the production schedule turns machine-hours into days. `hoursPerDay`
@@ -386,6 +389,9 @@ export function migrateSettings(stored) {
   // And the expedite mode, which predates most stored settings.
   if (!['off', 'optional', 'only'].includes(merged.customerPortal.expediteMode)) {
     merged.customerPortal.expediteMode = defaults.customerPortal.expediteMode;
+  }
+  if (typeof merged.customerPortal.newsletter !== 'boolean') {
+    merged.customerPortal.newsletter = defaults.customerPortal.newsletter;
   }
   // The scheduler block is newer than most stored settings.
   if (!merged.scheduler || typeof merged.scheduler !== 'object') {

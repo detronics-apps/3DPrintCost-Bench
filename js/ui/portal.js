@@ -35,6 +35,7 @@ import { defaultSlots, reconcileSlots, normaliseMix } from '../filaments.js';
 import { fmtMoney, num } from '../money.js';
 import { portalConfig, settingsFromConfig } from '../portal-config.js';
 import { gateMatches, entryPostOps } from '../postprocessing.js';
+import { validateEmail, validatePhone, dialInfoFor } from '../phone.js';
 import { portalRequest } from '../portal-request.js';
 import { makeAddressParts, formatAddress, ADDRESS_TYPES } from '../projects.js';
 import { filamentSlots, mixEditor } from './filament-slots.js';
@@ -75,7 +76,10 @@ const state = {
   shippingMethodId: 'auto',
   expedite: false,
   parts: [makePortalPart()],
-  customer: { name: '', email: '', phone: '', notes: '', addressParts: makeAddressParts() },
+  customer: {
+    name: '', email: '', phone: '', countryId: null, newsletter: false,
+    notes: '', addressParts: makeAddressParts(),
+  },
 };
 
 function loadConfig() {
@@ -217,6 +221,73 @@ function textInput(id, label, value, onChange, type = 'text') {
       on: { change: (e) => onChange(e.target.value) },
     }),
   ]);
+}
+
+/** A text field that can show a red inline error and highlight itself. */
+function validatedInput(id, label, value, onChange, { type = 'text', error = null, hint = null } = {}) {
+  return el('div', { class: error ? 'field field--error' : 'field' }, [
+    el('label', { class: 'field__label', text: label, for: id }),
+    el('input', {
+      class: 'input', id, type, 'data-field': id, value: value || '',
+      on: { change: (e) => onChange(e.target.value) },
+    }),
+    hint ? el('div', { class: 'field__hint', text: hint }) : null,
+    error ? el('div', { class: 'field__error', text: error }) : null,
+  ].filter(Boolean));
+}
+
+/**
+ * What is still needed before the request can be sent. Email and phone are
+ * always required; the address only when the order is being delivered (a
+ * customer collecting it needs none). Errors are keyed by field.
+ */
+function customerValidity(config) {
+  const c = state.customer;
+  const country = c.countryId || config.countryId;
+  const email = validateEmail(c.email);
+  const phone = validatePhone(c.phone, country);
+  const needsAddress = state.shippingMethodId !== 'collect';
+  const a = c.addressParts || {};
+  const addressOk = !needsAddress || [a.street, a.city].some((v) => String(v ?? '').trim());
+
+  const errors = {};
+  if (!String(c.name || '').trim()) errors.name = 'Enter your name.';
+  if (!email.ok) errors.email = email.message;
+  if (!phone.ok) errors.phone = phone.message;
+  if (needsAddress && !addressOk) {
+    errors.address = 'Add a delivery address, or choose to collect it yourself.';
+  }
+  return {
+    errors, ok: Object.keys(errors).length === 0, needsAddress, email, phone,
+  };
+}
+
+/** Fill the customer fields from a details file the client saved earlier. */
+function loadClientDetails() {
+  const input = el('input', { type: 'file', accept: 'application/json,.json' });
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const cust = data && data.kind === 'client' ? data.customer
+        : (data && (data.customer || (data.name || data.email ? data : null)));
+      if (!cust) { toast('That file has no saved details in it'); return; }
+      const c = state.customer;
+      c.name = cust.name || '';
+      c.email = cust.email || '';
+      c.phone = cust.phone || '';
+      c.countryId = cust.countryId || null;
+      c.newsletter = !!cust.newsletter;
+      c.notes = cust.notes || '';
+      c.addressParts = makeAddressParts(cust.addressParts || {});
+      toast('Your details are filled in');
+      render();
+    } catch {
+      toast('Could not read that file');
+    }
+  });
+  input.click();
 }
 
 /** The structured delivery address: a type, its extra line, then the common lines. */
@@ -548,8 +619,12 @@ function render() {
     el('h2', { text: 'Delivery' }),
     selectField('portal-shipping', 'How should it reach you?',
       [{ value: 'auto', label: 'Cheapest that fits' },
-        ...config.shipping.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` }))],
+        ...config.shipping.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` })),
+        { value: 'collect', label: 'I’ll collect it myself (no delivery)' }],
       state.shippingMethodId, (v) => { state.shippingMethodId = v; render(); }),
+    state.shippingMethodId === 'collect'
+      ? muted('No delivery address needed — you will collect it from us.')
+      : null,
   ]));
 
   const totalPlates = result.lines.reduce((m, l) => Math.max(m, l.jobs), 0);
@@ -648,8 +723,20 @@ function render() {
       mix: p.mix,
       colours: Math.max(1, normaliseMix(p.mix, slots).entries.filter((e) => e.percent > 0).length),
     })),
-    customer: state.customer,
-    order: { shippingMethodId: state.shippingMethodId },
+    // The phone travels normalised to +<country><number> when it is valid, so
+    // the workshop stores it in one consistent form.
+    customer: {
+      ...state.customer,
+      phone: (() => {
+        const v = validatePhone(state.customer.phone, state.customer.countryId || config.countryId);
+        return v.ok ? v.value : state.customer.phone;
+      })(),
+    },
+    order: {
+      shippingMethodId: state.shippingMethodId,
+      // A collection carries no delivery, so the workshop skips the courier.
+      packagingCollected: state.shippingMethodId === 'collect',
+    },
     quotedTotal: quoted,
     currencyCode: code,
     validityDays,
@@ -664,6 +751,18 @@ function render() {
     return `${base}#${encodeURIComponent(JSON.stringify(makePayload()))}`;
   };
 
+  const valid = customerValidity(config);
+  const phoneCountry = state.customer.countryId || config.countryId;
+  const dial = dialInfoFor(phoneCountry);
+  const countryOptions = (config.pricing?.countries || [])
+    .map((c) => ({ value: c.id, label: c.name }));
+
+  const needed = [];
+  if (valid.errors.name) needed.push('your name');
+  if (valid.errors.email) needed.push('a valid email');
+  if (valid.errors.phone) needed.push('a valid phone number');
+  if (valid.errors.address) needed.push('a delivery address (or choose to collect)');
+
   nodes.push(el('div', { class: 'panel' }, [
     el('h2', { text: 'Send it over' }),
     muted('This page has no server, so it cannot send the request for you. On a phone the '
@@ -673,20 +772,57 @@ function render() {
       ? banner('warn', 'This is an expedited order — attach your proof of payment along with your '
         + 'model file(s) so we can confirm and start production.')
       : null,
-    el('div', { class: 'field-grid' }, [
-      textInput('portal-name', 'Your name', state.customer.name, (v) => { state.customer.name = v; }),
-      textInput('portal-email', 'Your email', state.customer.email, (v) => { state.customer.email = v; }, 'email'),
+
+    // Returning customers keep their details in a file and load it here.
+    buttonRow([
+      button('Load my saved details', loadClientDetails, { key: 'portal-load-client' }),
+      button('Save my details', () => {
+        download(new Blob([JSON.stringify({ kind: 'client', v: 1, customer: state.customer }, null, 2)],
+          { type: 'application/json' }), 'my-details.json');
+        toast('Saved — load this next time to fill your details in');
+      }, { key: 'portal-save-client' }),
     ]),
-    textInput('portal-phone', 'Phone', state.customer.phone, (v) => { state.customer.phone = v; }),
-    el('h3', { text: 'Delivery address' }),
+
+    el('div', { class: 'field-grid' }, [
+      validatedInput('portal-name', 'Your name', state.customer.name,
+        (v) => { state.customer.name = v; render(); }),
+      validatedInput('portal-email', 'Your email', state.customer.email,
+        (v) => { state.customer.email = v; render(); },
+        { type: 'email', error: state.customer.email && !valid.email.ok ? valid.email.message : null }),
+    ]),
+    el('div', { class: 'field-grid' }, [
+      countryOptions.length
+        ? selectField('portal-country', 'Country', countryOptions, phoneCountry,
+          (v) => { state.customer.countryId = v; render(); })
+        : null,
+      validatedInput('portal-phone', 'Phone', state.customer.phone,
+        (v) => { state.customer.phone = v; render(); },
+        {
+          type: 'tel',
+          hint: dial.example ? `e.g. ${dial.example}` : null,
+          error: state.customer.phone && !valid.phone.ok ? valid.phone.message : null,
+        }),
+    ].filter(Boolean)),
+
+    el('h3', { text: valid.needsAddress ? 'Delivery address' : 'Address (optional)' }),
     addressBlock(),
     el('div', { class: 'field' }, [
       el('label', { class: 'field__label', text: 'Anything we should know', for: 'p-notes' }),
       el('textarea', {
         class: 'input input--area', id: 'p-notes', 'data-field': 'portal-notes',
         on: { change: (e) => { state.customer.notes = e.target.value; } },
-      }),
+      }, state.customer.notes || ''),
     ]),
+    config.newsletter
+      ? checkField('portal-newsletter', 'Keep me posted about news and deals',
+        state.customer.newsletter, (v) => { state.customer.newsletter = v; render(); }, {
+          hint: 'Optional — tick to join our newsletter. We only add you if you ask us to.',
+        })
+      : null,
+
+    needed.length
+      ? banner('warn', `Before you can send, we still need: ${needed.join('; ')}.`)
+      : null,
     buttonRow([
       button('Copy a request link', () => {
         const link = requestLink();
@@ -695,13 +831,13 @@ function render() {
             .then(() => toast('Link copied — send it to us, and attach your model file'))
             .catch(() => toast('Could not copy the link'));
         } else toast('Copying is not available here; use Download instead');
-      }, { primary: true, key: 'portal-link' }),
+      }, { primary: true, key: 'portal-link', disabled: !valid.ok }),
       button('Download the request', () => {
         download(new Blob([JSON.stringify(makePayload(), null, 2)], { type: 'application/json' }),
           'quote-request.json');
         toast('Saved — email this file to us with your models');
-      }, { key: 'portal-download' }),
-      config.company.email
+      }, { key: 'portal-download', disabled: !valid.ok }),
+      valid.ok && config.company.email
         ? el('a', {
           class: 'btn',
           'data-field': 'portal-email-link',
@@ -736,6 +872,7 @@ function init() {
     state.materialId = config.materials[0]?.id || state.settings.materials[0].id;
     state.slots = null;
     state.parts = [makePortalPart({ profileId: config.profiles[0]?.id || state.settings.profiles[0].id })];
+    state.customer.countryId = config.countryId || null;
     state.shippingMethodId = 'auto';
     // In expedite-only mode there is no quote path, so the order is expedited
     // from the start; in optional mode the client turns it on themselves.

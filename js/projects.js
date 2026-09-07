@@ -261,16 +261,72 @@ export function makeCustomer(spec = {}) {
     name: 'New customer',
     email: '',
     phone: '',
+    // The country whose dialling code and currency the customer was quoted in;
+    // set from the client form's country picker.
+    countryId: null,
     address: '',
     addressParts: makeAddressParts(),
     vatNumber: '',
     discount: { kind: 'none' },
     notes: '',
+    // Whether they opted in to the newsletter / deals list on the form. Consent,
+    // so it is only ever true when they ticked it themselves.
+    newsletter: false,
     archived: false,
     ...spec,
     // A caller that passes partial address parts still gets a complete object.
     ...(spec.addressParts ? { addressParts: makeAddressParts(spec.addressParts) } : {}),
   };
+}
+
+/** Normalise for comparison. The phone key is the last nine digits of the
+ *  subscriber number, so a local `082…` and an international `+2782…` for the
+ *  same person compare equal despite the trunk/dialling-code difference. */
+const normEmail = (v) => String(v || '').trim().toLowerCase();
+const phoneKey = (v) => {
+  const digits = String(v || '').replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-9) : '';
+};
+
+/**
+ * Find an existing customer that is the same person as `incoming` — matched by
+ * email first, then phone — so importing a returning client's request reuses
+ * their record instead of creating a duplicate. Blank fields never match.
+ */
+export function matchCustomer(customers, incoming) {
+  const email = normEmail(incoming?.email);
+  const phone = phoneKey(incoming?.phone);
+  if (!email && !phone) return null;
+  return (customers || []).find((c) => {
+    if (c.archived) return false;
+    if (email && normEmail(c.email) === email) return true;
+    if (phone && phoneKey(c.phone) === phone) return true;
+    return false;
+  }) || null;
+}
+
+/**
+ * Merge a returning client's newer details onto their existing record: the
+ * request's non-empty values win, but the existing id, history and anything the
+ * request left blank are kept. Used by import dedup.
+ */
+export function mergeCustomer(existing, incoming) {
+  const pick = (a, b) => (String(b ?? '').trim() ? b : a);
+  const merged = {
+    ...existing,
+    name: pick(existing.name, incoming.name),
+    email: pick(existing.email, incoming.email),
+    phone: pick(existing.phone, incoming.phone),
+    countryId: incoming.countryId || existing.countryId,
+    address: pick(existing.address, incoming.address),
+    vatNumber: pick(existing.vatNumber, incoming.vatNumber),
+    // A fresh opt-in turns it on; the form never silently opts someone out.
+    newsletter: existing.newsletter || !!incoming.newsletter,
+  };
+  const hasAddr = incoming.addressParts
+    && Object.values(incoming.addressParts).some((v) => String(v ?? '').trim());
+  if (hasAddr) merged.addressParts = makeAddressParts(incoming.addressParts);
+  return merged;
 }
 
 /** A file kept with the project. Contents stay in the browser. */

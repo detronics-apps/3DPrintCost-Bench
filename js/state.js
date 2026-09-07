@@ -15,7 +15,9 @@
  */
 
 import { migrateSettings, defaultSettings } from './settings.js';
-import { migrateProject, makeProject, makeCustomer } from './projects.js';
+import {
+  migrateProject, makeProject, makeCustomer, matchCustomer, mergeCustomer,
+} from './projects.js';
 import { normalizePostSelection, entryPostOps } from './postprocessing.js';
 import { num } from './money.js';
 
@@ -436,9 +438,40 @@ export function importFile(text, { merge = true } = {}) {
     ? [data.project].filter(Boolean)
     : (Array.isArray(data.projects) ? data.projects : []);
 
+  // Customers first, so a project imported below can be re-pointed at the record
+  // its client already has. `remap` carries incoming customer id → resolved id.
+  const remap = new Map();
+  for (const raw of (data.customers || (data.customer ? [data.customer] : []))) {
+    if (!raw) continue;
+    const customer = makeCustomer(raw);
+    const byId = state.customers.findIndex((c) => c.id === customer.id);
+    if (byId >= 0) {
+      // Same record (a whole-workshop import) — replace it as before.
+      state.customers[byId] = customer;
+    } else {
+      // A returning client is matched by email/phone, not id, so a fresh request
+      // does not create a duplicate. On a match, refresh the record with the
+      // newer details and re-point this import's projects at the existing one.
+      const match = matchCustomer(state.customers, customer);
+      if (match) {
+        Object.assign(match, mergeCustomer(match, customer));
+        remap.set(customer.id, match.id);
+      } else {
+        state.customers.push(customer);
+      }
+    }
+    report.customers += 1;
+  }
+
   for (const raw of incoming) {
     try {
       const project = migrateProject(raw);
+      if (project.customerId && remap.has(project.customerId)) {
+        const resolvedId = remap.get(project.customerId);
+        project.customerId = resolvedId;
+        const owner = state.customers.find((c) => c.id === resolvedId);
+        if (owner) project.customerName = owner.name;
+      }
       const existing = state.projects.findIndex((p) => p.id === project.id);
       if (existing >= 0 && merge) state.projects[existing] = project;
       else state.projects.push(existing >= 0 ? { ...project, id: makeProject().id } : project);
@@ -446,15 +479,6 @@ export function importFile(text, { merge = true } = {}) {
     } catch {
       report.skipped += 1;
     }
-  }
-
-  for (const raw of (data.customers || (data.customer ? [data.customer] : []))) {
-    if (!raw) continue;
-    const customer = makeCustomer(raw);
-    const existing = state.customers.findIndex((c) => c.id === customer.id);
-    if (existing >= 0) state.customers[existing] = customer;
-    else state.customers.push(customer);
-    report.customers += 1;
   }
 
   if (data.inventory && !merge) state.inventory = data.inventory;

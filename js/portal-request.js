@@ -84,6 +84,9 @@ export function portalRequest({
     name: (customer?.name || '').trim() || 'Customer from a request',
     email: (customer?.email || '').trim(),
     phone: (customer?.phone || '').trim(),
+    countryId: customer?.countryId || null,
+    // Consent from the form's opt-in — only ever true when the client ticked it.
+    newsletter: !!customer?.newsletter,
     address: composed,
     ...(addrParts ? { addressParts: addrParts } : {}),
     notes: (customer?.notes || '').trim(),
@@ -123,7 +126,8 @@ export function portalRequest({
       shippingMethodId: order?.shippingMethodId || 'auto',
       packagingContainerId: null,
       packagingConsumables: null,
-      packagingCollected: false,
+      // The client chose to collect it themselves — no courier is booked.
+      packagingCollected: !!order?.packagingCollected || order?.shippingMethodId === 'collect',
       insured: false,
       extras: [],
     },

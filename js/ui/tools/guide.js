@@ -110,6 +110,14 @@ const FAQS = [
   { q: 'Are the slicer grams and time I enter per part or for the whole print?',
     a: 'For the whole print. Enter the slicer TOTALS (grams per head and the total print time); the app divides '
       + 'them across the quantity for you.' },
+  { q: 'If a returning client sends another request, do I get a duplicate customer?',
+    a: 'No. When you import a request, the app matches the client to an existing customer by email or phone. On a '
+      + 'match it reuses that record — no duplicate — refreshes it with any newer details (a changed address, say), '
+      + 'and links the new project to it. A genuinely new client is added as a fresh customer.' },
+  { q: 'How does the newsletter opt-in on the client form work?',
+    a: 'Turn it on in Settings → the customer-form section. The form then shows an unticked “Keep me posted” box; '
+      + 'because it is consent, a client is only added when they tick it themselves, and their choice arrives on '
+      + 'their imported customer record so you know who opted in.' },
   { q: 'Is coding an NFC tag automatic?',
     a: 'No, it is opt-in. When a part has an embedded NFC tag, tick “Code the NFC tag” in post-processing to charge '
       + 'the coding, and enter the link the tag should carry. Untouched, a tag is not coded.' },
