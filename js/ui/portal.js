@@ -75,6 +75,9 @@ const state = {
   slots: null,
   shippingMethodId: 'auto',
   expedite: false,
+  // Set true the first time the client presses a send button while the form is
+  // invalid, so empty required fields go red (they stay neutral before that).
+  submitAttempted: false,
   parts: [makePortalPart()],
   customer: {
     name: '', email: '', phone: '', countryId: null, newsletter: false,
@@ -223,10 +226,21 @@ function textInput(id, label, value, onChange, type = 'text') {
   ]);
 }
 
-/** A text field that can show a red inline error and highlight itself. */
-function validatedInput(id, label, value, onChange, { type = 'text', error = null, hint = null } = {}) {
-  return el('div', { class: error ? 'field field--error' : 'field' }, [
-    el('label', { class: 'field__label', text: label, for: id }),
+/**
+ * A text field that turns green when its value is valid and red (with a message)
+ * when it is wrong, and marks a required field with an asterisk. Red is only
+ * shown once `error` is passed; green whenever `valid` is true.
+ */
+function validatedInput(id, label, value, onChange, options = {}) {
+  const {
+    type = 'text', required = false, valid = false, error = null, hint = null,
+  } = options;
+  const cls = error ? 'field field--error' : (valid ? 'field field--valid' : 'field');
+  return el('div', { class: cls }, [
+    el('label', { class: 'field__label', for: id }, [
+      el('span', { text: label }),
+      required ? el('span', { class: 'field__req', text: ' *' }) : null,
+    ].filter(Boolean)),
     el('input', {
       class: 'input', id, type, 'data-field': id, value: value || '',
       on: { change: (e) => onChange(e.target.value) },
@@ -234,6 +248,18 @@ function validatedInput(id, label, value, onChange, { type = 'text', error = nul
     hint ? el('div', { class: 'field__hint', text: hint }) : null,
     error ? el('div', { class: 'field__error', text: error }) : null,
   ].filter(Boolean));
+}
+
+/** Scroll to the first field with a problem and focus it, for the sanity check. */
+function focusFirstInvalid(valid) {
+  const order = ['portal-name', 'portal-email', 'portal-phone', 'portal-addr-street'];
+  const map = { 'portal-name': 'name', 'portal-email': 'email', 'portal-phone': 'phone', 'portal-addr-street': 'address' };
+  const id = order.find((f) => valid.errors[map[f]]);
+  const node = id && document.querySelector(`[data-field="${id}"]`);
+  if (node) {
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    node.focus?.();
+  }
 }
 
 /**
@@ -764,6 +790,17 @@ function render() {
   if (valid.errors.phone) needed.push('a valid phone number');
   if (valid.errors.address) needed.push('a delivery address (or choose to collect)');
 
+  // The send buttons stay active and act as a sanity check: a valid form goes
+  // through; an invalid one turns the offending fields red and jumps to the
+  // first one, keeping everything the client has already typed.
+  const sanityChecked = (action) => {
+    if (valid.ok) { action(); return; }
+    state.submitAttempted = true;
+    render();
+    focusFirstInvalid(valid);
+    toast('Please check the highlighted fields');
+  };
+
   nodes.push(el('div', { class: 'panel' }, [
     el('h2', { text: 'Send it over' }),
     muted('This page has no server, so it cannot send the request for you. On a phone the '
@@ -786,10 +823,16 @@ function render() {
 
     el('div', { class: 'field-grid' }, [
       validatedInput('portal-name', 'Your name', state.customer.name,
-        (v) => { state.customer.name = v; render(); }),
+        (v) => { state.customer.name = v; render(); }, {
+          required: true,
+          valid: !!String(state.customer.name).trim(),
+          error: state.submitAttempted && valid.errors.name ? valid.errors.name : null,
+        }),
       validatedInput('portal-email', 'Your email', state.customer.email,
-        (v) => { state.customer.email = v; render(); },
-        { type: 'email', error: state.customer.email && !valid.email.ok ? valid.email.message : null }),
+        (v) => { state.customer.email = v; render(); }, {
+          type: 'email', required: true, valid: valid.email.ok,
+          error: (state.submitAttempted || state.customer.email) && !valid.email.ok ? valid.email.message : null,
+        }),
     ]),
     el('div', { class: 'field-grid' }, [
       countryOptions.length
@@ -804,9 +847,9 @@ function render() {
       validatedInput('portal-phone', 'Phone', state.customer.phone,
         (v) => { state.customer.phone = v; render(); },
         {
-          type: 'tel',
+          type: 'tel', required: true, valid: valid.phone.ok,
           hint: dial.example ? `e.g. ${dial.example}` : null,
-          error: state.customer.phone && !valid.phone.ok ? valid.phone.message : null,
+          error: (state.submitAttempted || state.customer.phone) && !valid.phone.ok ? valid.phone.message : null,
         }),
     ].filter(Boolean)),
 
@@ -826,31 +869,28 @@ function render() {
         })
       : null,
 
-    needed.length
-      ? banner('warn', `Before you can send, we still need: ${needed.join('; ')}.`)
+    state.submitAttempted && needed.length
+      ? banner('danger', `Before you can send, we still need: ${needed.join('; ')}.`)
       : null,
     buttonRow([
-      button('Copy a request link', () => {
+      button('Copy a request link', () => sanityChecked(() => {
         const link = requestLink();
         if (navigator.clipboard?.writeText) {
           navigator.clipboard.writeText(link)
             .then(() => toast('Link copied — send it to us, and attach your model file'))
             .catch(() => toast('Could not copy the link'));
         } else toast('Copying is not available here; use Download instead');
-      }, { primary: true, key: 'portal-link', disabled: !valid.ok }),
-      button('Download the request', () => {
+      }), { primary: true, key: 'portal-link' }),
+      button('Download the request', () => sanityChecked(() => {
         download(new Blob([JSON.stringify(makePayload(), null, 2)], { type: 'application/json' }),
           'quote-request.json');
         toast('Saved — email this file to us with your models');
-      }, { key: 'portal-download', disabled: !valid.ok }),
-      valid.ok && config.company.email
-        ? el('a', {
-          class: 'btn',
-          'data-field': 'portal-email-link',
-          href: `mailto:${config.company.email}?subject=${encodeURIComponent('Quote request')}`
-            + `&body=${encodeURIComponent(`${requestText(result)}\n\nRequest link (open to import):\n${requestLink()}`)}`,
-          text: 'Open in your email',
-        })
+      }), { key: 'portal-download' }),
+      config.company.email
+        ? button('Open in your email', () => sanityChecked(() => {
+          window.location.href = `mailto:${config.company.email}?subject=${encodeURIComponent('Quote request')}`
+            + `&body=${encodeURIComponent(`${requestText(result)}\n\nRequest link (open to import):\n${requestLink()}`)}`;
+        }), { key: 'portal-email-link' })
         : null,
     ]),
   ]));
