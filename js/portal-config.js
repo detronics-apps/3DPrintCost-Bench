@@ -64,6 +64,7 @@ export function portalConfig(settings, { internal = false } = {}) {
     allowExpress: portal.allowExpress,
     expediteMode: ['off', 'optional', 'only'].includes(portal.expediteMode) ? portal.expediteMode : 'off',
     newsletter: !!portal.newsletter,
+    shipInternational: !!portal.shipInternational,
     leadTimeNote: portal.leadTimeNote,
     quoteBuffer: Math.max(0, num(portal.quoteBuffer, 0)),
     quoteValidityDays: Math.max(1, Math.round(num(settings.company.quoteValidityDays, 30))),
@@ -86,7 +87,7 @@ export function portalConfig(settings, { internal = false } = {}) {
       .map((h) => ({ id: h.id, name: h.name, category: h.category })),
     shipping: methodsForCountry(settings.shipping, settings.countryId)
       .filter((m) => portal.allowExpress || !/express/i.test(m.id))
-      .map((m) => ({ id: m.id, name: m.name, days: m.days })),
+      .map((m) => ({ id: m.id, name: m.name, days: m.days, country: m.country })),
     pricing: pricingSettings(settings),
   };
 }

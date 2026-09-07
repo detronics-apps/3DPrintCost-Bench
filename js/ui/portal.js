@@ -385,6 +385,28 @@ function customerValidity(config) {
   };
 }
 
+/**
+ * A short, honest privacy notice. The form uploads nothing — the details are
+ * packaged into a file/link the client sends — but the company does store what
+ * it receives to fulfil the order, so both facts are stated. Collapsed by
+ * default so it is available without getting in the way.
+ */
+function privacyNotice(config) {
+  const who = config.company?.name || 'the workshop';
+  const contact = config.company?.email || config.company?.phone || `${who}`;
+  return section('portal-privacy', 'How we handle your details (privacy)', [
+    muted(`What we collect: your name and contact details, a delivery address (only if we ship to `
+      + `you), and a VAT number only if you tell us you are a business.`),
+    muted(`Why: to prepare your quote and, if you go ahead, to make and deliver your order.`),
+    muted('This form does not upload anything. Your details are packaged into the file or link '
+      + `you choose to send us; ${who} then stores them on its own device to process your order — `
+      + 'they are not held on any website or shared with anyone else.'),
+    muted('This page uses no cookies, no tracking and no third-party services. We only add you to '
+      + 'any newsletter if you tick the box yourself.'),
+    muted(`To see, correct or delete the details we hold about you, contact us at ${contact}.`),
+  ], { open: false });
+}
+
 /** Keep the composed `name` in step with the split first name + surname. */
 function composeCustomerName() {
   const c = state.customer;
@@ -776,7 +798,22 @@ function render() {
     const m = fullShipping.find((s) => s.id === id);
     return !m || !parcelDims || packageFits(m, parcelDims, 0).fits;
   };
-  const shipOptions = config.shipping.filter((m) => shipFits(m.id) || m.id === state.shippingMethodId);
+  // Which countries the customer may be in decides which couriers apply. Local
+  // only: the company's own domestic methods, no international courier. With
+  // international on: the domestic methods for a home-country client, and the
+  // international courier once they are elsewhere. Collection is offered on its
+  // own line below, so its method is not repeated here.
+  const clientCountry = config.shipInternational
+    ? (state.customer.countryId || config.countryId) : config.countryId;
+  const clientIsHome = clientCountry === config.countryId;
+  const countryOk = (m) => {
+    if (m.id === 'collect') return false;
+    if (m.country === config.countryId) return clientIsHome;
+    if (m.country === '*') return !!config.shipInternational;
+    return false;
+  };
+  const shipOptions = config.shipping.filter((m) => countryOk(m)
+    && (shipFits(m.id) || m.id === state.shippingMethodId));
 
   nodes.push(el('div', { class: 'panel' }, [
     el('h2', { text: 'Delivery' }),
@@ -914,11 +951,19 @@ function render() {
     return `${base}#${encodeURIComponent(JSON.stringify(makePayload()))}`;
   };
 
+  // When the company only ships locally, the customer is in the company's own
+  // country — the country is fixed, not chosen — and no international courier is
+  // offered. With international shipping on, the client picks their country.
+  const localOnly = !config.shipInternational;
+  if (localOnly) state.customer.countryId = config.countryId;
+
   const valid = customerValidity(config);
   const phoneCountry = state.customer.countryId || config.countryId;
   const dial = dialInfoFor(phoneCountry);
   const countryOptions = (config.pricing?.countries || [])
     .map((c) => ({ value: c.id, label: c.name }));
+  const companyCountryName = countryOptions.find((c) => c.value === config.countryId)?.label
+    || config.countryId;
 
   const needed = [];
   if (valid.errors.firstName) needed.push('your first name');
@@ -980,15 +1025,19 @@ function render() {
         }),
     ]),
     el('div', { class: 'field-grid' }, [
-      countryOptions.length
-        ? selectField('portal-country', 'Country', countryOptions, phoneCountry,
+      localOnly || !countryOptions.length
+        // Local-only: the country is fixed, shown read-only rather than picked.
+        ? el('div', { class: 'field' }, [
+          el('label', { class: 'field__label', text: 'Country' }),
+          el('div', { class: 'input', 'data-field': 'portal-country-fixed', text: companyCountryName }),
+        ])
+        : selectField('portal-country', 'Country', countryOptions, phoneCountry,
           (v) => {
             state.customer.countryId = v;
             // The address shows the country too, so keep it in step with the picker.
             state.customer.addressParts.country = countryOptions.find((c) => c.value === v)?.label || '';
             render();
-          })
-        : null,
+          }),
       validatedInput('portal-phone', 'Phone', state.customer.phone,
         (v) => { state.customer.phone = v; render(); },
         {
@@ -1054,6 +1103,8 @@ function render() {
         : null,
     ]),
   ]));
+
+  nodes.push(privacyNotice(config));
 
   nodes.push(el('footer', { class: 'app-footer' }, [
     el('span', {

@@ -135,6 +135,12 @@ function companyPanel(ctx) {
       ]),
       textField('company-terms', 'Terms printed on documents', settings.company.terms,
         set('terms'), { multiline: true, rows: 3 }),
+      textField('company-refund', 'Returns / refund policy (printed on documents)',
+        settings.company.refundPolicy, set('refundPolicy'), {
+          multiline: true, rows: 3,
+          hint: 'Your own policy. Custom parts are usually exempt from cooling-off returns; state '
+            + 'your position. It prints on quotes and invoices.',
+        }),
       el('div', { class: 'field-grid' }, [
         numberField('quote-validity', 'Quote valid for', settings.company.quoteValidityDays,
           (v) => set('quoteValidityDays')(Math.max(1, Math.round(num(v, 30)))), { min: 1, step: 1, suffix: 'days' }),
@@ -244,6 +250,13 @@ function companyPanel(ctx) {
         (v) => { settings.customerPortal.newsletter = v; touch(rerender); }, {
           hint: 'Adds a tick-box the client can opt in to. It is consent, so a client is only added '
             + 'to your list when they tick it themselves — it arrives on their imported customer record.',
+        }),
+      checkField('portal-ship-international', 'Ship internationally',
+        settings.customerPortal.shipInternational,
+        (v) => { settings.customerPortal.shipInternational = v; touch(rerender); }, {
+          hint: 'Off: the client form fixes the country to yours and offers no international courier. '
+            + 'On: the client can be in any country, and international shipping is offered. Prices stay '
+            + 'in your currency either way — the app does not convert between currencies.',
         }),
       subsection('Print intents customers may choose', settings.profiles.map((p) => checkField(
         `portal-profile-${p.id}`, p.name,

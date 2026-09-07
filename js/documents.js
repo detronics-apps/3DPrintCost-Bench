@@ -160,6 +160,7 @@ export function makeQuote({ number, project, customer, result, order, settings, 
     freeShipping: result.shipping.free,
     leadTimeDays: result.capacity.leadDays,
     terms: settings.company?.terms || '',
+    refundPolicy: settings.company?.refundPolicy || '',
 
     /** Never rendered to a customer. */
     internal: {

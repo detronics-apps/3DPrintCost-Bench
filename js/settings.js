@@ -44,6 +44,10 @@ export function defaultSettings() {
       address: '',
       terms: 'Payment due on invoice. Parts remain the property of the seller '
         + 'until paid for in full.',
+      // Your returns/refunds policy, printed on quotes and invoices. Custom parts
+      // are usually exempt from cooling-off returns; state your own position.
+      refundPolicy: 'Custom-made parts are non-returnable once production has '
+        + 'started, except where they are faulty or not as described.',
       quoteValidityDays: 30,
       handlingDays: 1,
       // Branding for the printed quote and invoice, so any company can make the
@@ -160,6 +164,10 @@ export function defaultSettings() {
       // Show a newsletter/deals opt-in on the client form. Off by default; the
       // opt-in itself is consent, so a client is only ever added when they tick it.
       newsletter: false,
+      // Whether the client form lets a customer be in another country. Off = local
+      // only: the country is fixed to the company's and no international courier is
+      // offered. On: the client picks any country and international shipping shows.
+      shipInternational: false,
     },
 
     // How the production schedule turns machine-hours into days. `hoursPerDay`
@@ -392,6 +400,12 @@ export function migrateSettings(stored) {
   }
   if (typeof merged.customerPortal.newsletter !== 'boolean') {
     merged.customerPortal.newsletter = defaults.customerPortal.newsletter;
+  }
+  if (typeof merged.customerPortal.shipInternational !== 'boolean') {
+    merged.customerPortal.shipInternational = defaults.customerPortal.shipInternational;
+  }
+  if (merged.company.refundPolicy == null) {
+    merged.company.refundPolicy = defaults.company.refundPolicy;
   }
   // The scheduler block is newer than most stored settings.
   if (!merged.scheduler || typeof merged.scheduler !== 'object') {
