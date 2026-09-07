@@ -35,7 +35,7 @@ import { defaultSlots, reconcileSlots, normaliseMix } from '../filaments.js';
 import { fmtMoney, num } from '../money.js';
 import { portalConfig, settingsFromConfig } from '../portal-config.js';
 import { gateMatches, entryPostOps } from '../postprocessing.js';
-import { validateEmail, validatePhone, dialInfoFor } from '../phone.js';
+import { validateEmail, validatePhone, dialInfoFor, formatPhone } from '../phone.js';
 import { packageFits } from '../shipping.js';
 import { portalRequest } from '../portal-request.js';
 import { makeAddressParts, formatAddress, ADDRESS_TYPES } from '../projects.js';
@@ -1092,7 +1092,7 @@ function render() {
             render();
           }),
       validatedInput('portal-phone', 'Phone', state.customer.phone,
-        (v) => { state.customer.phone = v; render(); },
+        (v) => { state.customer.phone = formatPhone(v, phoneCountry); render(); },
         {
           type: 'tel', required: true, valid: valid.phone.ok,
           hint: dial.example ? `e.g. ${dial.example}` : null,

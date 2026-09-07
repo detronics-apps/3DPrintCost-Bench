@@ -4,7 +4,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateEmail, validatePhone, dialCodeFor, dialInfoFor } from '../js/phone.js';
+import {
+  validateEmail, validatePhone, dialCodeFor, dialInfoFor, formatPhone,
+} from '../js/phone.js';
 
 /* --------------------------------------------------------------- email ---- */
 
@@ -53,6 +55,16 @@ test('too few or too many digits is rejected', () => {
   assert.equal(validatePhone('123', 'ZA').ok, false);
   assert.equal(validatePhone('012345678901234567', 'ZA').ok, false);
   assert.equal(validatePhone('', 'ZA').ok, false);
+});
+
+test('formatPhone tidies any valid form into the national grouping', () => {
+  // Missing 0, a typed +27, and an already-local number all become the same.
+  assert.equal(formatPhone('821234567', 'ZA'), '082 123 4567');
+  assert.equal(formatPhone('+27 82 123 4567', 'ZA'), '082 123 4567');
+  assert.equal(formatPhone('0821234567', 'ZA'), '082 123 4567');
+  assert.equal(formatPhone('5551234567', 'US'), '555 123 4567');
+  // An invalid number is returned unchanged so the user can fix it.
+  assert.equal(formatPhone('123', 'ZA'), '123');
 });
 
 test('a wrong national-number length is blocked with the expected count', () => {

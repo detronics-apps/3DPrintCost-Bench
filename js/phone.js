@@ -9,13 +9,17 @@
  * dialling code; the form defaults it to the company's own country.
  */
 
-/** Dialling code, national trunk prefix, example, and the number of digits a
- *  national number has after the code (`nsn`) so a wrong length is rejected. */
+/**
+ * Per country: the dialling `code`, the national `trunk` prefix used to read a
+ * local number, how many digits the national number has (`nsn`, so a wrong
+ * length is rejected), and — for tidy display — the trunk shown (`dtrunk`) and
+ * how the shown number is grouped (`groups`). The `example` is that display.
+ */
 const DIAL = {
-  ZA: { code: '27', trunk: '0', nsn: 9, name: 'South African', example: '082 123 4567' },
-  NL: { code: '31', trunk: '0', nsn: 9, name: 'Dutch', example: '06 12345678' },
-  CN: { code: '86', trunk: '0', nsn: 11, name: 'Chinese', example: '131 2345 6789' },
-  US: { code: '1', trunk: '1', nsn: 10, name: 'US', example: '(555) 123-4567' },
+  ZA: { code: '27', trunk: '0', dtrunk: '0', nsn: 9, groups: [3, 3, 4], name: 'South African', example: '082 123 4567' },
+  NL: { code: '31', trunk: '0', dtrunk: '0', nsn: 9, groups: [2, 4, 4], name: 'Dutch', example: '06 1234 5678' },
+  CN: { code: '86', trunk: '0', dtrunk: '', nsn: 11, groups: [3, 4, 4], name: 'Chinese', example: '131 2345 6789' },
+  US: { code: '1', trunk: '1', dtrunk: '', nsn: 10, groups: [3, 3, 4], name: 'US', example: '555 123 4567' },
 };
 
 const FALLBACK = { code: '', trunk: '0', example: '' };
@@ -89,4 +93,28 @@ export function validatePhone(value, countryId) {
     return { ok: false, value: raw, message: 'That does not look like a valid phone number.' };
   }
   return { ok: true, value: `+${digits}`, message: '' };
+}
+
+/**
+ * Reformat what the user typed into the tidy national form for a country, adding
+ * the spacing and fixing a missing leading 0 or a typed +code — e.g. '0821234567',
+ * '+27 82 123 4567' and '821234567' all become '082 123 4567'. A number that is
+ * not valid for the country is returned unchanged, so the user can still see and
+ * fix it.
+ */
+export function formatPhone(value, countryId) {
+  const v = validatePhone(value, countryId);
+  if (!v.ok) return String(value ?? '').trim();
+
+  const info = dialInfoFor(countryId);
+  const digits = v.value.replace(/\D/g, '');
+  const national = info.code && digits.startsWith(info.code) ? digits.slice(info.code.length) : digits;
+  if (!info.groups || !info.groups.length) return `+${digits}`;
+
+  const shown = `${info.dtrunk != null ? info.dtrunk : '0'}${national}`;
+  const parts = [];
+  let i = 0;
+  for (const g of info.groups) { parts.push(shown.slice(i, i + g)); i += g; }
+  if (i < shown.length) parts.push(shown.slice(i));
+  return parts.filter(Boolean).join(' ');
 }

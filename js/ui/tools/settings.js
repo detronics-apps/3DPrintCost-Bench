@@ -145,6 +145,12 @@ function companyPanel(ctx) {
           hint: 'Your own policy. Custom parts are usually exempt from cooling-off returns; state '
             + 'your position. It prints on quotes and invoices.',
         }),
+      textField('company-banking', 'Banking details (printed on quotes and invoices)',
+        settings.company.bankingDetails, set('bankingDetails'), {
+          multiline: true, rows: 3,
+          hint: 'Bank, account name and number, branch/reference — so a client who accepts a quote '
+            + 'can pay straight away. Prints on the quote and invoice.',
+        }),
       el('div', { class: 'field-grid' }, [
         numberField('quote-validity', 'Quote valid for', settings.company.quoteValidityDays,
           (v) => set('quoteValidityDays')(Math.max(1, Math.round(num(v, 30)))), { min: 1, step: 1, suffix: 'days' }),

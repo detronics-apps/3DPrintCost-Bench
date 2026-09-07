@@ -48,6 +48,9 @@ export function defaultSettings() {
       // are usually exempt from cooling-off returns; state your own position.
       refundPolicy: 'Custom-made parts are non-returnable once production has '
         + 'started, except where they are faulty or not as described.',
+      // Where the customer pays. Printed on the quote (and invoice) so a client
+      // who accepts a quote can pay straight away. Left blank until you fill it in.
+      bankingDetails: '',
       quoteValidityDays: 30,
       handlingDays: 1,
       // Branding for the printed quote and invoice, so any company can make the
@@ -406,6 +409,9 @@ export function migrateSettings(stored) {
   }
   if (merged.company.refundPolicy == null) {
     merged.company.refundPolicy = defaults.company.refundPolicy;
+  }
+  if (merged.company.bankingDetails == null) {
+    merged.company.bankingDetails = defaults.company.bankingDetails;
   }
   // The scheduler block is newer than most stored settings.
   if (!merged.scheduler || typeof merged.scheduler !== 'object') {

@@ -260,6 +260,13 @@ export function buildPrintSheet(doc, { host }) {
     sheet.appendChild(refund);
   }
 
+  if (doc.bankingDetails) {
+    const bank = make('div', 'sheet__terms');
+    bank.appendChild(make('h3', null, 'Payment / banking details'));
+    bank.appendChild(make('p', null, doc.bankingDetails));
+    sheet.appendChild(bank);
+  }
+
   host.appendChild(sheet);
   return sheet;
 }

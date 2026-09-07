@@ -17,9 +17,12 @@ from the development history on 2026-09-07; kept up per feature from here on.
   explains the four things a print trades off (Speed, Cost, Strength, Precision;
   higher is better for you, so a Cost of 5 = cheapest) and roughly where each
   intent leans, so you pick the right one.
-- **Stricter phone check** (2026-09-07) — the number now has to have the right
-  count of digits for its country (e.g. 9 after +27), and a valid field turns a
-  clearly prominent green.
+- **Phone auto-formats** (2026-09-07) — however you type it (no spaces, a missing
+  0, a +27), it tidies to the country's spaced local form, e.g. 082 123 4567; it
+  must also have the right count of digits (9 after +27), and a valid field turns
+  a clearly prominent green.
+- **Banking details on the quote** (2026-09-07) — your bank/account details print
+  on the quote and invoice, so a client who accepts can pay straight away.
 - **Parts that must fit** (2026-09-07) — tick "this part must fit or mate with
   another part" and we ask you to attach a dimensioned drawing or photo of the
   critical dimensions; a print is only as accurate as the dimensions we're given.
