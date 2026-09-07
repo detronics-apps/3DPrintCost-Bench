@@ -149,6 +149,9 @@ export function makePart(spec = {}) {
     postProcessing: {},
     // The link to code onto an embedded NFC tag, when the coding op is chosen.
     nfcUrl: '',
+    // The part has to fit or mate with another part, so its critical dimensions
+    // must be held — which needs a dimensioned drawing or photo from the client.
+    mustFit: false,
     partsPerPlateOverride: 0,
     otherDirectCost: 0,
 

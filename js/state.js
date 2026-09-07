@@ -79,6 +79,8 @@ export function defaultPart(spec = {}) {
     postProcessing: {},
     // The link to code onto an embedded NFC tag, when the coding op is chosen.
     nfcUrl: '',
+    // The part must fit/mate with another part (needs a dimensioned drawing).
+    mustFit: false,
     // The colours this part loads, as material ids. Used by the multi-colour
     // plate planner to split a bed when the parts on it need more distinct
     // colours than the machine can hold at once.

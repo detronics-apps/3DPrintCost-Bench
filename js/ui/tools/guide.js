@@ -114,6 +114,18 @@ const FAQS = [
     a: 'No. When you import a request, the app matches the client to an existing customer by email or phone. On a '
       + 'match it reuses that record — no duplicate — refreshes it with any newer details (a changed address, say), '
       + 'and links the new project to it. A genuinely new client is added as a fresh customer.' },
+  { q: 'A client sent an .stl but wants it in colour — what do I tell them?',
+    a: 'An .stl carries the shape only; a .3mf carries colours, materials and print settings. If a '
+      + 'multi-colour part arrives as an .stl, the colours are not in the file — you would need a '
+      + 'reference image and would add painting time. The client form already explains this under '
+      + '“Good to know”; ask for a .3mf with the colours set, or quote the painting labour.' },
+  { q: 'A client wants a print reprinted for free — is it covered?',
+    a: 'A fault caused by our printer (a failed layer, a clog, a warp from the machine) is covered — '
+      + 'reprint it at no charge. A fault caused by the part’s own geometry or the settings it needs '
+      + 'is not: reprinting the same file the same way gives the same result. A 3 mm tower 150 mm '
+      + 'high will tend to fail every time; layer lines on a shallow top curve look the same on every '
+      + 'print. Where that is likely, flag it up front and suggest a design or setting change rather '
+      + 'than reprinting the same outcome. The client form states this under “Good to know”.' },
   { q: 'How does the newsletter opt-in on the client form work?',
     a: 'Turn it on in Settings → the customer-form section. The form then shows an unticked “Keep me posted” box; '
       + 'because it is consent, a client is only added when they tick it themselves, and their choice arrives on '

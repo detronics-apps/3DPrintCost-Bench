@@ -63,6 +63,9 @@ function makePortalPart(spec = {}) {
     // whole-part ops; per-component ops (fit) store on the component entry.
     postProcessing: {},
     nfcUrl: '',
+    // The part must fit/mate with another part — flags that a dimensioned drawing
+    // is needed to hold the critical dimensions.
+    mustFit: false,
     hardware: [],
     ...spec,
   };
@@ -291,6 +294,12 @@ function orderNoteNodes() {
   const specOf = (e) => catalogue.find((h) => h.id === e.hardwareId);
   const notes = [];
 
+  if (state.parts.some((p) => p.mustFit)) {
+    notes.push(['warn', 'You marked a part as having to fit another part. Attach a technical '
+      + 'drawing or photo with the critical dimensions when you send this — without it we cannot '
+      + 'promise it will match.']);
+  }
+
   const anyPost = state.parts.some((p) => Object.keys(p.postProcessing || {}).some((k) => p.postProcessing[k])
     || (p.hardware || []).some((h) => Object.keys(entryPostOps(h)).length));
   if (!anyPost) {
@@ -383,6 +392,28 @@ function customerValidity(config) {
   return {
     errors, ok: Object.keys(errors).length === 0, needsAddress, email, phone,
   };
+}
+
+/**
+ * Two things worth knowing before sending: what the model file carries (colour),
+ * and what a reprint can and cannot fix. Collapsed, so it is there to read
+ * without being in the way.
+ */
+function goodToKnow() {
+  return section('portal-goodtoknow', 'Good to know before you send', [
+    el('h3', { text: 'Your model file — .stl vs .3mf' }),
+    muted('A .3mf file carries your colours and print settings; an .stl is the shape only. If your '
+      + 'part is meant to be more than one colour and you send an .stl, we cannot see the colours — '
+      + 'we would need a reference image and would add time to paint it. Sending a .3mf with the '
+      + 'colours already set avoids that extra cost.'),
+    el('h3', { text: 'What a reprint can and cannot fix' }),
+    muted('If a print fails because of our printer, that is on us — we reprint it at no charge. But '
+      + 'if it fails because of the part\'s own shape or the settings it needs, reprinting the same '
+      + 'file the same way gives the same result: a very thin, tall feature (say a 3 mm tower 150 mm '
+      + 'high) will tend to fail however many times we run it, and layer lines on a shallow top curve '
+      + 'look the same on every print. Where that is likely, we will tell you and suggest a design or '
+      + 'setting change rather than reprint the same outcome.'),
+  ], { open: false });
 }
 
 /**
@@ -517,6 +548,16 @@ function partPanel(ctx, part, index, line) {
       config.profiles.map((p) => ({ value: p.id, label: p.name, title: p.blurb })),
       part.profileId, (v) => { part.profileId = v; render(); }),
     muted(config.profiles.find((p) => p.id === part.profileId)?.blurb || ''),
+
+    checkField(`portal-mustfit-${part.id}`, 'This part must fit or mate with another part',
+      part.mustFit, (v) => { part.mustFit = v; render(); }, {
+        hint: 'Tick if it has to fit into or onto something at set dimensions.',
+      }),
+    part.mustFit
+      ? banner('info', 'Please attach a technical drawing or a photo marking the critical '
+        + 'dimensions to match (with a ruler or figures), so we can hold those tolerances. '
+        + 'A printed part is only as accurate as the dimensions we are given.')
+      : null,
 
     // With one colour loaded there is nothing to mix, so this is empty and the
     // part simply prints in that colour - exactly as the estimator behaves.
@@ -916,6 +957,7 @@ function render() {
       // (fit) ride on the hardware entries below.
       postProcessing: p.postProcessing,
       nfcUrl: p.nfcUrl,
+      mustFit: p.mustFit,
       // The components the customer asked for, each carrying its own per-op
       // choices (e.g. fitted rather than shipped loose).
       hardware: (p.hardware || []).map((h) => ({ ...h })),
@@ -1104,6 +1146,7 @@ function render() {
     ]),
   ]));
 
+  nodes.push(goodToKnow());
   nodes.push(privacyNotice(config));
 
   nodes.push(el('footer', { class: 'app-footer' }, [

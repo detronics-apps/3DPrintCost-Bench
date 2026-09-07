@@ -36,6 +36,7 @@ function partFrom(selection, printerId, slots) {
     postProcessing: (selection?.postProcessing && typeof selection.postProcessing === 'object')
       ? { ...selection.postProcessing } : {},
     nfcUrl: (selection?.nfcUrl || '').trim(),
+    mustFit: !!selection?.mustFit,
     // The components the customer asked for, each keeping its own per-op choices
     // (fit an after-print component rather than ship it loose in the box).
     hardware: Array.isArray(selection?.hardware)
@@ -141,6 +142,9 @@ export function portalRequest({
       isExpedited && money ? `They paid the estimate of about ${money}. Verify proof of payment, then confirm to raise the invoice and start production.` : null,
       !isExpedited && money ? `They were quoted about ${money} (indicative — re-price from the sliced parts).` : null,
       validUntil ? `Their quote was valid until ${new Date(validUntil).toLocaleDateString()}.` : null,
+      projectParts.some((p) => p.mustFit)
+        ? 'FIT-CRITICAL: a part must fit/mate with another — a dimensioned drawing should be attached; hold the critical dimensions.'
+        : null,
       cust.notes ? `Customer note: ${cust.notes}` : null,
     ].filter(Boolean).join('\n'),
   });

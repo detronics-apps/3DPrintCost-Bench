@@ -13,6 +13,15 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the client (the quote form)
 
+- **Parts that must fit** (2026-09-07) — tick "this part must fit or mate with
+  another part" and we ask you to attach a dimensioned drawing or photo of the
+  critical dimensions; a print is only as accurate as the dimensions we're given.
+- **Good to know: file types & reprints** (2026-09-07) — a note explains that a
+  .3mf carries your colours (an .stl is shape only, so a multi-colour .stl needs
+  a reference image and painting time), and that we reprint our printer's faults
+  free but not failures caused by the part's shape or settings (a 3 mm tower
+  150 mm high, layer lines on a shallow top curve) — reprinting those gives the
+  same result, so we suggest a change instead.
 - **International vs local** (2026-09-07) — if the workshop ships only locally,
   your country is fixed and you just fill in your details; if it ships abroad,
   you pick your country and international delivery appears. Prices are always in
@@ -47,6 +56,10 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Fit-critical flag on imports** (2026-09-07) — when a client marks a part as
+  having to fit another, the imported project carries a "FIT-CRITICAL" note to
+  hold the critical dimensions and check for a dimensioned drawing. Two guide FAQs
+  cover the .stl-vs-.3mf colour question and the reprint policy.
 - **Ship-internationally switch** (2026-09-07) — Settings → customer form. Off
   keeps the client form local-only; on allows any country and international
   couriers. No currency conversion either way (the app has no exchange rate).
@@ -78,6 +91,12 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the skill / developer (the decisions)
 
+- **Fit as a flag, not a new profile** (2026-09-07) — "must fit another part" is a
+  per-part boolean (`mustFit`), not a new print profile, so it needs no pricing
+  model; it drives a client note, a confirm-summary warning and a FIT-CRITICAL
+  line on the imported project. The .stl/.3mf and reprint-policy explanations are
+  client-facing text (portal "Good to know") plus operator FAQs — communication,
+  not logic.
 - **No FX by design** (2026-09-07) — international shipping never converts
   currency; a foreign client is quoted in the company's currency and offered
   international delivery only. Adding real exchange rates + per-country tax is a
