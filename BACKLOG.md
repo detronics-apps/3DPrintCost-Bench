@@ -4,6 +4,40 @@ Things to do later, not yet scheduled. Newest first.
 
 ## Features / ideas
 
+- **Per-roll filament tracking, labelling and guided roll selection** — track each
+  physical roll individually, right through to finished, even when several rolls
+  are the same supplier + colour (e.g. five rolls of "SA Filaments White PLA").
+  Pieces:
+  - _Per-roll identity & label_ — each spool already has a unique id and there is a
+    "Print spool labels" sheet (material, batch, location, id). Confirm/extend so
+    every roll — including duplicates of the same supplier+colour — gets its own
+    printable label with a human-friendly code, stuck on the roll, so you can see
+    which physical roll is which and roughly what level it is at.
+  - _Supplier field_ — add a supplier/brand to a spool (materials have
+    `manufacturer`; spools have only batch/location). Then report consumption and
+    remaining **rolled up by colour + supplier** (how much "SA White PLA" is
+    finished / still on hand across its rolls), and per individual roll.
+  - _Guided selection / roll spanning_ — instead of the operator guessing, the app
+    says which roll to load: prefer the nearly-empty roll that can still cover the
+    job (finish it first — `spoolsFor` already sorts emptiest-first). If one roll
+    cannot cover the print, tell the operator which next roll to continue on; and
+    when a later, smaller print fits in what is left on an earlier roll, direct
+    them back to that filament id to use it up. Production already books the draw
+    against the emptiest spool; the new part is surfacing the "load roll X, then
+    roll Y" guidance and letting a job span/allocate across specific rolls.
+  (Raised 2026-09-07.)
+- **Dashboard refresh on close, with a Reopen that logs edits** — a closed project
+  can go stale on the Dashboard: close with quantity 1 → the Dashboard shows 1;
+  later change the quantity to 4 → it updates everywhere else, but the Dashboard
+  still reads 1. (Likely because a closed/invoiced project's figures are frozen by
+  the price-lock, while the rest of the app reads the live part.) Desired flow: a
+  **Reopen** button on a closed project that logs the reopen to the event history;
+  editing a reopened project is allowed; **closing it again recomputes/refreshes
+  the Dashboard** to the new figures. And any edit made to a closed (or reopened)
+  project should be captured in the event history, so a change to a finished
+  project is never silent. Investigate whether the Dashboard staleness is a bug to
+  fix directly or is the intended price-lock behaviour that the reopen/re-close
+  cycle should govern. (Raised 2026-09-07.)
 - **Colour swatches on filament colours** — give each material/colour a colour
   code (a hex value) and show a small coloured square next to the colour name
   wherever a material is listed or picked: the Materials catalogue, the estimator
