@@ -1301,9 +1301,9 @@ export function main(ctx) {
     moneyDiagram({
       currencyCode: code,
       title: result.lines.length > 1
-        ? `Production, part price and invoice — one scale, for the whole bed `
+        ? `Production, part price and invoice — each bar to its own total, for the whole bed `
           + `(${result.unitCount} parts)`
-        : `Production, part price and invoice — one scale, for all `
+        : `Production, part price and invoice — each bar to its own total, for all `
           + `${line.quantity} part${line.quantity === 1 ? '' : 's'}`,
       rows: [
         {

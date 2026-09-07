@@ -1,12 +1,12 @@
 /**
- * The money diagram: three bars on ONE scale.
+ * The money diagram: three bars, each drawn to its OWN total.
  *
- * This is the picture the whole specification asks for. Production builds up to
- * the Cost to Company; the rule of thirds turns that into a part price three
- * times as long; and the invoice adds packaging, shipping and tax on the end,
- * visibly OUTSIDE the thirds. Drawing all three against the same money scale is
- * what makes "shipping is not part of the part price" something the reader can
- * see rather than something a panel asserts.
+ * Production builds up to the Cost to Company; the rule of thirds turns that
+ * into the part price; and the invoice adds packaging, shipping and tax. Each
+ * bar fills the full width and its total is printed on the right, so every bar's
+ * make-up is legible — the reader is not left staring at empty space in the
+ * short bars wondering what the rest is. The bars are therefore at DIFFERENT
+ * scales, and the total on the right is what says how big each one actually is.
  *
  * Every colour is a token. Nothing here resolves a colour itself, so the export
  * path can substitute computed values and the drawing survives leaving the
@@ -44,7 +44,7 @@ const text = (x, y, value, attrs = {}) => svg('text', {
 }, [String(value)]);
 
 /**
- * Three bars on ONE scale, each with its own key underneath it.
+ * Three bars, each to its own total, each with its own key underneath it.
  *
  * It used to carry a single shared key for all three bars - fifteen swatches at
  * the bottom of the picture, and the reader matching colours back up to
@@ -55,10 +55,9 @@ const text = (x, y, value, attrs = {}) => svg('text', {
  * with the amount on each. There is nothing to cross-reference: the key for the
  * Invoice bar sits under the Invoice bar and mentions nothing else.
  *
- * The one scale stays. Pie charts were the obvious alternative and they would
- * lose exactly the thing this picture exists to show - three pies of equal size
- * would say the three totals are equal, when the whole point is that the
- * invoice is four times the production cost and you can see it.
+ * Each bar is drawn to its own total so it fills the width and its make-up is
+ * legible; the total printed on the right is what tells the reader how big the
+ * bar actually is, and that the three are at different scales.
  *
  * @param {object} spec
  * @param {Array<{name:string,note?:string,rows:Array<{label:string,amount:number}>}>} spec.rows
@@ -69,7 +68,6 @@ export function moneyDiagram({ rows, currencyCode, title = null }) {
     .map((row) => ({ ...row, rows: row.rows.filter((s) => Math.max(0, num(s.amount)) > 0) }))
     .filter((row) => row.rows.length > 0);
   const totals = bars.map((row) => row.rows.reduce((t, s) => t + Math.max(0, num(s.amount)), 0));
-  const scale = Math.max(...totals, 1e-9);
 
   // One colour per distinct label across the whole diagram, so a segment that
   // appears in two bars is the same colour in both.
@@ -91,7 +89,7 @@ export function moneyDiagram({ rows, currencyCode, title = null }) {
   const root = svg('svg', {
     viewBox: `0 0 ${W} ${H}`,
     role: 'img',
-    'aria-label': title || 'Cost, price and invoice compared on one scale',
+    'aria-label': title || 'Cost, price and invoice, each drawn to its own total',
   });
 
   if (title) root.appendChild(text(0, 14, title, { 'font-size': 12, fill: 'var(--text)', 'font-weight': '600' }));
@@ -117,9 +115,12 @@ export function moneyDiagram({ rows, currencyCode, title = null }) {
     }));
 
     let x = LEFT;
+    // Each bar is scaled to its own total, so it fills the full width and the
+    // reader sees how it splits up. The total on the right is the real size.
+    const barScale = total > 0 ? total : 1e-9;
     for (const segment of row.rows) {
       const amount = Math.max(0, num(segment.amount));
-      const w = (amount / scale) * width;
+      const w = (amount / barScale) * width;
       const fill = palette.get(segment.label);
 
       const rect = svg('rect', { x, y, width: w, height: BAR_H, fill, stroke: 'var(--panel)', 'stroke-width': 1 });

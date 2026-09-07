@@ -925,7 +925,7 @@ export function main(ctx) {
     nodes.push(el('div', { class: 'viewport__stage' }, [
       moneyDiagram({
         currencyCode: code,
-        title: 'This project on one scale',
+        title: 'This project — each bar to its own total',
         rows: [
           {
             name: 'Production',
