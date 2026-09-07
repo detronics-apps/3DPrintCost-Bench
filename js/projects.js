@@ -259,6 +259,10 @@ export function makeCustomer(spec = {}) {
   return {
     id: makeId('cust'),
     name: 'New customer',
+    // Name split, for forms that collect it in two parts. `name` stays the
+    // composed value that documents and lists display.
+    firstName: '',
+    surname: '',
     email: '',
     phone: '',
     // The country whose dialling code and currency the customer was quoted in;
@@ -315,6 +319,8 @@ export function mergeCustomer(existing, incoming) {
   const merged = {
     ...existing,
     name: pick(existing.name, incoming.name),
+    firstName: pick(existing.firstName, incoming.firstName),
+    surname: pick(existing.surname, incoming.surname),
     email: pick(existing.email, incoming.email),
     phone: pick(existing.phone, incoming.phone),
     countryId: incoming.countryId || existing.countryId,

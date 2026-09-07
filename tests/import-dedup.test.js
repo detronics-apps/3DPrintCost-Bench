@@ -32,6 +32,19 @@ test('mergeCustomer keeps the id but takes the newer non-empty details', () => {
   assert.equal(merged.newsletter, true, 'a fresh opt-in turns it on');
 });
 
+test('a split first name + surname composes the customer name and is kept', () => {
+  const out = portalRequest({
+    company: { name: 'X' },
+    parts: [{ modelName: 'a', quantity: 1 }],
+    customer: { firstName: 'Sam', surname: 'Ndlovu', email: 'sam@x.com' },
+    order: { shippingMethodId: 'auto' },
+    currencyCode: 'ZAR',
+  });
+  assert.equal(out.customer.name, 'Sam Ndlovu', 'name is composed from the two parts');
+  assert.equal(out.customer.firstName, 'Sam');
+  assert.equal(out.customer.surname, 'Ndlovu');
+});
+
 /* -------------------------------------------------- full import flow ------ */
 
 const request = (over = {}) => portalRequest({

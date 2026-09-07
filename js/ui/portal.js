@@ -80,7 +80,10 @@ const state = {
   submitAttempted: false,
   parts: [makePortalPart()],
   customer: {
-    name: '', email: '', phone: '', countryId: null, newsletter: false,
+    // Name is split into first name + surname; `name` is kept as the composed
+    // value so everything downstream (payload, dedup, documents) is unchanged.
+    firstName: '', surname: '', name: '',
+    email: '', phone: '', countryId: null, newsletter: false,
     // A business can add a VAT number for its invoice; the flag also defaults
     // the delivery address to a business address (still changeable).
     isBusiness: false, vatNumber: '',
@@ -341,8 +344,11 @@ function showConfirmSummary(onConfirm) {
 
 /** Scroll to the first field with a problem and focus it, for the sanity check. */
 function focusFirstInvalid(valid) {
-  const order = ['portal-name', 'portal-email', 'portal-phone', 'portal-addr-street'];
-  const map = { 'portal-name': 'name', 'portal-email': 'email', 'portal-phone': 'phone', 'portal-addr-street': 'address' };
+  const order = ['portal-firstname', 'portal-surname', 'portal-email', 'portal-phone', 'portal-addr-street'];
+  const map = {
+    'portal-firstname': 'firstName', 'portal-surname': 'surname', 'portal-email': 'email',
+    'portal-phone': 'phone', 'portal-addr-street': 'address',
+  };
   const id = order.find((f) => valid.errors[map[f]]);
   const node = id && document.querySelector(`[data-field="${id}"]`);
   if (node) {
@@ -366,7 +372,8 @@ function customerValidity(config) {
   const addressOk = !needsAddress || [a.street, a.city].some((v) => String(v ?? '').trim());
 
   const errors = {};
-  if (!String(c.name || '').trim()) errors.name = 'Enter your name.';
+  if (!String(c.firstName || '').trim()) errors.firstName = 'Enter your first name.';
+  if (!String(c.surname || '').trim()) errors.surname = 'Enter your surname.';
   if (!email.ok) errors.email = email.message;
   if (!phone.ok) errors.phone = phone.message;
   if (needsAddress && !addressOk) {
@@ -375,6 +382,12 @@ function customerValidity(config) {
   return {
     errors, ok: Object.keys(errors).length === 0, needsAddress, email, phone,
   };
+}
+
+/** Keep the composed `name` in step with the split first name + surname. */
+function composeCustomerName() {
+  const c = state.customer;
+  c.name = `${String(c.firstName || '').trim()} ${String(c.surname || '').trim()}`.trim();
 }
 
 /** Fill the customer fields from a details file the client saved earlier. */
@@ -389,7 +402,10 @@ function loadClientDetails() {
         : (data && (data.customer || (data.name || data.email ? data : null)));
       if (!cust) { toast('That file has no saved details in it'); return; }
       const c = state.customer;
-      c.name = cust.name || '';
+      // Accept a saved file with either the split names or just a composed name.
+      c.firstName = cust.firstName || (cust.name ? String(cust.name).split(' ')[0] : '') || '';
+      c.surname = cust.surname || (cust.name ? String(cust.name).split(' ').slice(1).join(' ') : '') || '';
+      c.name = cust.name || `${c.firstName} ${c.surname}`.trim();
       c.email = cust.email || '';
       c.phone = cust.phone || '';
       c.countryId = cust.countryId || null;
@@ -519,6 +535,19 @@ function savingsFor(part) {
  * Shown to everyone, because "I want a magnet in it" is exactly the kind of thing
  * the person who saw a part online asks for; it is not an advanced setting.
  */
+/**
+ * An after-print component is fitted by default — nobody is surprised that the
+ * inserts they ordered were installed — so a fresh after-print entry gets its
+ * fit ticked. The client can untick it to have it shipped loose. A component
+ * whose fit has already been decided (ops present) is left as it is.
+ */
+function defaultFitFor(entry, config) {
+  const spec = (config.pricing?.hardware || []).find((h) => h.id === entry.hardwareId);
+  if (spec && spec.stage === 'after' && !('ops' in entry) && entry.fit === undefined) {
+    entry.ops = { fit: true };
+  }
+}
+
 function hardwareEditor(part, config) {
   const catalogue = config.hardware || [];
   if (!catalogue.length) return [];
@@ -527,7 +556,7 @@ function hardwareEditor(part, config) {
   const rows = part.hardware.map((entry, hi) => el('div', { class: 'row-editor' }, [
     selectField(`portal-hw-${part.id}-${hi}`, '',
       catalogue.map((h) => ({ value: h.id, label: h.name })),
-      entry.hardwareId || catalogue[0].id, (v) => { entry.hardwareId = v; render(); }),
+      entry.hardwareId || catalogue[0].id, (v) => { entry.hardwareId = v; defaultFitFor(entry, config); render(); }),
     numberField(`portal-hwqty-${part.id}-${hi}`, '', entry.qty ?? 1,
       (v) => { entry.qty = Math.max(1, Math.round(num(v, 1))); render(); }, { min: 1, step: 1 }),
     button('Remove', () => { part.hardware.splice(hi, 1); render(); },
@@ -540,8 +569,12 @@ function hardwareEditor(part, config) {
       ? el('div', {}, rows)
       : muted('Magnets, threaded inserts, an NFC tag — added during the print. Skip this if the '
         + 'part is just plastic.'),
-    button('Add a component', () => { part.hardware.push({ hardwareId: catalogue[0].id, qty: 1 }); render(); },
-      { key: `portal-hwadd-${part.id}` }),
+    button('Add a component', () => {
+      const entry = { hardwareId: catalogue[0].id, qty: 1 };
+      defaultFitFor(entry, config);
+      part.hardware.push(entry);
+      render();
+    }, { key: `portal-hwadd-${part.id}` }),
   ];
 }
 
@@ -877,7 +910,8 @@ function render() {
     .map((c) => ({ value: c.id, label: c.name }));
 
   const needed = [];
-  if (valid.errors.name) needed.push('your name');
+  if (valid.errors.firstName) needed.push('your first name');
+  if (valid.errors.surname) needed.push('your surname');
   if (valid.errors.email) needed.push('a valid email');
   if (valid.errors.phone) needed.push('a valid phone number');
   if (valid.errors.address) needed.push('a delivery address (or choose to collect)');
@@ -914,12 +948,20 @@ function render() {
     ]),
 
     el('div', { class: 'field-grid' }, [
-      validatedInput('portal-name', 'Your name', state.customer.name,
-        (v) => { state.customer.name = v; render(); }, {
+      validatedInput('portal-firstname', 'First name', state.customer.firstName,
+        (v) => { state.customer.firstName = v; composeCustomerName(); render(); }, {
           required: true,
-          valid: !!String(state.customer.name).trim(),
-          error: state.submitAttempted && valid.errors.name ? valid.errors.name : null,
+          valid: !!String(state.customer.firstName).trim(),
+          error: state.submitAttempted && valid.errors.firstName ? valid.errors.firstName : null,
         }),
+      validatedInput('portal-surname', 'Surname', state.customer.surname,
+        (v) => { state.customer.surname = v; composeCustomerName(); render(); }, {
+          required: true,
+          valid: !!String(state.customer.surname).trim(),
+          error: state.submitAttempted && valid.errors.surname ? valid.errors.surname : null,
+        }),
+    ]),
+    el('div', { class: 'field-grid' }, [
       validatedInput('portal-email', 'Your email', state.customer.email,
         (v) => { state.customer.email = v; render(); }, {
           type: 'email', required: true, valid: valid.email.ok,

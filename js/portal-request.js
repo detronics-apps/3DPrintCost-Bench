@@ -80,8 +80,11 @@ export function portalRequest({
   const addrParts = customer?.addressParts ? makeAddressParts(customer.addressParts) : null;
   const composed = addrParts ? formatAddress(addrParts) : (customer?.address || '').trim();
 
+  const composedName = `${(customer?.firstName || '').trim()} ${(customer?.surname || '').trim()}`.trim();
   const cust = makeCustomer({
-    name: (customer?.name || '').trim() || 'Customer from a request',
+    name: composedName || (customer?.name || '').trim() || 'Customer from a request',
+    firstName: (customer?.firstName || '').trim(),
+    surname: (customer?.surname || '').trim(),
     email: (customer?.email || '').trim(),
     phone: (customer?.phone || '').trim(),
     countryId: customer?.countryId || null,

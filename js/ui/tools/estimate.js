@@ -323,10 +323,17 @@ function partBlock(ctx, part, index, canRemove) {
   /* -- hardware -------------------------------------------------------------- */
 
   const hwCatalogue = settings.hardware.filter((h) => !h.archived);
+  // An after-print component is fitted by default; the operator can untick it.
+  const defaultFit = (entry) => {
+    const spec = hwCatalogue.find((h) => h.id === entry.hardwareId);
+    if (spec && spec.stage === 'after' && !('ops' in entry) && entry.fit === undefined) {
+      entry.ops = { fit: true };
+    }
+  };
   const hwRows = part.hardware.map((entry, hi) => el('div', { class: 'row-editor' }, [
     selectField(`hw-${key}-${hi}`, 'Component',
       hwCatalogue.map((h) => ({ value: h.id, label: h.name })),
-      entry.hardwareId, (value) => { entry.hardwareId = value; saveSoon(); rerender(); }),
+      entry.hardwareId, (value) => { entry.hardwareId = value; defaultFit(entry); saveSoon(); rerender(); }),
     numberField(`hw-qty-${key}-${hi}`, 'Per part', entry.qty,
       (v) => { entry.qty = Math.max(0, Math.round(num(v, 1))); saveSoon(); rerender(); },
       { min: 0, step: 1 }),
@@ -338,7 +345,9 @@ function partBlock(ctx, part, index, canRemove) {
     part.hardware.length ? el('div', {}, hwRows) : muted('Magnets, nuts, inserts and NFC tags '
       + 'fitted during or after the print.'),
     buttonRow([button('Add a component', () => {
-      part.hardware.push({ hardwareId: hwCatalogue[0]?.id, qty: 1 });
+      const entry = { hardwareId: hwCatalogue[0]?.id, qty: 1 };
+      defaultFit(entry);
+      part.hardware.push(entry);
       saveSoon();
       rerender();
     }, { key: `hw-add-${key}` })]),
