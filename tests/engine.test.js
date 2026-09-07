@@ -776,19 +776,24 @@ test('assertSeparation has teeth: it fails on a deliberately broken result', () 
   assert.equal(assertSeparation(broken).ok, false);
 });
 
-test('support removal is charged only on parts marked as needing it', () => {
+test('support removal is post-processing, charged only when the part chooses it', () => {
   const s = settings();
   const withSupport = calculateOrder({
-    lines: [{ ...bracket(), quantity: 3, needsSupport: true }],
+    lines: [{ ...bracket(), quantity: 3, postProcessing: { 'remove-support': true } }],
   }, s);
   const without = calculateOrder({
-    lines: [{ ...bracket(), quantity: 3, needsSupport: false }],
+    lines: [{ ...bracket(), quantity: 3 }],
   }, s);
 
-  const supLine = (r) => r.lines[0].detail.labour.lines.find((l) => l.id === 'support-removal');
-  assert.ok(supLine(withSupport), 'the support-removal step appears when the part needs it');
-  assert.equal(supLine(withSupport).count, 3, 'once per part, three parts');
-  assert.equal(supLine(without), undefined, 'and never when it does not');
-  // And it makes the flagged part cost more labour.
+  const supStep = (r) => r.lines[0].detail.postProcess.applied.find((a) => a.id === 'remove-support');
+  assert.ok(supStep(withSupport), 'the support-removal step appears when the part chooses it');
+  assert.equal(supStep(without), undefined, 'and never when it does not');
+  // And it makes the flagged part cost more.
   assert.ok(withSupport.totals.trueCost > without.totals.trueCost);
+});
+
+test('the legacy needsSupport flag still reads as the support operation', () => {
+  const s = settings();
+  const r = calculateOrder({ lines: [{ ...bracket(), quantity: 2, needsSupport: true }] }, s);
+  assert.ok(r.lines[0].detail.postProcess.applied.some((a) => a.id === 'remove-support'));
 });

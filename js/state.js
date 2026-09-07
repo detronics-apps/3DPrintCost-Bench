@@ -15,8 +15,30 @@
  */
 
 import { migrateSettings, defaultSettings } from './settings.js';
-import { migrateProject, makeProject, makeCustomer } from './projects.js';
+import {
+  migrateProject, makeProject, makeCustomer, matchCustomer, mergeCustomer,
+} from './projects.js';
+import { normalizePostSelection, entryPostOps } from './postprocessing.js';
 import { num } from './money.js';
+
+/**
+ * Fold a stored quick-estimate part's old post-processing shape (the fixed
+ * needsResin/needsSupport/… booleans and a `fit` flag on each component) into
+ * the configurable-operation shape, so the estimator shows what was chosen.
+ */
+function normalizeQuickPart(part) {
+  const next = { ...part, postProcessing: normalizePostSelection(part) };
+  delete next.needsSupport;
+  delete next.needsResin;
+  delete next.needsDeburring;
+  delete next.nfcCode;
+  next.hardware = (next.hardware || []).map((h) => {
+    const ops = entryPostOps(h);
+    const { fit, ...rest } = h;
+    return Object.keys(ops).length ? { ...rest, ops } : rest;
+  });
+  return next;
+}
 
 const KEY = '3d-printing-bench';
 export const STATE_VERSION = 1;
@@ -51,13 +73,14 @@ export function defaultPart(spec = {}) {
     mix: null,
     hardware: [],
     complexity: 1,
-    needsSupport: false,
-    needsResin: false,
-    needsDeburring: false,
-    // Coding an embedded NFC tag is opt-in, not automatic: tick it and give the
-    // link the tag should carry.
-    nfcCode: false,
+    // Post-processing chosen for this part, { [operationId]: true } for the
+    // whole-part ops; per-component ops (fit) store on the component entry.
+    // The operation list lives in Settings → Post-processing.
+    postProcessing: {},
+    // The link to code onto an embedded NFC tag, when the coding op is chosen.
     nfcUrl: '',
+    // The part must fit/mate with another part (needs a dimensioned drawing).
+    mustFit: false,
     // The colours this part loads, as material ids. Used by the multi-colour
     // plate planner to split a bed when the parts on it need more distinct
     // colours than the machine can hold at once.
@@ -111,6 +134,9 @@ export function defaultState() {
     projects: [],
     customers: [],
     inventory: { items: [], movements: [] },
+    // A printer's print history from before the app: prior runs {printerId,
+    // minutes, grams, at} imported by CSV, so a machine's lifetime counts them.
+    priorRuns: [],
     activeProjectId: null,
     activePartId: null,
     activeDocumentId: null,
@@ -158,6 +184,7 @@ export function migrateState(stored) {
       items: Array.isArray(stored.inventory?.items) ? stored.inventory.items : [],
       movements: Array.isArray(stored.inventory?.movements) ? stored.inventory.movements : [],
     },
+    priorRuns: Array.isArray(stored.priorRuns) ? stored.priorRuns : [],
     activeProjectId: stored.activeProjectId ?? null,
     activePartId: stored.activePartId ?? null,
     activeDocumentId: stored.activeDocumentId ?? null,
@@ -173,6 +200,13 @@ export function migrateState(stored) {
   }
   next.quick.order = { ...defaultQuick().order, ...(stored.quick?.order || {}) };
   next.quick.parts = migrateQuickParts(stored.quick);
+  // A fresh bed, or one whose printer no longer exists, opens on the company
+  // default printer. A bed the user already set to a valid machine is left alone.
+  const bedPrinterValid = next.settings.printers.some(
+    (p) => p.id === next.quick.printerId && !p.archived);
+  if (!stored.quick || !bedPrinterValid) {
+    next.quick.printerId = next.settings.defaultPrinterId;
+  }
   return next;
 }
 
@@ -187,7 +221,7 @@ function migrateQuickParts(storedQuick) {
   const q = storedQuick || {};
 
   if (Array.isArray(q.parts) && q.parts.length) {
-    return q.parts.map((p) => ({ ...defaultPart(), ...p }));
+    return q.parts.map((p) => normalizeQuickPart({ ...defaultPart(), ...p }));
   }
 
   // Only migrate the old single-part shape if it actually looks like one -
@@ -410,9 +444,40 @@ export function importFile(text, { merge = true } = {}) {
     ? [data.project].filter(Boolean)
     : (Array.isArray(data.projects) ? data.projects : []);
 
+  // Customers first, so a project imported below can be re-pointed at the record
+  // its client already has. `remap` carries incoming customer id → resolved id.
+  const remap = new Map();
+  for (const raw of (data.customers || (data.customer ? [data.customer] : []))) {
+    if (!raw) continue;
+    const customer = makeCustomer(raw);
+    const byId = state.customers.findIndex((c) => c.id === customer.id);
+    if (byId >= 0) {
+      // Same record (a whole-workshop import) — replace it as before.
+      state.customers[byId] = customer;
+    } else {
+      // A returning client is matched by email/phone, not id, so a fresh request
+      // does not create a duplicate. On a match, refresh the record with the
+      // newer details and re-point this import's projects at the existing one.
+      const match = matchCustomer(state.customers, customer);
+      if (match) {
+        Object.assign(match, mergeCustomer(match, customer));
+        remap.set(customer.id, match.id);
+      } else {
+        state.customers.push(customer);
+      }
+    }
+    report.customers += 1;
+  }
+
   for (const raw of incoming) {
     try {
       const project = migrateProject(raw);
+      if (project.customerId && remap.has(project.customerId)) {
+        const resolvedId = remap.get(project.customerId);
+        project.customerId = resolvedId;
+        const owner = state.customers.find((c) => c.id === resolvedId);
+        if (owner) project.customerName = owner.name;
+      }
       const existing = state.projects.findIndex((p) => p.id === project.id);
       if (existing >= 0 && merge) state.projects[existing] = project;
       else state.projects.push(existing >= 0 ? { ...project, id: makeProject().id } : project);
@@ -420,15 +485,6 @@ export function importFile(text, { merge = true } = {}) {
     } catch {
       report.skipped += 1;
     }
-  }
-
-  for (const raw of (data.customers || (data.customer ? [data.customer] : []))) {
-    if (!raw) continue;
-    const customer = makeCustomer(raw);
-    const existing = state.customers.findIndex((c) => c.id === customer.id);
-    if (existing >= 0) state.customers[existing] = customer;
-    else state.customers.push(customer);
-    report.customers += 1;
   }
 
   if (data.inventory && !merge) state.inventory = data.inventory;

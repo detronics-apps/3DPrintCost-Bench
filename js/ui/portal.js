@@ -24,7 +24,7 @@
 import { el, clear, toast, download } from './dom.js';
 import { capDiagramScale, captureFocus, restoreFocus } from './patterns.js';
 import {
-  numberField, selectField, checkField, chips, button, buttonRow, banner, statTile, table, muted, emptyState,
+  numberField, selectField, checkField, textField, chips, button, buttonRow, banner, statTile, table, muted, emptyState, section,
 } from './controls.js';
 import { readMesh } from '../mesh.js';
 import { platformInflate } from '../zip.js';
@@ -34,6 +34,10 @@ import { migrateSettings } from '../settings.js';
 import { defaultSlots, reconcileSlots, normaliseMix } from '../filaments.js';
 import { fmtMoney, num } from '../money.js';
 import { portalConfig, settingsFromConfig } from '../portal-config.js';
+import { gateMatches, entryPostOps } from '../postprocessing.js';
+import { validateEmail, validatePhone, dialInfoFor, formatPhone } from '../phone.js';
+import { packageFits } from '../shipping.js';
+import { radarChart } from './svg/radar.js';
 import { portalRequest } from '../portal-request.js';
 import { makeAddressParts, formatAddress, ADDRESS_TYPES } from '../projects.js';
 import { filamentSlots, mixEditor } from './filament-slots.js';
@@ -56,7 +60,13 @@ function makePortalPart(spec = {}) {
     profileId: null,
     mix: null,
     quantity: 1,
-    needsSupport: false,
+    // Post-processing chosen for this part, { [operationId]: true } for the
+    // whole-part ops; per-component ops (fit) store on the component entry.
+    postProcessing: {},
+    nfcUrl: '',
+    // The part must fit/mate with another part — flags that a dimensioned drawing
+    // is needed to hold the critical dimensions.
+    mustFit: false,
     hardware: [],
     ...spec,
   };
@@ -70,8 +80,20 @@ const state = {
   slots: null,
   shippingMethodId: 'auto',
   expedite: false,
+  // Set true the first time the client presses a send button while the form is
+  // invalid, so empty required fields go red (they stay neutral before that).
+  submitAttempted: false,
   parts: [makePortalPart()],
-  customer: { name: '', email: '', phone: '', notes: '', addressParts: makeAddressParts() },
+  customer: {
+    // Name is split into first name + surname; `name` is kept as the composed
+    // value so everything downstream (payload, dedup, documents) is unchanged.
+    firstName: '', surname: '', name: '',
+    email: '', phone: '', countryId: null, newsletter: false,
+    // A business can add a VAT number for its invoice; the flag also defaults
+    // the delivery address to a business address (still changeable).
+    isBusiness: false, vatNumber: '',
+    notes: '', addressParts: makeAddressParts(),
+  },
 };
 
 function loadConfig() {
@@ -121,7 +143,7 @@ function toLine(part) {
     geometry: part.geometry,
     // The colours belong to the bed; the mix says how much of each is this part.
     mix: part.mix,
-    needsSupport: part.needsSupport,
+    postProcessing: part.postProcessing,
     hardware: (part.hardware || []).filter((h) => h.hardwareId),
     name: part.modelName || 'Part',
   };
@@ -215,6 +237,258 @@ function textInput(id, label, value, onChange, type = 'text') {
   ]);
 }
 
+/**
+ * A text field that turns green when its value is valid and red (with a message)
+ * when it is wrong, and marks a required field with an asterisk. Red is only
+ * shown once `error` is passed; green whenever `valid` is true.
+ */
+function validatedInput(id, label, value, onChange, options = {}) {
+  const {
+    type = 'text', required = false, valid = false, error = null, hint = null,
+  } = options;
+  const cls = error ? 'field field--error' : (valid ? 'field field--valid' : 'field');
+  return el('div', { class: cls }, [
+    el('label', { class: 'field__label', for: id }, [
+      el('span', { text: label }),
+      required ? el('span', { class: 'field__req', text: ' *' }) : null,
+    ].filter(Boolean)),
+    el('input', {
+      class: 'input', id, type, 'data-field': id, value: value || '',
+      on: { change: (e) => onChange(e.target.value) },
+    }),
+    hint ? el('div', { class: 'field__hint', text: hint }) : null,
+    error ? el('div', { class: 'field__error', text: error }) : null,
+  ].filter(Boolean));
+}
+
+/** A per-part line for the confirmation summary: what they chose, in words. */
+function orderSummaryNodes() {
+  const config = state.config || {};
+  const ops = config.pricing?.postProcessing?.ops || [];
+  const catalogue = config.pricing?.hardware || [];
+  const opName = (id) => ops.find((o) => o.id === id)?.name || id;
+  const hwName = (id) => catalogue.find((h) => h.id === id)?.name || id;
+
+  return state.parts.map((p, i) => {
+    const comps = (p.hardware || []).filter((h) => h.hardwareId)
+      .map((h) => `${Math.max(1, num(h.qty, 1))}× ${hwName(h.hardwareId)}`);
+    const wholeOps = Object.keys(p.postProcessing || {})
+      .filter((k) => p.postProcessing[k]).map(opName);
+    const compOps = [];
+    for (const h of p.hardware || []) {
+      for (const opId of Object.keys(entryPostOps(h))) {
+        compOps.push(`${opName(opId)} the ${hwName(h.hardwareId).toLowerCase()}`);
+      }
+    }
+    const finishing = [...wholeOps, ...compOps];
+    return el('div', { class: 'summary-part' }, [
+      el('strong', { text: `${p.modelName || `Part ${i + 1}`} × ${Math.max(1, num(p.quantity, 1))}` }),
+      comps.length ? el('div', { class: 'muted', text: `Components: ${comps.join(', ')}` }) : null,
+      el('div', { class: 'muted', text: finishing.length ? `Finishing: ${finishing.join(', ')}` : 'No post-processing' }),
+    ].filter(Boolean));
+  });
+}
+
+/** The context-aware warnings shown in the confirmation summary. */
+function orderNoteNodes() {
+  const catalogue = state.config?.pricing?.hardware || [];
+  const specOf = (e) => catalogue.find((h) => h.id === e.hardwareId);
+  const notes = [];
+
+  if (state.parts.some((p) => p.mustFit)) {
+    notes.push(['warn', 'You marked a part as having to fit another part. Attach a technical '
+      + 'drawing or photo with the critical dimensions when you send this — without it we cannot '
+      + 'promise it will match.']);
+  }
+
+  const anyPost = state.parts.some((p) => Object.keys(p.postProcessing || {}).some((k) => p.postProcessing[k])
+    || (p.hardware || []).some((h) => Object.keys(entryPostOps(h)).length));
+  if (!anyPost) {
+    notes.push(['warn', 'No post-processing was selected. If a print needs finishing — support '
+      + 'removed, for instance — it will not be done unless you add it. Is that right?']);
+  }
+
+  if (state.shippingMethodId === 'collect') {
+    const totalParts = state.parts.reduce((n, p) => n + Math.max(1, num(p.quantity, 1)), 0);
+    let m = 'You have chosen to collect this yourself, with no packaging — you will receive the '
+      + 'parts as they come off the printer.';
+    if (totalParts > 2) m += ' With several parts, you might want a box to carry them — ask us if so.';
+    notes.push(['info', m]);
+  }
+
+  const loose = [];
+  for (const p of state.parts) {
+    for (const h of p.hardware || []) {
+      const spec = specOf(h);
+      if (spec && spec.stage === 'after' && num(h.qty, 1) > 0 && entryPostOps(h).fit !== true) {
+        loose.push(spec.name.toLowerCase());
+      }
+    }
+  }
+  if (loose.length) {
+    const names = [...new Set(loose)];
+    const plural = loose.length > 1;
+    notes.push(['warn', `You added ${names.join(', ')} but have not chosen to have ${plural ? 'them' : 'it'} `
+      + `fitted, so ${plural ? 'they' : 'it'} will ship loose in the box for you to install.`]);
+  }
+  return notes.map(([lvl, text]) => banner(lvl, text));
+}
+
+/** Confirm-before-send: a summary of the order with any warnings, then send. */
+function showConfirmSummary(onConfirm) {
+  const overlay = el('div', { class: 'modal-overlay', 'data-field': 'portal-confirm' }, [
+    el('div', { class: 'modal' }, [
+      el('h2', { text: 'Please check your order' }),
+      muted('Here is what you have asked for. If it looks right, send it over.'),
+      el('div', { class: 'summary-parts' }, orderSummaryNodes()),
+      ...orderNoteNodes(),
+      buttonRow([
+        button('Back — let me change something', () => overlay.remove(), { key: 'summary-back' }),
+        button('Yes, this is right — send it', () => { overlay.remove(); onConfirm(); },
+          { primary: true, key: 'summary-confirm' }),
+      ]),
+    ]),
+  ]);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+/** Scroll to the first field with a problem and focus it, for the sanity check. */
+function focusFirstInvalid(valid) {
+  const order = ['portal-firstname', 'portal-surname', 'portal-email', 'portal-phone', 'portal-addr-street'];
+  const map = {
+    'portal-firstname': 'firstName', 'portal-surname': 'surname', 'portal-email': 'email',
+    'portal-phone': 'phone', 'portal-addr-street': 'address',
+  };
+  const id = order.find((f) => valid.errors[map[f]]);
+  const node = id && document.querySelector(`[data-field="${id}"]`);
+  if (node) {
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    node.focus?.();
+  }
+}
+
+/**
+ * What is still needed before the request can be sent. Email and phone are
+ * always required; the address only when the order is being delivered (a
+ * customer collecting it needs none). Errors are keyed by field.
+ */
+function customerValidity(config) {
+  const c = state.customer;
+  const country = c.countryId || config.countryId;
+  const email = validateEmail(c.email);
+  const phone = validatePhone(c.phone, country);
+  const needsAddress = state.shippingMethodId !== 'collect';
+  const a = c.addressParts || {};
+  const addressOk = !needsAddress || [a.street, a.city].some((v) => String(v ?? '').trim());
+
+  const errors = {};
+  if (!String(c.firstName || '').trim()) errors.firstName = 'Enter your first name.';
+  if (!String(c.surname || '').trim()) errors.surname = 'Enter your surname.';
+  if (!email.ok) errors.email = email.message;
+  if (!phone.ok) errors.phone = phone.message;
+  if (needsAddress && !addressOk) {
+    errors.address = 'Add a delivery address, or choose to collect it yourself.';
+  }
+  return {
+    errors, ok: Object.keys(errors).length === 0, needsAddress, email, phone,
+  };
+}
+
+/**
+ * Two things worth knowing before sending: what the model file carries (colour),
+ * and what a reprint can and cannot fix. Collapsed, so it is there to read
+ * without being in the way.
+ */
+function goodToKnow() {
+  return section('portal-goodtoknow', 'Good to know before you send', [
+    el('h3', { text: 'What the print types balance' }),
+    muted('The “What is it for?” choice on each part tips a balance between four things, and '
+      + 'leaning into one gives a little up on the others: Speed (how quickly and cheaply it comes '
+      + 'off the machine), Cost, Strength (how tough and load-bearing), and Precision (dimensional '
+      + 'accuracy and surface finish). On our ratings a higher score is always better for you — a '
+      + 'Cost of 5 means cheapest, a Cost of 1 the most expensive.'),
+    muted('Roughly: Strength maxes out toughness (more material and time, so slower and pricier); '
+      + 'Function is the solid everyday balance; Visual puts the finish first; and Display only is '
+      + 'the fastest and cheapest, for something that is looked at rather than used. If a part has '
+      + 'to fit or carry a load, say so — tick “must fit another part” above, or pick Strength, so '
+      + 'we do not optimise it for looks or price at the cost of what you actually need.'),
+    el('h3', { text: 'Your model file — .stl vs .3mf' }),
+    muted('A .3mf file carries your colours and print settings; an .stl is the shape only. If your '
+      + 'part is meant to be more than one colour and you send an .stl, we cannot see the colours — '
+      + 'we would need a reference image and would add time to paint it. Sending a .3mf with the '
+      + 'colours already set avoids that extra cost.'),
+    el('h3', { text: 'What a reprint can and cannot fix' }),
+    muted('If a print fails because of our printer, that is on us — we reprint it at no charge. But '
+      + 'if it fails because of the part\'s own shape or the settings it needs, reprinting the same '
+      + 'file the same way gives the same result: a very thin, tall feature (say a 3 mm tower 150 mm '
+      + 'high) will tend to fail however many times we run it, and layer lines on a shallow top curve '
+      + 'look the same on every print. Where that is likely, we will tell you and suggest a design or '
+      + 'setting change rather than reprint the same outcome.'),
+  ], { open: false });
+}
+
+/**
+ * A short, honest privacy notice. The form uploads nothing — the details are
+ * packaged into a file/link the client sends — but the company does store what
+ * it receives to fulfil the order, so both facts are stated. Collapsed by
+ * default so it is available without getting in the way.
+ */
+function privacyNotice(config) {
+  const who = config.company?.name || 'the workshop';
+  const contact = config.company?.email || config.company?.phone || `${who}`;
+  return section('portal-privacy', 'How we handle your details (privacy)', [
+    muted(`What we collect: your name and contact details, a delivery address (only if we ship to `
+      + `you), and a VAT number only if you tell us you are a business.`),
+    muted(`Why: to prepare your quote and, if you go ahead, to make and deliver your order.`),
+    muted('This form does not upload anything. Your details are packaged into the file or link '
+      + `you choose to send us; ${who} then stores them on its own device to process your order — `
+      + 'they are not held on any website or shared with anyone else.'),
+    muted('This page uses no cookies, no tracking and no third-party services. We only add you to '
+      + 'any newsletter if you tick the box yourself.'),
+    muted(`To see, correct or delete the details we hold about you, contact us at ${contact}.`),
+  ], { open: false });
+}
+
+/** Keep the composed `name` in step with the split first name + surname. */
+function composeCustomerName() {
+  const c = state.customer;
+  c.name = `${String(c.firstName || '').trim()} ${String(c.surname || '').trim()}`.trim();
+}
+
+/** Fill the customer fields from a details file the client saved earlier. */
+function loadClientDetails() {
+  const input = el('input', { type: 'file', accept: 'application/json,.json' });
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const cust = data && data.kind === 'client' ? data.customer
+        : (data && (data.customer || (data.name || data.email ? data : null)));
+      if (!cust) { toast('That file has no saved details in it'); return; }
+      const c = state.customer;
+      // Accept a saved file with either the split names or just a composed name.
+      c.firstName = cust.firstName || (cust.name ? String(cust.name).split(' ')[0] : '') || '';
+      c.surname = cust.surname || (cust.name ? String(cust.name).split(' ').slice(1).join(' ') : '') || '';
+      c.name = cust.name || `${c.firstName} ${c.surname}`.trim();
+      c.email = cust.email || '';
+      c.phone = cust.phone || '';
+      c.countryId = cust.countryId || null;
+      c.newsletter = !!cust.newsletter;
+      c.isBusiness = !!cust.isBusiness || !!cust.vatNumber;
+      c.vatNumber = cust.vatNumber || '';
+      c.notes = cust.notes || '';
+      c.addressParts = makeAddressParts(cust.addressParts || {});
+      toast('Your details are filled in');
+      render();
+    } catch {
+      toast('Could not read that file');
+    }
+  });
+  input.click();
+}
+
 /** The structured delivery address: a type, its extra line, then the common lines. */
 function addressBlock() {
   const a = state.customer.addressParts;
@@ -242,7 +516,8 @@ function addressBlock() {
     textInput('portal-addr-province', 'Province', a.province, set('province')),
     textInput('portal-addr-postal', 'Postal code', a.postalCode, set('postalCode')),
   ]));
-  rows.push(textInput('portal-addr-country', 'Country', a.country, set('country')));
+  // The country is chosen once by the picker above (it also sets the dialling
+  // code), so it is not repeated here.
   return el('div', {}, rows);
 }
 
@@ -285,6 +560,22 @@ function partPanel(ctx, part, index, line) {
       config.profiles.map((p) => ({ value: p.id, label: p.name, title: p.blurb })),
       part.profileId, (v) => { part.profileId = v; render(); }),
     muted(config.profiles.find((p) => p.id === part.profileId)?.blurb || ''),
+    (() => {
+      const chosen = config.profiles.find((p) => p.id === part.profileId);
+      return chosen?.ratings
+        ? el('div', { class: 'radar' }, [radarChart(chosen.ratings, { size: 190 })])
+        : null;
+    })(),
+
+    checkField(`portal-mustfit-${part.id}`, 'This part must fit or mate with another part',
+      part.mustFit, (v) => { part.mustFit = v; render(); }, {
+        hint: 'Tick if it has to fit into or onto something at set dimensions.',
+      }),
+    part.mustFit
+      ? banner('info', 'Please attach a technical drawing or a photo marking the critical '
+        + 'dimensions to match (with a ruler or figures), so we can hold those tolerances. '
+        + 'A printed part is only as accurate as the dimensions we are given.')
+      : null,
 
     // With one colour loaded there is nothing to mix, so this is empty and the
     // part simply prints in that colour - exactly as the estimator behaves.
@@ -294,12 +585,10 @@ function partPanel(ctx, part, index, line) {
       (v) => { part.quantity = Math.max(1, Math.round(num(v, 1))); render(); }, {
         min: 1, step: 1, hint: 'More of the same part costs less each.',
       }),
-    checkField(`portal-support-${part.id}`, 'This part needs support removed',
-      part.needsSupport, (v) => { part.needsSupport = v; render(); }, {
-        hint: 'Tick if the shape overhangs and will print with support that has to be cleaned off.',
-      }),
 
     ...hardwareEditor(part, config),
+
+    portalPostProcessing(part, config),
 
     line
       ? muted(`About ${fmtMoney(line.unitPrice * (1 + buffer), code)} each · `
@@ -328,6 +617,19 @@ function savingsFor(part) {
  * Shown to everyone, because "I want a magnet in it" is exactly the kind of thing
  * the person who saw a part online asks for; it is not an advanced setting.
  */
+/**
+ * An after-print component is fitted by default — nobody is surprised that the
+ * inserts they ordered were installed — so a fresh after-print entry gets its
+ * fit ticked. The client can untick it to have it shipped loose. A component
+ * whose fit has already been decided (ops present) is left as it is.
+ */
+function defaultFitFor(entry, config) {
+  const spec = (config.pricing?.hardware || []).find((h) => h.id === entry.hardwareId);
+  if (spec && spec.stage === 'after' && !('ops' in entry) && entry.fit === undefined) {
+    entry.ops = { fit: true };
+  }
+}
+
 function hardwareEditor(part, config) {
   const catalogue = config.hardware || [];
   if (!catalogue.length) return [];
@@ -336,7 +638,7 @@ function hardwareEditor(part, config) {
   const rows = part.hardware.map((entry, hi) => el('div', { class: 'row-editor' }, [
     selectField(`portal-hw-${part.id}-${hi}`, '',
       catalogue.map((h) => ({ value: h.id, label: h.name })),
-      entry.hardwareId || catalogue[0].id, (v) => { entry.hardwareId = v; render(); }),
+      entry.hardwareId || catalogue[0].id, (v) => { entry.hardwareId = v; defaultFitFor(entry, config); render(); }),
     numberField(`portal-hwqty-${part.id}-${hi}`, '', entry.qty ?? 1,
       (v) => { entry.qty = Math.max(1, Math.round(num(v, 1))); render(); }, { min: 1, step: 1 }),
     button('Remove', () => { part.hardware.splice(hi, 1); render(); },
@@ -344,14 +646,88 @@ function hardwareEditor(part, config) {
   ]));
 
   return [
-    el('h3', { text: 'Anything embedded in it?' }),
+    el('h3', { text: 'Components' }),
     part.hardware.length
       ? el('div', {}, rows)
       : muted('Magnets, threaded inserts, an NFC tag — added during the print. Skip this if the '
         + 'part is just plastic.'),
-    button('Add hardware', () => { part.hardware.push({ hardwareId: catalogue[0].id, qty: 1 }); render(); },
-      { key: `portal-hwadd-${part.id}` }),
+    button('Add a component', () => {
+      const entry = { hardwareId: catalogue[0].id, qty: 1 };
+      defaultFitFor(entry, config);
+      part.hardware.push(entry);
+      render();
+    }, { key: `portal-hwadd-${part.id}` }),
   ];
+}
+
+/**
+ * The customer's own post-processing choices - the same five the estimator
+ * offers, in a collapsed section so a part that ships straight off the printer
+ * needs none of it. The NFC coding option only appears once an NFC component is
+ * on the part, and "Fit the …" only once an after-print component is added, so
+ * the customer is never asked about finishing work that does not apply.
+ */
+function portalPostProcessing(part, config) {
+  // The operations are the company's configured list (it travels in the pricing
+  // slice); the pick-list (config.hardware) is trimmed to id/name, so the full
+  // specs — the `nfc` flag and the during/after stage that gate the options —
+  // come from config.pricing.hardware.
+  const ops = config.pricing?.postProcessing?.ops || [];
+  const catalogue = config.pricing?.hardware || [];
+  const specOf = (e) => catalogue.find((h) => h.id === e.hardwareId);
+  const matchesFor = (gate) => (part.hardware || [])
+    .map((e, i) => ({ e, i, spec: specOf(e) }))
+    .filter(({ e, spec }) => spec && num(e.qty, 1) > 0 && gateMatches(gate, spec));
+
+  const setWholePart = (opId, on) => {
+    const map = { ...(part.postProcessing || {}) };
+    if (on) map[opId] = true; else delete map[opId];
+    part.postProcessing = map;
+    render();
+  };
+  const setComponent = (entry, opId, on) => {
+    const map = { ...(entry.ops || {}) };
+    if (on) map[opId] = true; else delete map[opId];
+    entry.ops = map;
+    delete entry.fit;
+    render();
+  };
+
+  const body = [];
+  for (const op of ops) {
+    if (op.archived) continue;
+    const gate = op.gate || { kind: 'always' };
+    const matches = matchesFor(gate);
+
+    if (op.perComponent) {
+      for (const { e, i, spec } of matches) {
+        const on = entryPostOps(e)[op.id] === true;
+        body.push(checkField(`portal-pp-${op.id}-${part.id}-${i}`,
+          `${op.name} the ${spec.name.toLowerCase()}`, on, (v) => setComponent(e, op.id, v), {
+            hint: on
+              ? 'Assembled onto the part before it ships — a finished product.'
+              : 'Otherwise it ships loose in the box for you to fit yourself.',
+          }));
+      }
+      continue;
+    }
+
+    if (gate.kind && gate.kind !== 'always' && matches.length === 0) continue;
+    const on = (part.postProcessing || {})[op.id] === true;
+    body.push(checkField(`portal-pp-${op.id}-${part.id}`, op.name, on,
+      (v) => setWholePart(op.id, v), { hint: op.hint }));
+    if (gate.kind === 'nfc' && on) {
+      body.push(textField(`portal-nfc-url-${part.id}`, 'Link to code onto the tag', part.nfcUrl || '',
+        (v) => { part.nfcUrl = v; render(); }, { placeholder: 'https://…' }));
+    }
+  }
+
+  if (!body.length) {
+    body.push(muted('Nothing to finish — this part ships straight off the printer.'));
+  }
+
+  return section(`portal-pp-${part.id}`, 'Add post-processing?  (support, resin, coding, fit…)',
+    body, { open: false });
 }
 
 function requestText(result) {
@@ -473,12 +849,41 @@ function render() {
       + 'each it is in that part above.'),
   ]));
 
+  // Only couriers that can actually carry the parcel (by size) are offered; the
+  // full method specs with their size limits ride in the pricing slice.
+  const parcelDims = result.packaging?.outerDims || null;
+  const fullShipping = config.pricing?.shipping || [];
+  const shipFits = (id) => {
+    const m = fullShipping.find((s) => s.id === id);
+    return !m || !parcelDims || packageFits(m, parcelDims, 0).fits;
+  };
+  // Which countries the customer may be in decides which couriers apply. Local
+  // only: the company's own domestic methods, no international courier. With
+  // international on: the domestic methods for a home-country client, and the
+  // international courier once they are elsewhere. Collection is offered on its
+  // own line below, so its method is not repeated here.
+  const clientCountry = config.shipInternational
+    ? (state.customer.countryId || config.countryId) : config.countryId;
+  const clientIsHome = clientCountry === config.countryId;
+  const countryOk = (m) => {
+    if (m.id === 'collect') return false;
+    if (m.country === config.countryId) return clientIsHome;
+    if (m.country === '*') return !!config.shipInternational;
+    return false;
+  };
+  const shipOptions = config.shipping.filter((m) => countryOk(m)
+    && (shipFits(m.id) || m.id === state.shippingMethodId));
+
   nodes.push(el('div', { class: 'panel' }, [
     el('h2', { text: 'Delivery' }),
     selectField('portal-shipping', 'How should it reach you?',
       [{ value: 'auto', label: 'Cheapest that fits' },
-        ...config.shipping.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` }))],
+        ...shipOptions.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` })),
+        { value: 'collect', label: 'I’ll collect it myself (no delivery)' }],
       state.shippingMethodId, (v) => { state.shippingMethodId = v; render(); }),
+    state.shippingMethodId === 'collect'
+      ? muted('No delivery address needed — you will collect it from us.')
+      : null,
   ]));
 
   const totalPlates = result.lines.reduce((m, l) => Math.max(m, l.jobs), 0);
@@ -566,13 +971,32 @@ function render() {
       printerId: state.printerId,
       materialId: partMaterialId(p, slots),
       geometry: p.geometry,
-      needsSupport: p.needsSupport,
+      // The post-processing chosen, as an operation map; per-component choices
+      // (fit) ride on the hardware entries below.
+      postProcessing: p.postProcessing,
+      nfcUrl: p.nfcUrl,
+      mustFit: p.mustFit,
+      // The components the customer asked for, each carrying its own per-op
+      // choices (e.g. fitted rather than shipped loose).
+      hardware: (p.hardware || []).map((h) => ({ ...h })),
       // This part's share of each loaded spool, keyed to the slots above.
       mix: p.mix,
       colours: Math.max(1, normaliseMix(p.mix, slots).entries.filter((e) => e.percent > 0).length),
     })),
-    customer: state.customer,
-    order: { shippingMethodId: state.shippingMethodId },
+    // The phone travels normalised to +<country><number> when it is valid, so
+    // the workshop stores it in one consistent form.
+    customer: {
+      ...state.customer,
+      phone: (() => {
+        const v = validatePhone(state.customer.phone, state.customer.countryId || config.countryId);
+        return v.ok ? v.value : state.customer.phone;
+      })(),
+    },
+    order: {
+      shippingMethodId: state.shippingMethodId,
+      // A collection carries no delivery, so the workshop skips the courier.
+      packagingCollected: state.shippingMethodId === 'collect',
+    },
     quotedTotal: quoted,
     currencyCode: code,
     validityDays,
@@ -587,6 +1011,38 @@ function render() {
     return `${base}#${encodeURIComponent(JSON.stringify(makePayload()))}`;
   };
 
+  // When the company only ships locally, the customer is in the company's own
+  // country — the country is fixed, not chosen — and no international courier is
+  // offered. With international shipping on, the client picks their country.
+  const localOnly = !config.shipInternational;
+  if (localOnly) state.customer.countryId = config.countryId;
+
+  const valid = customerValidity(config);
+  const phoneCountry = state.customer.countryId || config.countryId;
+  const dial = dialInfoFor(phoneCountry);
+  const countryOptions = (config.pricing?.countries || [])
+    .map((c) => ({ value: c.id, label: c.name }));
+  const companyCountryName = countryOptions.find((c) => c.value === config.countryId)?.label
+    || config.countryId;
+
+  const needed = [];
+  if (valid.errors.firstName) needed.push('your first name');
+  if (valid.errors.surname) needed.push('your surname');
+  if (valid.errors.email) needed.push('a valid email');
+  if (valid.errors.phone) needed.push('a valid phone number');
+  if (valid.errors.address) needed.push('a delivery address (or choose to collect)');
+
+  // The send buttons stay active and act as a sanity check: a valid form goes
+  // through; an invalid one turns the offending fields red and jumps to the
+  // first one, keeping everything the client has already typed.
+  const sanityChecked = (action) => {
+    if (valid.ok) { showConfirmSummary(action); return; }
+    state.submitAttempted = true;
+    render();
+    focusFirstInvalid(valid);
+    toast('Please check the highlighted fields');
+  };
+
   nodes.push(el('div', { class: 'panel' }, [
     el('h2', { text: 'Send it over' }),
     muted('This page has no server, so it cannot send the request for you. On a phone the '
@@ -596,45 +1052,120 @@ function render() {
       ? banner('warn', 'This is an expedited order — attach your proof of payment along with your '
         + 'model file(s) so we can confirm and start production.')
       : null,
-    el('div', { class: 'field-grid' }, [
-      textInput('portal-name', 'Your name', state.customer.name, (v) => { state.customer.name = v; }),
-      textInput('portal-email', 'Your email', state.customer.email, (v) => { state.customer.email = v; }, 'email'),
+
+    // Returning customers keep their details in a file and load it here.
+    buttonRow([
+      button('Load my saved details', loadClientDetails, { key: 'portal-load-client' }),
+      button('Save my details', () => {
+        download(new Blob([JSON.stringify({ kind: 'client', v: 1, customer: state.customer }, null, 2)],
+          { type: 'application/json' }), 'my-details.json');
+        toast('Saved — load this next time to fill your details in');
+      }, { key: 'portal-save-client' }),
     ]),
-    textInput('portal-phone', 'Phone', state.customer.phone, (v) => { state.customer.phone = v; }),
-    el('h3', { text: 'Delivery address' }),
+
+    el('div', { class: 'field-grid' }, [
+      validatedInput('portal-firstname', 'First name', state.customer.firstName,
+        (v) => { state.customer.firstName = v; composeCustomerName(); render(); }, {
+          required: true,
+          valid: !!String(state.customer.firstName).trim(),
+          error: state.submitAttempted && valid.errors.firstName ? valid.errors.firstName : null,
+        }),
+      validatedInput('portal-surname', 'Surname', state.customer.surname,
+        (v) => { state.customer.surname = v; composeCustomerName(); render(); }, {
+          required: true,
+          valid: !!String(state.customer.surname).trim(),
+          error: state.submitAttempted && valid.errors.surname ? valid.errors.surname : null,
+        }),
+    ]),
+    el('div', { class: 'field-grid' }, [
+      validatedInput('portal-email', 'Your email', state.customer.email,
+        (v) => { state.customer.email = v; render(); }, {
+          type: 'email', required: true, valid: valid.email.ok,
+          error: (state.submitAttempted || state.customer.email) && !valid.email.ok ? valid.email.message : null,
+        }),
+    ]),
+    el('div', { class: 'field-grid' }, [
+      localOnly || !countryOptions.length
+        // Local-only: the country is fixed, shown read-only rather than picked.
+        ? el('div', { class: 'field' }, [
+          el('label', { class: 'field__label', text: 'Country' }),
+          el('div', { class: 'input', 'data-field': 'portal-country-fixed', text: companyCountryName }),
+        ])
+        : selectField('portal-country', 'Country', countryOptions, phoneCountry,
+          (v) => {
+            state.customer.countryId = v;
+            // The address shows the country too, so keep it in step with the picker.
+            state.customer.addressParts.country = countryOptions.find((c) => c.value === v)?.label || '';
+            render();
+          }),
+      validatedInput('portal-phone', 'Phone', state.customer.phone,
+        (v) => { state.customer.phone = formatPhone(v, phoneCountry); render(); },
+        {
+          type: 'tel', required: true, valid: valid.phone.ok,
+          hint: dial.example ? `e.g. ${dial.example}` : null,
+          error: (state.submitAttempted || state.customer.phone) && !valid.phone.ok ? valid.phone.message : null,
+        }),
+    ].filter(Boolean)),
+
+    checkField('portal-business', 'This is a business (add a VAT number)',
+      state.customer.isBusiness, (v) => {
+        state.customer.isBusiness = v;
+        // Ticking it defaults the address to a business address; they can still
+        // change it back to a home or complex address.
+        if (v && state.customer.addressParts.type !== 'business') {
+          state.customer.addressParts.type = 'business';
+        }
+        render();
+      }, { hint: 'Adds your VAT number to the invoice. The delivery address can still be a home address.' }),
+    state.customer.isBusiness
+      ? validatedInput('portal-vat', 'VAT number', state.customer.vatNumber,
+        (v) => { state.customer.vatNumber = v; render(); })
+      : null,
+
+    el('h3', { text: valid.needsAddress ? 'Delivery address' : 'Address (optional)' }),
     addressBlock(),
     el('div', { class: 'field' }, [
       el('label', { class: 'field__label', text: 'Anything we should know', for: 'p-notes' }),
       el('textarea', {
         class: 'input input--area', id: 'p-notes', 'data-field': 'portal-notes',
         on: { change: (e) => { state.customer.notes = e.target.value; } },
-      }),
+      }, state.customer.notes || ''),
     ]),
+    config.newsletter
+      ? checkField('portal-newsletter', 'Keep me posted about news and deals',
+        state.customer.newsletter, (v) => { state.customer.newsletter = v; render(); }, {
+          hint: 'Optional — tick to join our newsletter. We only add you if you ask us to.',
+        })
+      : null,
+
+    state.submitAttempted && needed.length
+      ? banner('danger', `Before you can send, we still need: ${needed.join('; ')}.`)
+      : null,
     buttonRow([
-      button('Copy a request link', () => {
+      button('Copy a request link', () => sanityChecked(() => {
         const link = requestLink();
         if (navigator.clipboard?.writeText) {
           navigator.clipboard.writeText(link)
             .then(() => toast('Link copied — send it to us, and attach your model file'))
             .catch(() => toast('Could not copy the link'));
         } else toast('Copying is not available here; use Download instead');
-      }, { primary: true, key: 'portal-link' }),
-      button('Download the request', () => {
+      }), { primary: true, key: 'portal-link' }),
+      button('Download the request', () => sanityChecked(() => {
         download(new Blob([JSON.stringify(makePayload(), null, 2)], { type: 'application/json' }),
           'quote-request.json');
         toast('Saved — email this file to us with your models');
-      }, { key: 'portal-download' }),
+      }), { key: 'portal-download' }),
       config.company.email
-        ? el('a', {
-          class: 'btn',
-          'data-field': 'portal-email-link',
-          href: `mailto:${config.company.email}?subject=${encodeURIComponent('Quote request')}`
-            + `&body=${encodeURIComponent(`${requestText(result)}\n\nRequest link (open to import):\n${requestLink()}`)}`,
-          text: 'Open in your email',
-        })
+        ? button('Open in your email', () => sanityChecked(() => {
+          window.location.href = `mailto:${config.company.email}?subject=${encodeURIComponent('Quote request')}`
+            + `&body=${encodeURIComponent(`${requestText(result)}\n\nRequest link (open to import):\n${requestLink()}`)}`;
+        }), { key: 'portal-email-link' })
         : null,
     ]),
   ]));
+
+  nodes.push(goodToKnow());
+  nodes.push(privacyNotice(config));
 
   nodes.push(el('footer', { class: 'app-footer' }, [
     el('span', {
@@ -654,10 +1185,12 @@ function init() {
   state.config = config;
   if (config) {
     state.settings = config.settings;
-    state.printerId = config.printers[0]?.id || state.settings.printers[0].id;
+    state.printerId = config.defaultPrinterId
+      || config.printers[0]?.id || state.settings.printers[0].id;
     state.materialId = config.materials[0]?.id || state.settings.materials[0].id;
     state.slots = null;
     state.parts = [makePortalPart({ profileId: config.profiles[0]?.id || state.settings.profiles[0].id })];
+    state.customer.countryId = config.countryId || null;
     state.shippingMethodId = 'auto';
     // In expedite-only mode there is no quote path, so the order is expedited
     // from the start; in optional mode the client turns it on themselves.

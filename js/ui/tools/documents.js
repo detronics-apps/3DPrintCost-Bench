@@ -144,7 +144,13 @@ function documentView(ctx, { project, document: doc }) {
             + `issued ${new Date(doc.issuedAt).toLocaleDateString()}`
             + (doc.revision > 1 ? ` · revision ${doc.revision}` : ''),
         }),
-      ]),
+        doc.customer?.address
+          ? el('p', { class: 'muted', text: doc.customer.address })
+          : null,
+        doc.customer?.vatNumber
+          ? el('p', { class: 'muted', text: `VAT number: ${doc.customer.vatNumber}` })
+          : null,
+      ].filter(Boolean)),
       el('div', { class: 'btn-row' }, [
         pill(status.name, status.tone),
         button('Back to the list', () => {

@@ -8,6 +8,7 @@
  */
 
 import { num } from './money.js';
+import { entryPostOps } from './postprocessing.js';
 
 const item = (spec) => ({
   archived: false,
@@ -307,7 +308,7 @@ export function hardwareCost(catalogue, entries, countryId) {
     if (qty === 0) continue;
     const each = itemPrice(spec, countryId);
     const after = spec.stage === 'after';
-    const fit = after && entry.fit === true;
+    const fit = after && entryPostOps(entry).fit === true;
 
     lines.push({
       id: spec.id, name: spec.name, qty, each, cost: each * qty,

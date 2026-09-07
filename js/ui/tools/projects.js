@@ -170,7 +170,7 @@ function projectList(ctx) {
 }
 
 function newProject(rerender) {
-  const project = addPart(makeProject(), makePart());
+  const project = addPart(makeProject(), makePart({ printerId: state.settings.defaultPrinterId }));
   commit(project);
   state.activeProjectId = project.id;
   state.activePartId = project.parts[0].id;
@@ -423,7 +423,7 @@ function partsPanel(ctx, project, result) {
     el('div', { class: 'panel__head' }, [
       el('h3', { text: 'Parts' }),
       button('Add a part', () => {
-        commit(addPart(project, makePart()));
+        commit(addPart(project, makePart({ printerId: state.settings.defaultPrinterId })));
         rerender();
       }, { key: 'add-part' }),
     ]),
@@ -925,7 +925,7 @@ export function main(ctx) {
     nodes.push(el('div', { class: 'viewport__stage' }, [
       moneyDiagram({
         currencyCode: code,
-        title: 'This project on one scale',
+        title: 'This project — each bar to its own total',
         rows: [
           {
             name: 'Production',

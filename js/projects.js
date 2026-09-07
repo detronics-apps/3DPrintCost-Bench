@@ -14,6 +14,7 @@
  */
 
 import { num } from './money.js';
+import { normalizePostSelection, entryPostOps } from './postprocessing.js';
 
 export const PROJECT_VERSION = 1;
 
@@ -141,12 +142,16 @@ export function makePart(spec = {}) {
     colourBands: [],
     hardware: [],
     complexity: 1,
-    needsSupport: false,
-    needsResin: false,
-    needsDeburring: false,
-    // Coding an embedded NFC tag is opt-in; nfcUrl is the link it should carry.
-    nfcCode: false,
+    // Post-processing chosen for this part, as { [operationId]: true } for the
+    // whole-part operations (support, resin, deburr, coding…). Per-component
+    // operations (fit) store their choice on the component entry (entry.ops).
+    // The operations themselves live in Settings → Post-processing.
+    postProcessing: {},
+    // The link to code onto an embedded NFC tag, when the coding op is chosen.
     nfcUrl: '',
+    // The part has to fit or mate with another part, so its critical dimensions
+    // must be held — which needs a dimensioned drawing or photo from the client.
+    mustFit: false,
     partsPerPlateOverride: 0,
     otherDirectCost: 0,
 
@@ -257,18 +262,80 @@ export function makeCustomer(spec = {}) {
   return {
     id: makeId('cust'),
     name: 'New customer',
+    // Name split, for forms that collect it in two parts. `name` stays the
+    // composed value that documents and lists display.
+    firstName: '',
+    surname: '',
     email: '',
     phone: '',
+    // The country whose dialling code and currency the customer was quoted in;
+    // set from the client form's country picker.
+    countryId: null,
     address: '',
     addressParts: makeAddressParts(),
     vatNumber: '',
     discount: { kind: 'none' },
     notes: '',
+    // Whether they opted in to the newsletter / deals list on the form. Consent,
+    // so it is only ever true when they ticked it themselves.
+    newsletter: false,
     archived: false,
     ...spec,
     // A caller that passes partial address parts still gets a complete object.
     ...(spec.addressParts ? { addressParts: makeAddressParts(spec.addressParts) } : {}),
   };
+}
+
+/** Normalise for comparison. The phone key is the last nine digits of the
+ *  subscriber number, so a local `082…` and an international `+2782…` for the
+ *  same person compare equal despite the trunk/dialling-code difference. */
+const normEmail = (v) => String(v || '').trim().toLowerCase();
+const phoneKey = (v) => {
+  const digits = String(v || '').replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-9) : '';
+};
+
+/**
+ * Find an existing customer that is the same person as `incoming` — matched by
+ * email first, then phone — so importing a returning client's request reuses
+ * their record instead of creating a duplicate. Blank fields never match.
+ */
+export function matchCustomer(customers, incoming) {
+  const email = normEmail(incoming?.email);
+  const phone = phoneKey(incoming?.phone);
+  if (!email && !phone) return null;
+  return (customers || []).find((c) => {
+    if (c.archived) return false;
+    if (email && normEmail(c.email) === email) return true;
+    if (phone && phoneKey(c.phone) === phone) return true;
+    return false;
+  }) || null;
+}
+
+/**
+ * Merge a returning client's newer details onto their existing record: the
+ * request's non-empty values win, but the existing id, history and anything the
+ * request left blank are kept. Used by import dedup.
+ */
+export function mergeCustomer(existing, incoming) {
+  const pick = (a, b) => (String(b ?? '').trim() ? b : a);
+  const merged = {
+    ...existing,
+    name: pick(existing.name, incoming.name),
+    firstName: pick(existing.firstName, incoming.firstName),
+    surname: pick(existing.surname, incoming.surname),
+    email: pick(existing.email, incoming.email),
+    phone: pick(existing.phone, incoming.phone),
+    countryId: incoming.countryId || existing.countryId,
+    address: pick(existing.address, incoming.address),
+    vatNumber: pick(existing.vatNumber, incoming.vatNumber),
+    // A fresh opt-in turns it on; the form never silently opts someone out.
+    newsletter: existing.newsletter || !!incoming.newsletter,
+  };
+  const hasAddr = incoming.addressParts
+    && Object.values(incoming.addressParts).some((v) => String(v ?? '').trim());
+  if (hasAddr) merged.addressParts = makeAddressParts(incoming.addressParts);
+  return merged;
 }
 
 /** A file kept with the project. Contents stay in the browser. */
@@ -520,11 +587,27 @@ export function migrateProject(stored) {
 
   const base = makeProject();
   const project = { ...base, ...raw, version: PROJECT_VERSION };
-  project.parts = (raw.parts || []).map((part) => ({
-    ...makePart(),
-    ...part,
-    attempts: (part.attempts || []).map((a) => ({ ...makeAttempt(), ...a })),
-  }));
+  project.parts = (raw.parts || []).map((part) => {
+    const next = {
+      ...makePart(),
+      ...part,
+      attempts: (part.attempts || []).map((a) => ({ ...makeAttempt(), ...a })),
+    };
+    // Post-processing used to be fixed booleans (needsResin, needsSupport…) and a
+    // `fit` flag on each component. Fold both into the configurable-operation
+    // shape so an older project prices exactly as before, then drop the old keys.
+    next.postProcessing = normalizePostSelection(next);
+    delete next.needsSupport;
+    delete next.needsResin;
+    delete next.needsDeburring;
+    delete next.nfcCode;
+    next.hardware = (next.hardware || []).map((h) => {
+      const ops = entryPostOps(h);
+      const { fit, ...rest } = h;
+      return Object.keys(ops).length ? { ...rest, ops } : rest;
+    });
+    return next;
+  });
   project.order = { ...base.order, ...(raw.order || {}) };
 
   // Workflow phase is the source of truth. An already-migrated project keeps its
@@ -568,10 +651,10 @@ export function orderFromProject(project, { customer = null } = {}) {
       colourBands: part.colourBands,
       hardware: part.hardware,
       complexity: part.complexity,
-      needsSupport: part.needsSupport,
-      needsResin: part.needsResin,
-      needsDeburring: part.needsDeburring,
-      nfcCode: part.nfcCode,
+      // The part's post-processing choices; the engine reads the operation list
+      // from settings and prices each chosen op. Per-component choices ride on
+      // the hardware entries above.
+      postProcessing: part.postProcessing,
       partsPerPlateOverride: part.partsPerPlateOverride,
       otherDirectCost: part.otherDirectCost,
       estimateMethod: part.estimateMethod,

@@ -41,10 +41,12 @@ import { INFILL_PATTERNS, FACTOR_LABELS } from '../../profiles.js';
 import { filamentSlots, mixEditor, filamentBreakdown } from '../filament-slots.js';
 import { defaultSlots, reconcileSlots } from '../../filaments.js';
 import { materialStock } from '../../inventory.js';
-import { methodsForCountry } from '../../shipping.js';
+import { methodsForCountry, packageFits } from '../../shipping.js';
+import { containerFits, choosePackaging } from '../../packaging.js';
 import { ESTIMATE_LEVELS } from '../../estimate.js';
 import { DEMAND_TARGETS } from '../../pricing.js';
 import { makeProject, addPart, makePart } from '../../projects.js';
+import { gateMatches, entryPostOps } from '../../postprocessing.js';
 import { shareLink, replaceProject, saveSoon, defaultPart } from '../../state.js';
 
 export const id = 'estimate';
@@ -83,10 +85,7 @@ function partToLine(part, quick) {
     colourBands: part.colourBands,
     hardware: part.hardware,
     complexity: part.complexity,
-    needsSupport: part.needsSupport,
-    needsResin: part.needsResin,
-    needsDeburring: part.needsDeburring,
-    nfcCode: part.nfcCode,
+    postProcessing: part.postProcessing,
     partsPerPlateOverride: part.partsPerPlateOverride,
     otherDirectCost: part.otherDirectCost,
     estimateMethod: part.estimateMethod,
@@ -247,8 +246,6 @@ function partBlock(ctx, part, index, canRemove) {
         + 'are spread across the batch and more fit on a plate.',
     }));
 
-  modelBody.push(postProcessingSubsection(part, key, set, rerender, state.settings.hardware));
-
   /* -- print intent -------------------------------------------------------- */
 
   const profiles = state.settings.profiles;
@@ -327,10 +324,17 @@ function partBlock(ctx, part, index, canRemove) {
   /* -- hardware -------------------------------------------------------------- */
 
   const hwCatalogue = settings.hardware.filter((h) => !h.archived);
+  // An after-print component is fitted by default; the operator can untick it.
+  const defaultFit = (entry) => {
+    const spec = hwCatalogue.find((h) => h.id === entry.hardwareId);
+    if (spec && spec.stage === 'after' && !('ops' in entry) && entry.fit === undefined) {
+      entry.ops = { fit: true };
+    }
+  };
   const hwRows = part.hardware.map((entry, hi) => el('div', { class: 'row-editor' }, [
     selectField(`hw-${key}-${hi}`, 'Component',
       hwCatalogue.map((h) => ({ value: h.id, label: h.name })),
-      entry.hardwareId, (value) => { entry.hardwareId = value; saveSoon(); rerender(); }),
+      entry.hardwareId, (value) => { entry.hardwareId = value; defaultFit(entry); saveSoon(); rerender(); }),
     numberField(`hw-qty-${key}-${hi}`, 'Per part', entry.qty,
       (v) => { entry.qty = Math.max(0, Math.round(num(v, 1))); saveSoon(); rerender(); },
       { min: 0, step: 1 }),
@@ -342,7 +346,9 @@ function partBlock(ctx, part, index, canRemove) {
     part.hardware.length ? el('div', {}, hwRows) : muted('Magnets, nuts, inserts and NFC tags '
       + 'fitted during or after the print.'),
     buttonRow([button('Add a component', () => {
-      part.hardware.push({ hardwareId: hwCatalogue[0]?.id, qty: 1 });
+      const entry = { hardwareId: hwCatalogue[0]?.id, qty: 1 };
+      defaultFit(entry);
+      part.hardware.push(entry);
       saveSoon();
       rerender();
     }, { key: `hw-add-${key}` })]),
@@ -397,7 +403,8 @@ function partBlock(ctx, part, index, canRemove) {
     subsection('Model', modelBody),
     subsection('Print intent', intentBody),
     ...mixBody,
-    subsection('Embedded hardware', hardwareBody, { open: part.hardware.length > 0 }),
+    subsection('Components', hardwareBody, { open: part.hardware.length > 0 }),
+    postProcessingSubsection(part, key, rerender, state.settings.postProcessing.ops, state.settings.hardware),
     state.mode !== 'simple' ? subsection('Advanced', advancedBody) : null,
     state.mode !== 'simple' ? subsection('Slicer figures', slicerBody) : null,
   ].filter(Boolean));
@@ -477,10 +484,33 @@ function orderSection(ctx) {
 
   const methods = methodsForCountry(settings.shipping, settings.countryId);
 
+  // The parcel the couriers and boxes are judged against: the biggest part on
+  // the bed, and how many parts there are. A box or a courier that cannot hold
+  // this is not offered — the app works out what fits instead of listing a
+  // small box that the order would never go in.
+  const parts = quick.parts || [];
+  const unitCount = parts.reduce((t, p) => t + Math.max(1, Math.round(num(p.quantity, 1))), 0);
+  const sizeOf = (p) => p.orientedSize || p.geometry?.size || p.manual || { x: 0, y: 0, z: 0 };
+  const biggest = parts.reduce((best, p) => {
+    const s = sizeOf(p);
+    const v = num(s.x) * num(s.y) * num(s.z);
+    return v > best.v ? { v, size: s } : best;
+  }, { v: 0, size: { x: 50, y: 50, z: 50 } }).size;
+  const parcel = choosePackaging(settings.packaging, {
+    dims: biggest, count: unitCount, countryId: settings.countryId,
+    forcedContainerId: order.packagingContainerId || null,
+    consumables: order.packagingConsumables || null,
+  });
+  const parcelDims = parcel.outerDims;
+  // Couriers that can carry the parcel (by size), plus whatever is currently
+  // chosen so a selection is never silently dropped.
+  const fittingMethods = methods.filter((m) => packageFits(m, parcelDims, 0).fits
+    || m.id === order.shippingMethodId);
+
   const body = [
     selectField('shipping', 'Delivery',
       [{ value: 'auto', label: 'Cheapest that fits (recommended)' },
-        ...methods.map((m) => ({ value: m.id, label: `${m.name} — ${fmtMoney(m.basePrice, settings.currencyCode)}` }))],
+        ...fittingMethods.map((m) => ({ value: m.id, label: `${m.name} — ${fmtMoney(m.basePrice, settings.currencyCode)}` }))],
       order.shippingMethodId, set('shippingMethodId')),
     checkField('collected', 'Customer collects (pickup — no courier)',
       order.packagingCollected, set('packagingCollected'), {
@@ -492,10 +522,17 @@ function orderSection(ctx) {
   ];
 
   if (state.mode !== 'simple') {
+    // Only boxes that actually hold the parts are offered; the current pick is
+    // kept in the list even if the parts changed, so it is never lost silently.
+    const fittingBoxes = settings.packaging.filter((p) => p.kind === 'container'
+      && (containerFits(p, biggest, unitCount) || p.id === order.packagingContainerId));
     body.push(selectField('packaging-container', 'Packaging',
-      [{ value: '', label: 'Choose automatically' },
-        ...settings.packaging.filter((p) => p.kind === 'container').map((p) => ({ value: p.id, label: p.name }))],
+      [{ value: '', label: 'Choose automatically (cheapest that fits)' },
+        ...fittingBoxes.map((p) => ({ value: p.id, label: p.name }))],
       order.packagingContainerId || '', (value) => set('packagingContainerId')(value || null)));
+    if (!fittingBoxes.some((p) => containerFits(p, biggest, unitCount))) {
+      body.push(muted('No box in the catalogue holds this order — add one in Catalogues → Packaging.'));
+    }
     body.push(checkField('insured', 'Insure the shipment', order.insured, set('insured')));
 
     const extras = order.extras.map((extra, index) => el('div', { class: 'row-editor' }, [
@@ -715,40 +752,64 @@ function partsTable(result) {
  * after-print hardware (turning a component that would ship loose into an
  * assembled product).
  */
-function postProcessingSubsection(part, key, set, rerender, catalogue) {
+function postProcessingSubsection(part, key, rerender, ops, catalogue) {
   const specOf = (e) => catalogue.find((h) => h.id === e.hardwareId);
-  const nfcOnPart = (part.hardware || []).some((e) => specOf(e)?.nfc && num(e.qty, 1) > 0);
-  const afterEntries = (part.hardware || [])
+  const matchesFor = (gate) => (part.hardware || [])
     .map((e, i) => ({ e, i, spec: specOf(e) }))
-    .filter((x) => x.spec && x.spec.stage === 'after' && num(x.e.qty, 1) > 0);
+    .filter(({ e, spec }) => spec && num(e.qty, 1) > 0 && gateMatches(gate, spec));
 
-  const body = [
-    checkField(`support-${key}`, 'Remove support', part.needsSupport, set('needsSupport'), {
-      hint: 'Cut away and clean off support material — only on parts that print with it.',
-    }),
-    checkField(`resin-${key}`, 'Resin coat (top surface)', part.needsResin, set('needsResin'), {
-      hint: 'Resin over the top face, priced by top area with a curing time. Rates in Settings → Labour.',
-    }),
-    checkField(`deburr-${key}`, 'Deburring / cleanup', part.needsDeburring, set('needsDeburring'), {
-      hint: 'Deburr, trim seams, wipe down. Leave off to ship the part exactly as it comes off the printer.',
-    }),
-    ...afterEntries.map(({ e, i, spec }) => checkField(`fit-${key}-${i}`,
-      `Fit the ${spec.name.toLowerCase()}`, e.fit === true,
-      (v) => { e.fit = v; saveSoon(); rerender(); }, {
-        hint: e.fit === true
-          ? 'Assembled onto the part before it ships — a finished product.'
-          : 'Otherwise it ships loose in the box for the customer to fit themselves.',
-      })),
-  ];
-  if (nfcOnPart) {
-    body.push(checkField(`nfc-${key}`, 'Code the NFC tag', !!part.nfcCode, set('nfcCode'), {
-      hint: 'This part has an embedded NFC tag. Tick to code it — the coding time is set in '
-        + 'Settings → Labour → Post-processing.',
-    }));
-    if (part.nfcCode) {
-      body.push(textField(`nfc-url-${key}`, 'Link to code onto the tag', part.nfcUrl || '',
-        set('nfcUrl'), { placeholder: 'https://…' }));
+  const setWholePart = (opId, on) => {
+    const map = { ...(part.postProcessing || {}) };
+    if (on) map[opId] = true; else delete map[opId];
+    part.postProcessing = map;
+    saveSoon();
+    rerender();
+  };
+  const setComponent = (entry, opId, on) => {
+    const map = { ...(entry.ops || {}) };
+    if (on) map[opId] = true; else delete map[opId];
+    entry.ops = map;
+    delete entry.fit; // migrate the legacy flag away on first touch
+    saveSoon();
+    rerender();
+  };
+
+  const body = [];
+  for (const op of ops || []) {
+    if (op.archived) continue;
+    const gate = op.gate || { kind: 'always' };
+    const matches = matchesFor(gate);
+
+    // A per-component operation (fit) offers one choice per matching component,
+    // labelled with that component, so one can be fitted and another shipped loose.
+    if (op.perComponent) {
+      for (const { e, i, spec } of matches) {
+        const on = entryPostOps(e)[op.id] === true;
+        body.push(checkField(`pp-${op.id}-${key}-${i}`, `${op.name} the ${spec.name.toLowerCase()}`,
+          on, (v) => setComponent(e, op.id, v), {
+            hint: on
+              ? 'Assembled onto the part before it ships — a finished product.'
+              : 'Otherwise it ships loose in the box for the customer to fit themselves.',
+          }));
+      }
+      continue;
     }
+
+    // A gated whole-part operation only appears once its component is present.
+    if (gate.kind && gate.kind !== 'always' && matches.length === 0) continue;
+    const on = (part.postProcessing || {})[op.id] === true;
+    body.push(checkField(`pp-${op.id}-${key}`, op.name, on, (v) => setWholePart(op.id, v), {
+      hint: op.hint,
+    }));
+    // Coding an NFC tag carries a link to program onto it.
+    if (gate.kind === 'nfc' && on) {
+      body.push(textField(`nfc-url-${key}`, 'Link to code onto the tag', part.nfcUrl || '',
+        (v) => { part.nfcUrl = v; saveSoon(); rerender(); }, { placeholder: 'https://…' }));
+    }
+  }
+
+  if (!body.length) {
+    body.push(muted('Nothing to finish — this part ships straight off the printer.'));
   }
 
   // Collapsed by default: a part that ships straight off the printer needs none
@@ -862,13 +923,11 @@ function savingsPanel(state, part) {
   }
 }
 
-/** A human note for the post-processing cost row: what it covers, and curing. */
+/** A human note for the post-processing cost row: which steps, and any curing. */
 function postProcessNote(pp) {
-  if (!pp) return '';
-  const bits = [];
-  if (pp.resinOn) bits.push(`resin over ${pp.areaCm2.toFixed(1)} cm²`);
-  if (pp.nfcTags) bits.push(`${pp.nfcTags} NFC tag${pp.nfcTags === 1 ? '' : 's'} coded`);
-  if (pp.curingMinutes) bits.push(`${Math.round(pp.curingMinutes)} min curing (unattended)`);
+  if (!pp || !pp.applied?.length) return '';
+  const bits = pp.applied.map((a) => (a.units > 1 ? `${a.name} ×${a.units}` : a.name));
+  if (pp.stationMinutes) bits.push(`${Math.round(pp.stationMinutes)} min curing (unattended)`);
   return bits.join(' · ');
 }
 
@@ -1178,11 +1237,9 @@ function exportSection(ctx) {
             mix: Array.isArray(part.mix) ? part.mix.map((m) => ({ ...m })) : null,
             hardware: part.hardware.map((h) => ({ ...h })),
             complexity: part.complexity,
-            // The post-processing choices belong to the part, so they travel too.
-            needsSupport: part.needsSupport,
-            needsResin: part.needsResin,
-            needsDeburring: part.needsDeburring,
-            nfcCode: part.nfcCode,
+            // The post-processing choices belong to the part, so they travel too
+            // (per-component choices ride on the hardware entries copied above).
+            postProcessing: { ...(part.postProcessing || {}) },
             nfcUrl: part.nfcUrl,
             // A project's slicer figures are totals for the whole print; the
             // estimator's are per part, so scale them up on the way in.
@@ -1244,9 +1301,9 @@ export function main(ctx) {
     moneyDiagram({
       currencyCode: code,
       title: result.lines.length > 1
-        ? `Production, part price and invoice — one scale, for the whole bed `
+        ? `Production, part price and invoice — each bar to its own total, for the whole bed `
           + `(${result.unitCount} parts)`
-        : `Production, part price and invoice — one scale, for all `
+        : `Production, part price and invoice — each bar to its own total, for all `
           + `${line.quantity} part${line.quantity === 1 ? '' : 's'}`,
       rows: [
         {

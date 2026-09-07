@@ -253,6 +253,20 @@ export function buildPrintSheet(doc, { host }) {
     sheet.appendChild(terms);
   }
 
+  if (doc.refundPolicy) {
+    const refund = make('div', 'sheet__terms');
+    refund.appendChild(make('h3', null, 'Returns and refunds'));
+    refund.appendChild(make('p', null, doc.refundPolicy));
+    sheet.appendChild(refund);
+  }
+
+  if (doc.bankingDetails) {
+    const bank = make('div', 'sheet__terms');
+    bank.appendChild(make('h3', null, 'Payment / banking details'));
+    bank.appendChild(make('p', null, doc.bankingDetails));
+    sheet.appendChild(bank);
+  }
+
   host.appendChild(sheet);
   return sheet;
 }

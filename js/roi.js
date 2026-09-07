@@ -60,21 +60,38 @@ export function ownedYears(printerSpec, now = new Date()) {
  * Failed prints count: the machine ran, the hours went on the clock, and the
  * money was spent. Leaving them out would flatter the machine that fails most.
  */
-export function machineHistory(projects) {
+export function machineHistory(projects, priorRuns = []) {
   const byPrinter = new Map();
+  const ensure = (id) => {
+    if (!byPrinter.has(id)) {
+      byPrinter.set(id, {
+        printerId: id, attempts: 0, minutes: 0, grams: 0,
+        accepted: 0, rejected: 0, failed: 0, firstAt: null, lastAt: null,
+      });
+    }
+    return byPrinter.get(id);
+  };
+
+  // Print history imported from before the app was used: hours and grams the
+  // machine has already run, so its lifetime counts them. Not tied to a project.
+  for (const run of priorRuns || []) {
+    const id = run.printerId;
+    if (!id) continue;
+    const row = ensure(id);
+    row.attempts += 1;
+    row.minutes += num(run.minutes);
+    row.grams += num(run.grams);
+    row.accepted += 1;
+    if (run.at && (!row.firstAt || run.at < row.firstAt)) row.firstAt = run.at;
+    if (run.at && (!row.lastAt || run.at > row.lastAt)) row.lastAt = run.at;
+  }
 
   for (const project of projects || []) {
     for (const part of project.parts || []) {
       for (const attempt of part.attempts || []) {
         const id = attempt.printerId || part.printerId;
         if (!id) continue;
-        if (!byPrinter.has(id)) {
-          byPrinter.set(id, {
-            printerId: id, attempts: 0, minutes: 0, grams: 0,
-            accepted: 0, rejected: 0, failed: 0, firstAt: null, lastAt: null,
-          });
-        }
-        const row = byPrinter.get(id);
+        const row = ensure(id);
         row.attempts += 1;
         row.minutes += num(attempt.minutes);
         row.grams += num(attempt.grams);
@@ -148,8 +165,8 @@ export function printerReturn(printerSpec, history, { profitEarned = 0, now = ne
  * to the hours each spent, because that is the only defensible way to say which
  * machine earned it.
  */
-export function returnsOnMachines({ printers, projects, invoices = [] }, now = new Date()) {
-  const history = machineHistory(projects);
+export function returnsOnMachines({ printers, projects, invoices = [], priorRuns = [] }, now = new Date()) {
+  const history = machineHistory(projects, priorRuns);
 
   const totalMinutes = [...history.values()].reduce((t, h) => t + h.minutes, 0);
   const totalProfit = invoices

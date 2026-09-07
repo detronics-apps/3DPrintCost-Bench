@@ -31,7 +31,22 @@ function partFrom(selection, printerId, slots) {
     materialId: selection?.materialId,
     geometry: selection?.geometry || null,
     orientedSize: selection?.orientedSize || null,
-    needsSupport: !!selection?.needsSupport,
+    // The whole-part post-processing the customer chose, as an operation map;
+    // per-component choices (fit) ride on the hardware entries below.
+    postProcessing: (selection?.postProcessing && typeof selection.postProcessing === 'object')
+      ? { ...selection.postProcessing } : {},
+    nfcUrl: (selection?.nfcUrl || '').trim(),
+    mustFit: !!selection?.mustFit,
+    // The components the customer asked for, each keeping its own per-op choices
+    // (fit an after-print component rather than ship it loose in the box).
+    hardware: Array.isArray(selection?.hardware)
+      ? selection.hardware.map((h) => ({
+        hardwareId: h.hardwareId,
+        qty: Math.max(1, Math.round(num(h.qty, 1))),
+        ...(h.ops && typeof h.ops === 'object' ? { ops: { ...h.ops } } : {}),
+        ...(h.fit === true ? { ops: { fit: true } } : {}),
+      }))
+      : [],
     // The bed's loaded filament and this part's share of it, so the workshop
     // opens the request with every head already filled in — no re-picking the
     // colours the customer chose. A single-spool request leaves these null and
@@ -66,10 +81,18 @@ export function portalRequest({
   const addrParts = customer?.addressParts ? makeAddressParts(customer.addressParts) : null;
   const composed = addrParts ? formatAddress(addrParts) : (customer?.address || '').trim();
 
+  const composedName = `${(customer?.firstName || '').trim()} ${(customer?.surname || '').trim()}`.trim();
   const cust = makeCustomer({
-    name: (customer?.name || '').trim() || 'Customer from a request',
+    name: composedName || (customer?.name || '').trim() || 'Customer from a request',
+    firstName: (customer?.firstName || '').trim(),
+    surname: (customer?.surname || '').trim(),
     email: (customer?.email || '').trim(),
     phone: (customer?.phone || '').trim(),
+    countryId: customer?.countryId || null,
+    // Consent from the form's opt-in — only ever true when the client ticked it.
+    newsletter: !!customer?.newsletter,
+    // A business's VAT number, for its invoice.
+    vatNumber: (customer?.vatNumber || '').trim(),
     address: composed,
     ...(addrParts ? { addressParts: addrParts } : {}),
     notes: (customer?.notes || '').trim(),
@@ -109,7 +132,8 @@ export function portalRequest({
       shippingMethodId: order?.shippingMethodId || 'auto',
       packagingContainerId: null,
       packagingConsumables: null,
-      packagingCollected: false,
+      // The client chose to collect it themselves — no courier is booked.
+      packagingCollected: !!order?.packagingCollected || order?.shippingMethodId === 'collect',
       insured: false,
       extras: [],
     },
@@ -118,6 +142,9 @@ export function portalRequest({
       isExpedited && money ? `They paid the estimate of about ${money}. Verify proof of payment, then confirm to raise the invoice and start production.` : null,
       !isExpedited && money ? `They were quoted about ${money} (indicative — re-price from the sliced parts).` : null,
       validUntil ? `Their quote was valid until ${new Date(validUntil).toLocaleDateString()}.` : null,
+      projectParts.some((p) => p.mustFit)
+        ? 'FIT-CRITICAL: a part must fit/mate with another — a dimensioned drawing should be attached; hold the critical dimensions.'
+        : null,
       cust.notes ? `Customer note: ${cust.notes}` : null,
     ].filter(Boolean).join('\n'),
   });

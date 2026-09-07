@@ -24,10 +24,18 @@ import {
 import {
   DEMAND_TARGETS, CHARGE_MODES, DEFAULT_ALLOCATIONS, LABOUR_PLACEMENTS, thirdsPrice,
 } from '../../pricing.js';
-import { INFILL_PATTERNS, FACTOR_LABELS, FACTOR_ORDER, PUBLISHED_FACTORS, factorsFor } from '../../profiles.js';
+import {
+  INFILL_PATTERNS, FACTOR_LABELS, FACTOR_ORDER, PUBLISHED_FACTORS, factorsFor,
+  RATING_AXES, DEFAULT_RATINGS,
+} from '../../profiles.js';
+import { radarChart } from '../svg/radar.js';
 import { DEFAULT_ESTIMATE_ASSUMPTIONS } from '../../estimate.js';
 import { applyCountry, applyPreset, defaultSettings } from '../../settings.js';
 import { makeId } from '../../projects.js';
+import { parseCsv, toCsv } from '../../csv.js';
+import {
+  importClients, importHardwareStock, importFilamentStock, importPrintRuns, SAMPLE_TEMPLATES,
+} from '../../imports.js';
 import {
   state, saveSoon, exportAll, restoreFromFile,
 } from '../../state.js';
@@ -135,12 +143,29 @@ function companyPanel(ctx) {
       ]),
       textField('company-terms', 'Terms printed on documents', settings.company.terms,
         set('terms'), { multiline: true, rows: 3 }),
+      textField('company-refund', 'Returns / refund policy (printed on documents)',
+        settings.company.refundPolicy, set('refundPolicy'), {
+          multiline: true, rows: 3,
+          hint: 'Your own policy. Custom parts are usually exempt from cooling-off returns; state '
+            + 'your position. It prints on quotes and invoices.',
+        }),
+      textField('company-banking', 'Banking details (printed on quotes and invoices)',
+        settings.company.bankingDetails, set('bankingDetails'), {
+          multiline: true, rows: 3,
+          hint: 'Bank, account name and number, branch/reference — so a client who accepts a quote '
+            + 'can pay straight away. Prints on the quote and invoice.',
+        }),
       el('div', { class: 'field-grid' }, [
         numberField('quote-validity', 'Quote valid for', settings.company.quoteValidityDays,
           (v) => set('quoteValidityDays')(Math.max(1, Math.round(num(v, 30)))), { min: 1, step: 1, suffix: 'days' }),
         numberField('handling-days', 'Handling days before despatch', settings.company.handlingDays,
           (v) => set('handlingDays')(Math.max(0, Math.round(num(v, 1)))), { min: 0, step: 1, suffix: 'days' }),
       ]),
+      selectField('default-printer', 'Default printer',
+        settings.printers.filter((p) => !p.archived).map((p) => ({ value: p.id, label: p.name })),
+        settings.defaultPrinterId, (v) => { settings.defaultPrinterId = v; touch(rerender); }, {
+          hint: 'A new estimate, a new project part and the client form all start on this machine.',
+        }),
       companyBranding(settings, set),
     ]),
 
@@ -234,6 +259,19 @@ function companyPanel(ctx) {
           + 'payment) and skip the quote — the order jumps straight to payment and into production. '
           + 'The padding is what keeps the estimate at or above the final cost.',
       }),
+      checkField('portal-newsletter', 'Show a newsletter / deals opt-in on the form',
+        settings.customerPortal.newsletter,
+        (v) => { settings.customerPortal.newsletter = v; touch(rerender); }, {
+          hint: 'Adds a tick-box the client can opt in to. It is consent, so a client is only added '
+            + 'to your list when they tick it themselves — it arrives on their imported customer record.',
+        }),
+      checkField('portal-ship-international', 'Ship internationally',
+        settings.customerPortal.shipInternational,
+        (v) => { settings.customerPortal.shipInternational = v; touch(rerender); }, {
+          hint: 'Off: the client form fixes the country to yours and offers no international courier. '
+            + 'On: the client can be in any country, and international shipping is offered. Prices stay '
+            + 'in your currency either way — the app does not convert between currencies.',
+        }),
       subsection('Print intents customers may choose', settings.profiles.map((p) => checkField(
         `portal-profile-${p.id}`, p.name,
         settings.customerPortal.allowedProfiles.includes(p.id),
@@ -527,6 +565,13 @@ function profilesPanel(ctx) {
     selected.version = num(selected.version, 1) + 1;
     touch(rerender);
   };
+  const setRating = (key) => (value) => {
+    selected.ratings = {
+      ...(selected.ratings || DEFAULT_RATINGS),
+      [key]: Math.max(1, Math.min(5, Math.round(num(value, 3)))),
+    };
+    touch(rerender);
+  };
 
   return [
     el('div', { class: 'panel' }, [
@@ -534,6 +579,16 @@ function profilesPanel(ctx) {
       chips('profile-pick', settings.profiles.map((p) => ({ value: p.id, label: p.name })),
         selected.id, (v) => { state.ui.selectedProfile = v; touch(rerender); }),
       muted(selected.blurb),
+
+      subsection('How it scores for the client (radar)', [
+        muted('1–5, where higher is always better for the customer — so a Cost of 5 is the '
+          + 'cheapest. This is the picture the client sees against each print type on the quote form.'),
+        el('div', { class: 'radar' }, [radarChart(selected.ratings || DEFAULT_RATINGS, { size: 200 })]),
+        el('div', { class: 'field-grid' }, RATING_AXES.map((a) => sliderField(
+          `p-rating-${a.id}`, a.name, (selected.ratings || DEFAULT_RATINGS)[a.id], setRating(a.id),
+          { min: 1, max: 5, step: 1, format: (v) => String(v) },
+        ))),
+      ]),
       el('div', { class: 'field-grid' }, [
         sliderField('p-infill', FACTOR_LABELS.infill, selected.settings.infill, set('infill'),
           { min: 0, max: 100, step: 1, format: (v) => `${v}%` }),
@@ -741,46 +796,124 @@ function labourPanel(ctx) {
   ];
 }
 
+/** The gate options an operation can pick, given the hardware categories in use. */
+function postGateOptions(settings) {
+  const categories = [...new Set((settings.hardware || [])
+    .filter((h) => !h.archived).map((h) => h.category).filter(Boolean))];
+  return [
+    { value: 'always', label: 'Always available' },
+    { value: 'nfc', label: 'When an NFC component is present' },
+    { value: 'after', label: 'When an after-print component is present' },
+    ...categories.map((c) => ({ value: `category:${c}`, label: `When a ${c} component is present` })),
+  ];
+}
+
+const gateToValue = (g) => (g?.kind === 'category' ? `category:${g.category}` : (g?.kind || 'always'));
+const valueToGate = (v) => (v.startsWith('category:')
+  ? { kind: 'category', category: v.slice('category:'.length) }
+  : { kind: v });
+
+/** One editable post-processing operation. */
+function postOpEditor(op, ctx, settings) {
+  const { rerender } = ctx;
+  const set = (key, value) => { op[key] = value; touch(rerender); };
+  const setNum = (key) => (v) => set(key, Math.max(0, num(v)));
+
+  const basisLabel = op.basis === 'perArea' ? 'Labour per cm²'
+    : op.basis === 'perUnit' ? 'Labour per component' : 'Labour per part';
+  const basisSuffix = op.basis === 'perArea' ? 'min/cm²' : 'min';
+  const gramsSuffix = op.basis === 'perArea' ? 'g/cm²' : 'g';
+
+  const fields = [
+    el('div', { class: 'field-grid' }, [
+      selectField(`pp-basis-${op.id}`, 'Priced', [
+        { value: 'perPart', label: 'Per part (a flat time)' },
+        { value: 'perArea', label: 'Per cm² of top area' },
+        { value: 'perUnit', label: 'Per matching component' },
+      ], op.basis, (v) => set('basis', v)),
+      selectField(`pp-gate-${op.id}`, 'Offered', postGateOptions(settings),
+        gateToValue(op.gate), (v) => set('gate', valueToGate(v))),
+    ]),
+    checkField(`pp-percomp-${op.id}`, 'One choice per matching component',
+      op.perComponent === true, (v) => set('perComponent', v), {
+        hint: 'On: a labelled toggle for each component (fit this one, ship that one loose). '
+          + 'Off: a single choice for the part.',
+      }),
+  ];
+
+  // The per-component fitting time can come from each component rather than a
+  // flat figure — a big module then costs more to fit than a small insert.
+  if (op.basis === 'perUnit') {
+    fields.push(selectField(`pp-minfrom-${op.id}`, 'Time source', [
+      { value: 'op', label: 'This step’s own time (below)' },
+      { value: 'component', label: 'Each component’s own fitting time' },
+    ], op.minutesFrom || 'op', (v) => set('minutesFrom', v)));
+  }
+
+  const numbers = [];
+  if (!(op.basis === 'perUnit' && op.minutesFrom === 'component')) {
+    numbers.push(numberField(`pp-min-${op.id}`, basisLabel, op.minutes, setNum('minutes'),
+      { min: 0, step: 0.05, suffix: basisSuffix }));
+  }
+  numbers.push(moneyField(`pp-mcost-${op.id}`, 'Consumable cost', op.materialCost || 0,
+    (v) => set('materialCost', Math.max(0, num(v))), settings.currencyCode, {
+      hint: op.basis === 'perArea' ? 'Per cm².' : 'Per part.',
+    }));
+  numbers.push(numberField(`pp-mgrams-${op.id}`, 'Consumable used', op.materialGrams || 0,
+    setNum('materialGrams'), {
+      min: 0, step: 0.1, suffix: gramsSuffix,
+      hint: 'In grams — booked out of Inventory (resin uses this).',
+    }));
+  numbers.push(numberField(`pp-cure-${op.id}`, 'Curing / station time', op.stationMinutes || 0,
+    setNum('stationMinutes'), {
+      min: 0, step: 1, suffix: 'min', hint: 'Unattended — adds finishing time, not labour.',
+    }));
+  fields.push(el('div', { class: 'field-grid' }, numbers));
+
+  return el('div', { class: 'row-editor row-editor--stacked' }, [
+    el('div', { class: 'row-editor__head' }, [
+      textField(`pp-name-${op.id}`, 'Name', op.name, (v) => set('name', v)),
+      button('Remove', () => {
+        settings.postProcessing.ops = settings.postProcessing.ops.filter((o) => o.id !== op.id);
+        touch(rerender);
+      }, { key: `pp-remove-${op.id}`, danger: true }),
+    ]),
+    op.hint != null
+      ? textField(`pp-hint-${op.id}`, 'Note shown on the estimate', op.hint, (v) => set('hint', v))
+      : null,
+    ...fields,
+  ].filter(Boolean));
+}
+
 /**
- * The rates behind the post-processing steps a part can be marked for on the
- * estimate: a resin coat priced by top area, and coding an embedded NFC tag.
+ * The configurable post-processing operations: the finishing a part can be
+ * marked for on the estimate and the client portal, each priced its own way and
+ * offered only when its hardware gate is met.
  */
 function postProcessingPanel(ctx) {
   const { rerender } = ctx;
   const settings = state.settings;
-  const code = settings.currencyCode;
-  const pp = settings.postProcessing;
-  const setResin = (key) => (v) => { pp.resin[key] = Math.max(0, num(v)); touch(rerender); };
+  if (!settings.postProcessing || !Array.isArray(settings.postProcessing.ops)) {
+    settings.postProcessing = { ops: [] };
+  }
+  const ops = settings.postProcessing.ops;
 
   return el('div', { class: 'panel' }, [
     el('h3', { text: 'Post-processing' }),
-    muted('These are charged on the parts that survive the print, so they are never multiplied '
-      + 'by the scrap rate. Tick a part for resin on the estimate; NFC coding is added on its own '
-      + 'whenever a part has an NFC tag.'),
-    subsection('Resin coat (by top area)', [
-      muted('Set the rate for one square centimetre of top surface and it is interpolated to the '
-        + 'part’s real top area. The top area is taken from the part’s footprint.'),
-      el('div', { class: 'field-grid' }, [
-        numberField('resin-min-cm2', 'Time per cm²', pp.resin.minutesPerCm2, setResin('minutesPerCm2'),
-          { min: 0, step: 0.05, suffix: 'min/cm²' }),
-        moneyField('resin-cost-cm2', 'Resin cost per cm²', pp.resin.costPerCm2,
-          (v) => setResin('costPerCm2')(v), code, { hint: 'The resin consumed per cm² of coverage.' }),
-      ]),
-      numberField('resin-cure', 'Curing time', pp.resin.curingMinutes, setResin('curingMinutes'),
-        { min: 0, step: 1, suffix: 'min', hint: 'Unattended — it adds finishing time, not labour.' }),
-      numberField('resin-grams-cm2', 'Resin used per cm²', num(pp.resin.gramsPerCm2, 2),
-        setResin('gramsPerCm2'), {
-          min: 0, step: 0.1, suffix: 'g/cm²',
-          hint: 'How much resin a cm² of coverage actually uses, in grams — used to book it '
-            + 'out of Inventory and warn when a bottle runs low.',
-        }),
-    ]),
-    subsection('NFC coding', [
-      numberField('nfc-code-min', 'Coding time per tag', pp.nfc.codingMinutes,
-        (v) => { pp.nfc.codingMinutes = Math.max(0, num(v)); touch(rerender); },
-        { min: 0, step: 0.5, suffix: 'min', hint: 'Applied for every embedded NFC tag. Mark a '
-          + 'component as an NFC tag in Catalogues → Hardware.' }),
-    ]),
+    muted('The finishing steps a part can be marked for, on both the estimate and the client form. '
+      + 'They are charged on the parts that survive the print, so they are never multiplied by the '
+      + 'scrap rate. A step is only offered when its hardware gate is met — code the NFC tag appears '
+      + 'once an NFC component is added, fit once an after-print component is added.'),
+    ...ops.map((op) => postOpEditor(op, ctx, settings)),
+    ops.length ? null : muted('No steps yet.'),
+    buttonRow([button('Add a post-processing step', () => {
+      ops.push({
+        id: makeId('pp'), name: 'New step', hint: '', basis: 'perPart', minutes: 0,
+        materialCost: 0, materialGrams: 0, stationMinutes: 0, minutesFrom: 'op',
+        gate: { kind: 'always' }, perComponent: false, archived: false,
+      });
+      touch(rerender);
+    })]),
     subsection('Manual colour swaps', [
       muted('When a part uses more colours than the machine’s heads, the extra ones are reached '
         + 'by pausing at a height and swapping a spool by hand. Each swap is this much labour plus '
@@ -984,7 +1117,109 @@ function backupPanel(ctx) {
         + 'Google Drive or OneDrive file as you work — a backup that is always current, and that any '
         + 'future version of the app can open.'),
     ]),
+    importCsvPanel(ctx),
   ];
+}
+
+/** The four CSV importers for data that existed before the app was adopted. */
+function importCsvPanel(ctx) {
+  const { rerender } = ctx;
+  const settings = state.settings;
+
+  // Each importer: read the CSV, hand the rows to the pure importer with the
+  // current catalogue/state it needs, apply the result, and report.
+  const IMPORTS = [
+    {
+      key: 'clients', title: 'Existing clients',
+      hint: 'So you do not re-type a returning customer. Columns: First name, Surname, Email, '
+        + 'Phone, VAT number, Address, Notes. Matched by email or phone — importing twice is safe.',
+      run: (rows) => {
+        const res = importClients(rows, state.customers);
+        state.customers.push(...res.added);
+        return { report: `${res.added.length} added, ${res.matched} already known`, errors: res.errors };
+      },
+    },
+    {
+      key: 'hardware', title: 'Hardware on hand',
+      hint: 'What you can supply immediately. Columns: Hardware (name or id from Catalogues → '
+        + 'Hardware), Quantity. Booked in as an opening balance.',
+      run: (rows) => {
+        const res = importHardwareStock(rows, settings.hardware, state.inventory.items);
+        state.inventory.items.push(...res.items);
+        state.inventory.movements.push(...res.movements);
+        return { report: `${res.matched} line${res.matched === 1 ? '' : 's'} booked in`, errors: res.errors };
+      },
+    },
+    {
+      key: 'filament', title: 'Rolls of filament on hand',
+      hint: 'Your spools. Columns: Material (name, "Colour Name", or id), Grams, Batch, Location. '
+        + 'Each row is one spool with its remaining grams as the opening balance.',
+      run: (rows) => {
+        const res = importFilamentStock(rows, settings.materials);
+        state.inventory.items.push(...res.items);
+        return { report: `${res.added} spool${res.added === 1 ? '' : 's'} added`, errors: res.errors };
+      },
+    },
+    {
+      key: 'prints', title: 'Printer history (prior runs)',
+      hint: 'Prints already done on the machine, so its lifetime counts them — not tied to any '
+        + 'customer. Columns: Printer (name or id), Minutes (or Hours), Grams, Date.',
+      run: (rows) => {
+        const res = importPrintRuns(rows, settings.printers);
+        state.priorRuns.push(...res.runs);
+        return { report: `${res.added} run${res.added === 1 ? '' : 's'} added`, errors: res.errors };
+      },
+    },
+  ];
+
+  const rows = IMPORTS.map((imp) => {
+    const input = el('input', {
+      type: 'file', accept: '.csv,text/csv', class: 'visually-hidden',
+      'data-field': `import-${imp.key}`,
+      on: {
+        change: async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          try {
+            const { rows: parsed } = parseCsv(await file.text());
+            if (!parsed.length) { toast('That file has no rows under its header'); return; }
+            const { report, errors } = imp.run(parsed);
+            saveSoon();
+            const tail = errors.length
+              ? ` · ${errors.length} row${errors.length === 1 ? '' : 's'} skipped (line ${errors[0].line}: ${errors[0].msg})`
+              : '';
+            toast(`${imp.title}: ${report}${tail}`);
+            rerender();
+          } catch {
+            toast('Could not read that CSV');
+          }
+        },
+      },
+    });
+    return el('div', { class: 'row-editor row-editor--stacked' }, [
+      el('div', { class: 'row-editor__head' }, [
+        el('strong', { text: imp.title }),
+        buttonRow([
+          button('Sample CSV', () => {
+            const t = SAMPLE_TEMPLATES[imp.key];
+            download(new Blob([toCsv(t.headers, [t.sample])], { type: 'text/csv' }), `${imp.key}-template.csv`);
+          }, { key: `import-sample-${imp.key}` }),
+          button('Import a CSV…', () => input.click(), { key: `import-go-${imp.key}`, primary: true }),
+        ]),
+      ]),
+      muted(imp.hint),
+      input,
+    ]);
+  });
+
+  return el('div', { class: 'panel' }, [
+    el('h3', { text: 'Import from a spreadsheet (CSV)' }),
+    muted('Bring in what the workshop already had before this app — so you start from where you '
+      + 'are, not from a blank slate. Each import is separate and only adds; it never replaces. '
+      + 'Download a sample to see the exact columns.'),
+    ...rows,
+  ]);
 }
 
 /**

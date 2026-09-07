@@ -12,7 +12,7 @@ import { num } from './money.js';
 import { makeId, nowIso } from './projects.js';
 import { pricePerGram, findMaterial } from './materials.js';
 import { itemPrice, findHardware, findPackaging } from './packaging.js';
-import { topAreaCm2 } from './postprocessing.js';
+import { topAreaCm2, normalizePostSelection } from './postprocessing.js';
 
 export const STOCK_KINDS = [
   { id: 'filament', name: 'Filament', unit: 'g' },
@@ -78,10 +78,13 @@ export function makeResin(spec = {}) {
   };
 }
 
-/** The resin one resined part uses: its top area × the grams-per-cm² setting. */
+/** The resin one resined part uses: its top area × the resin op's grams-per-cm². */
 export function resinGramsForPart(part, size, settings) {
-  if (!part?.needsResin) return 0;
-  const perCm2 = Math.max(0, num(settings?.postProcessing?.resin?.gramsPerCm2, 0));
+  const opList = settings?.postProcessing?.ops || [];
+  const resin = opList.find((o) => o.id === 'resin-coat')
+    || opList.find((o) => o.basis === 'perArea' && num(o.materialGrams) > 0);
+  if (!resin || normalizePostSelection(part)[resin.id] !== true) return 0;
+  const perCm2 = Math.max(0, num(resin.materialGrams, 0));
   return topAreaCm2(size || part?.orientedSize || part?.geometry?.size) * perCm2;
 }
 

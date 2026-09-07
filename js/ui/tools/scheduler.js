@@ -156,6 +156,29 @@ export function sidebar(ctx) {
   ];
 }
 
+/**
+ * The prints scheduled to start today that have not been marked as started —
+ * the head of each printer's queue that is not yet in production. The dashboard
+ * flags these so nothing that should be on a machine is quietly sitting idle.
+ */
+export function printsDueToday(currentState = state) {
+  const settings = currentState.settings;
+  const queued = currentState.projects.filter((p) => isQueued(p.status) && p.status !== 'archived');
+  if (!queued.length) return [];
+  const jobs = queued.map((p) => jobFromProject(p, settings)).filter(Boolean);
+  const printers = settings.printers.filter((p) => !p.archived).map((p) => ({
+    id: p.id,
+    name: p.name,
+    hoursPerDay: num(p.schedulerHoursPerDay, 0) > 0 ? p.schedulerHoursPerDay : settings.scheduler.hoursPerDay,
+  }));
+  const result = schedule(jobs, printers, {
+    start: Date.now(),
+    hoursPerDay: settings.scheduler.hoursPerDay,
+    overnightLongPrints: !!settings.scheduler.overnightLongPrints,
+  });
+  return result.placed.filter((j) => j.startDay === 0 && j.status !== 'in-production');
+}
+
 export function main(ctx) {
   const settings = state.settings;
   const queued = state.projects.filter((p) => isQueued(p.status) && p.status !== 'archived');

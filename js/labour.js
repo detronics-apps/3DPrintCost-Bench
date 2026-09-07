@@ -88,15 +88,11 @@ export const DEFAULT_LABOUR_OPS = [
 
   op('remove-part', 'Removing the part', 1.5, 'unit', 'Finishing',
     'Getting the part off the plate.'),
-  op('support-removal', 'Removing support', 3, 'supportUnit', 'Finishing',
-    'Cutting away and cleaning off support material. Only on parts marked as needing it.'),
   op('inspection', 'Inspection', 2, 'unit', 'Finishing',
     'Checking dimensions and surface, deciding accept or reject.'),
-  // Deburring is a post-processing choice, not something every part gets: a part
-  // can ship exactly as it comes off the printer. So it is scoped to the parts
-  // marked for cleanup, the same way support removal is scoped to supported parts.
-  op('cleaning', 'Cleaning and finishing', 2, 'deburrUnit', 'Finishing',
-    'Deburring, trimming seams, wiping down. Only on parts marked for cleanup.'),
+  // Support removal and deburring used to be labour operations here. They are now
+  // configurable post-processing steps (Settings → Post-processing), priced on
+  // the parts that survive the print rather than at-risk across attempts.
 
   // Packing happens whenever the order is boxed — including a collection, which
   // is still boxed for the customer to fetch. `packing` drops it only when the
