@@ -311,6 +311,7 @@ export function applyWorkshop(data) {
       movements: Array.isArray(data.inventory.movements) ? data.inventory.movements : [],
     }
     : { items: [], movements: [] };
+  state.priorRuns = Array.isArray(data.priorRuns) ? data.priorRuns : [];
   if (state.activeProjectId && !state.projects.some((p) => p.id === state.activeProjectId)) {
     state.activeProjectId = null;
     state.activePartId = null;
@@ -402,6 +403,7 @@ export function exportAll() {
     projects: state.projects,
     customers: state.customers,
     inventory: state.inventory,
+    priorRuns: state.priorRuns,
   }, null, 2);
 }
 
