@@ -909,6 +909,18 @@ function partSidebar(ctx, project, part) {
     selectField('part-profile', 'Print intent',
       settings.profiles.map((p) => ({ value: p.id, label: p.name })),
       part.profileId, (v) => set({ profileId: v, settingOverrides: {} })),
+    // Fit-critical flag, same as the client form. A client can set it on a
+    // request (it rides in as a FIT-CRITICAL note); this lets the operator set or
+    // clear it on a project part directly.
+    checkField('part-mustfit', 'This part must fit or mate with another part',
+      !!part.mustFit, (v) => set({ mustFit: v }), {
+        hint: 'Tick if it has to fit into or onto something at set dimensions.',
+      }),
+    part.mustFit
+      ? banner('info', 'Fit-critical: hold the critical dimensions and check there is a '
+        + 'dimensioned drawing or a photo marking them. A printed part is only as accurate '
+        + 'as the dimensions given.')
+      : null,
     selectField('part-printer', 'Printer',
       settings.printers.filter((p) => !p.archived && (p.active !== false || p.id === part.printerId))
         .map((p) => ({ value: p.id, label: p.name + (p.active === false ? ' (under maintenance)' : '') })),

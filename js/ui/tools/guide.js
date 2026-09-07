@@ -159,6 +159,18 @@ const FAQS = [
   { q: 'What is the difference between Open and Upload project?',
     a: 'Open loads a whole company from a “Save all” backup and replaces what is on the device (for switching '
       + 'companies). Upload project only merges in a customer request or a project file, leaving your settings alone.' },
+  { q: 'Where do I choose internal vs customer pricing (cost-only vs a full quote)?',
+    a: 'On a project, in the “Order type” dropdown in the sidebar — not on the quick Estimate. The quick Estimate '
+      + 'always prices as a full commercial quote. To get a cost-only price, make a project (or send the estimate to '
+      + 'one) and set Order type to “For an employee” (cost, still quoted and paid) or “For the company” (cost, an '
+      + 'expense, straight to production). Every part imported from an estimate or a client request keeps all its '
+      + 'data and stays fully editable in the project — nothing is lost by pushing it across.' },
+  { q: 'With team sync on, do I still need to press “Save all”?',
+    a: 'Not for routine work. When team sync is connected the whole workshop is written to the shared file '
+      + 'automatically on every change (and it is conflict-aware), so there is nothing to remember to save. '
+      + '“Save all” is a separate, occasional downloadable one-file backup — worth taking before a risky change, as '
+      + 'a dated snapshot, or when moving to a new device. Either way, everything is also always saved to this '
+      + 'browser’s own storage, sync or no sync.' },
 ];
 
 function matches(text, q) {
