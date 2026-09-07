@@ -1,0 +1,113 @@
+# Features log — 3DPrintCost Bench
+
+A running record of what the app does and why each piece was added, so any
+behaviour can be traced back to the decision behind it — and so each entry is
+ready to become a short "here's what I added and how it works" video.
+
+Three sections, by **who needs to know**: the **client** (using the quote form),
+the **operator** (running the workshop app), and the **skill/developer** (the
+decision and the rule behind it). Newest at the top of each section. Backfilled
+from the development history on 2026-09-07; kept up per feature from here on.
+
+---
+
+## For the client (the quote form)
+
+- **International vs local** (2026-09-07) — if the workshop ships only locally,
+  your country is fixed and you just fill in your details; if it ships abroad,
+  you pick your country and international delivery appears. Prices are always in
+  the workshop's currency.
+- **Privacy, in plain words** (2026-09-07) — the form uploads nothing: your
+  details are packaged into the file/link you send, and the workshop stores them
+  on its own device to make your order. No cookies, no tracking. A short notice
+  on the form says so and how to have your details removed.
+- **Business & VAT** (2026-09-07) — tick "This is a business" to add a VAT number
+  (it goes on your invoice) and default a business delivery address; still
+  changeable to a home address.
+- **Confirm before you send** (2026-09-06) — when you send, a summary shows what
+  you ordered and flags the easy-to-miss things: no finishing chosen, collecting
+  with no packaging (with a box suggestion for several parts), or after-print
+  parts you didn't ask to have fitted.
+- **Fit is on by default** (2026-09-06) — if you add a threaded insert or similar
+  after-print part, it is set to be installed unless you untick it. Nobody is
+  surprised their inserts were fitted.
+- **The form checks itself** (2026-09-06) — required fields are marked with *,
+  turn green when they look right, and the send button tells you what's wrong and
+  jumps you to it rather than greying out silently. Nothing you typed is lost.
+- **Save & reload your details** (2026-09-05) — a returning customer downloads
+  their details once and loads them next time instead of retyping. First name and
+  surname are separate fields.
+- **Post-processing, spelled out** (2026-09-05) — an "Add post-processing?" drop
+  down offers support removal, resin coat, deburring, fitting parts, and coding an
+  NFC tag; the options only appear when they apply to what you added.
+- **Only delivery that fits** (2026-09-06) — you are never offered a box or a
+  courier locker that your parts won't physically fit into.
+- **Collect it yourself** (2026-09-05) — a "no delivery" option; then no address
+  is required and no courier is charged.
+
+## For the operator (running the app)
+
+- **Ship-internationally switch** (2026-09-07) — Settings → customer form. Off
+  keeps the client form local-only; on allows any country and international
+  couriers. No currency conversion either way (the app has no exchange rate).
+- **Returns/refund policy** (2026-09-07) — Settings → Company; prints on quotes
+  and invoices next to your terms. A VAT number a client supplies also prints on
+  the invoice.
+- **Default printer** (2026-09-05) — Settings → Company. New estimates, new
+  project parts and the client form all open on it.
+- **One price per country** (2026-09-05) — the catalogue price editors show a
+  single field in your currency (set by your company country), not one per
+  country.
+- **Configurable post-processing** (2026-09-05) — Settings → Post-processing is a
+  list you edit and add to. Each step is priced per part, per cm² of top area, or
+  per matching component, and is gated on hardware so it only appears when
+  relevant. Support removal and deburring moved here from the labour operations.
+- **"Prints due today" flag** (2026-09-06) — the Dashboard shows a dismissible
+  banner listing prints scheduled to start today that aren't yet marked in
+  production, so nothing sits idle unnoticed.
+- **No duplicate customers** (2026-09-05) — importing a returning client's request
+  matches them by email or phone, reuses and refreshes the record, and links the
+  new project to it.
+- **Money bars read at a glance** (2026-09-06) — the cost / price / invoice bars
+  each fill the full width to their own total (shown on the right), instead of the
+  smaller two looking half-empty.
+- **Newsletter opt-in** (2026-09-05) — an optional, unticked consent box on the
+  form (turn it on in Settings); the choice arrives on the customer record.
+- **Section collapse fixed** (2026-09-06) — collapsible panels now actually hide
+  their contents (was an app-wide CSS bug).
+
+## For the skill / developer (the decisions)
+
+- **No FX by design** (2026-09-07) — international shipping never converts
+  currency; a foreign client is quoted in the company's currency and offered
+  international delivery only. Adding real exchange rates + per-country tax is a
+  much larger change and was deliberately not taken.
+- **App vs company, legally** (2026-09-07) — the app transmits nothing (local
+  storage; sharing via URL fragment; the client sends a file). The *company* still
+  holds personal data once it imports, so a privacy notice + marketing-consent
+  opt-in apply, but cookie banners / third-party disclosures / a custom 404 do
+  not. See the detronics-app skill's `references/legal.md`.
+- **Post-processing is data, not code** (2026-09-05) — the finishing steps are a
+  configurable list priced by one of three bases with a hardware gate, so new
+  steps need no code. Charged on surviving parts, never multiplied by scrap. Old
+  projects/quotes/settings migrate to the new shape.
+- **Fit default = on** (2026-09-06) — an after-print component defaults to fitted
+  because the regret is asymmetric: being surprised it was installed is milder
+  than being surprised it shipped loose. Untickable.
+- **Submit is a sanity checker, not a gate** (2026-09-06) — the send button stays
+  active and reports errors on press (red + scroll-to-first), keeping all entered
+  data. Empty required fields go red only after a press. A pure email/phone
+  validator returns {ok, value, message}; the UI only renders its verdict.
+- **Dedup by natural key** (2026-09-05) — customers match on normalised email, then
+  phone (last nine digits, so +27… and 082… match). Reuse + refresh, never
+  duplicate; re-point the imported project at the existing record.
+- **Packaging/courier fit** (2026-09-06) — `containerFits`/`packageFits` already
+  existed; the fix was filtering the manual dropdowns to fitting options so they
+  agree with "cheapest that fits". A current selection is kept so nothing is
+  dropped silently.
+- **Each money bar to its own total** (2026-09-06) — `moneyDiagram` was on one
+  shared scale, leaving short bars half-empty; each bar now fills to its own total
+  with the total on the right as the real size.
+- **Migrations are mandatory** (ongoing) — settings, projects and the quick
+  estimate each carry a version and a migration; `{...defaults, ...incoming}` must
+  never overwrite a default with `undefined`.
