@@ -147,18 +147,24 @@ export function lowStock(items, movements) {
  * calling the same helper from both places.
  */
 export function movementsForRun({
-  project, part, attempt, result, settings,
+  project, part, attempt, result, settings, inventory = null,
 }) {
   const out = [];
   const quantity = Math.max(1, num(attempt.quantity, 1));
+  const items = inventory?.items || [];
+  const movements = inventory?.movements || [];
 
   const grams = num(attempt.grams) > 0
     ? num(attempt.grams)
     : num(result?.estimate?.grams) * quantity;
   if (grams > 0 && part.materialId) {
     const material = findMaterial(settings.materials, part.materialId);
+    // Draw from the chosen spool if one was recorded; otherwise the emptiest
+    // spool of this material that still has stock (use up the near-empty one
+    // first); and if none is tracked, an aggregate material id that nets nothing.
+    const spool = attempt.spoolId || spoolsFor(items, movements, part.materialId)[0]?.item.id;
     out.push(makeMovement({
-      itemId: attempt.spoolId || `material:${part.materialId}`,
+      itemId: spool || `material:${part.materialId}`,
       reason: attempt.failed ? 'scrap' : 'production',
       quantity: -grams,
       unitCost: pricePerGram(material, settings.countryId),
@@ -174,8 +180,11 @@ export function movementsForRun({
     if (!spec) continue;
     const used = Math.max(0, num(entry.qty, 1)) * quantity;
     if (used <= 0) continue;
+    // Book against the stock item for this component when one is tracked, so the
+    // on-hand count actually falls; otherwise an aggregate id that nets nothing.
+    const stockItem = items.find((i) => i.kind === 'hardware' && i.refId === spec.id && !i.archived);
     out.push(makeMovement({
-      itemId: `hardware:${spec.id}`,
+      itemId: stockItem?.id || `hardware:${spec.id}`,
       reason: attempt.failed ? 'scrap' : 'production',
       quantity: -used,
       unitCost: itemPrice(spec, settings.countryId),

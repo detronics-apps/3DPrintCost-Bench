@@ -502,27 +502,30 @@ function productionPanel(ctx, project, result) {
         const next = logEvent(withRun, 'print-recorded',
           `Print recorded for ${part.name} — ${created.accepted} accepted`);
         commit(next);
-        // Stock follows production, and only production.
+        // Stock follows production, and only production. Passing inventory lets
+        // the filament and component draws land on the real stock items (the
+        // spool in use, the tracked component), so their on-hand counts fall.
         const movements = movementsForRun({
-          project: next, part, attempt: created, result: line, settings: state.settings,
+          project: next, part, attempt: created, result: line,
+          settings: state.settings, inventory: state.inventory,
         });
         state.inventory.movements.push(...movements);
         // A resined part draws resin from a bottle in stock, if one is tracked.
-        if (part.needsResin) {
-          const size = part.orientedSize || part.geometry?.size;
-          const resinG = resinGramsForPart(part, size, state.settings) * Math.max(0, num(created.accepted));
-          const bottle = resinItemFor(state.inventory);
-          if (bottle && resinG > 0) {
-            state.inventory.movements.push(makeMovement({
-              itemId: bottle.id,
-              reason: created.failed ? 'scrap' : 'production',
-              quantity: -resinG,
-              projectId: next.id,
-              partId: part.id,
-              runId: created.id,
-              note: `Resin on ${part.name}`,
-            }));
-          }
+        // resinGramsForPart returns 0 unless the resin-coat step is selected, so
+        // the >0 check is the real gate.
+        const size = part.orientedSize || part.geometry?.size;
+        const resinG = resinGramsForPart(part, size, state.settings) * Math.max(0, num(created.accepted));
+        const bottle = resinG > 0 ? resinItemFor(state.inventory) : null;
+        if (bottle && resinG > 0) {
+          state.inventory.movements.push(makeMovement({
+            itemId: bottle.id,
+            reason: created.failed ? 'scrap' : 'production',
+            quantity: -resinG,
+            projectId: next.id,
+            partId: part.id,
+            runId: created.id,
+            note: `Resin on ${part.name}`,
+          }));
         }
         saveSoon();
         toast('Print recorded — correct the actual figures below');

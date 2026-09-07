@@ -71,6 +71,12 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Production really draws down stock** (2026-09-07) — recording a print on a
+  project part now subtracts the filament and each component's quantity from the
+  actual stock items on hand — the spool in use (the emptiest one still with
+  stock), the tracked component, the resin bottle — so the Inventory "On hand"
+  figures fall. Deleting the print puts it all back. (Previously the draw was
+  booked against an aggregate id that never touched the real stock counts.)
 - **Components & post-processing on a project part** (2026-09-07) — the project
   part editor now has the same "Components" (embedded hardware) and
   "Post-processing" choices as the estimate and client form, per part — so you can
@@ -135,6 +141,16 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the skill / developer (the decisions)
 
+- **Production movements resolve to real stock ids** (2026-09-07) —
+  `movementsForRun` now takes an optional `inventory` and resolves each draw to a
+  real stock item id: filament to the chosen `attempt.spoolId`, else the emptiest
+  in-stock spool of that material (`spoolsFor(...)[0]` — finish the near-empty one
+  first); a component to the stock item whose `refId` matches the spec. It falls
+  back to the old aggregate `material:`/`hardware:` ids when no inventory is
+  passed, so the pure tests (which call it without inventory and assert only
+  quantities/reasons) stay green. The caller passes `state.inventory`; the resin
+  draw's gate is `resinGramsForPart(...) > 0`, not the dead `part.needsResin`
+  boolean. `balances` keys strictly on `itemId`, so only a real id nets.
 - **Profile radar from editable ratings** (2026-09-07) — each profile carries a
   `ratings` {speed,cost,strength,precision} 1–5 (higher = better, Cost 5 =
   cheapest), backfilled onto existing installs by the profile field top-up. A
