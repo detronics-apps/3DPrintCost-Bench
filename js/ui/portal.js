@@ -36,6 +36,7 @@ import { fmtMoney, num } from '../money.js';
 import { portalConfig, settingsFromConfig } from '../portal-config.js';
 import { gateMatches, entryPostOps } from '../postprocessing.js';
 import { validateEmail, validatePhone, dialInfoFor } from '../phone.js';
+import { packageFits } from '../shipping.js';
 import { portalRequest } from '../portal-request.js';
 import { makeAddressParts, formatAddress, ADDRESS_TYPES } from '../projects.js';
 import { filamentSlots, mixEditor } from './filament-slots.js';
@@ -767,11 +768,21 @@ function render() {
       + 'each it is in that part above.'),
   ]));
 
+  // Only couriers that can actually carry the parcel (by size) are offered; the
+  // full method specs with their size limits ride in the pricing slice.
+  const parcelDims = result.packaging?.outerDims || null;
+  const fullShipping = config.pricing?.shipping || [];
+  const shipFits = (id) => {
+    const m = fullShipping.find((s) => s.id === id);
+    return !m || !parcelDims || packageFits(m, parcelDims, 0).fits;
+  };
+  const shipOptions = config.shipping.filter((m) => shipFits(m.id) || m.id === state.shippingMethodId);
+
   nodes.push(el('div', { class: 'panel' }, [
     el('h2', { text: 'Delivery' }),
     selectField('portal-shipping', 'How should it reach you?',
       [{ value: 'auto', label: 'Cheapest that fits' },
-        ...config.shipping.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` })),
+        ...shipOptions.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` })),
         { value: 'collect', label: 'I’ll collect it myself (no delivery)' }],
       state.shippingMethodId, (v) => { state.shippingMethodId = v; render(); }),
     state.shippingMethodId === 'collect'

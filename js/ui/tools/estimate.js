@@ -41,7 +41,8 @@ import { INFILL_PATTERNS, FACTOR_LABELS } from '../../profiles.js';
 import { filamentSlots, mixEditor, filamentBreakdown } from '../filament-slots.js';
 import { defaultSlots, reconcileSlots } from '../../filaments.js';
 import { materialStock } from '../../inventory.js';
-import { methodsForCountry } from '../../shipping.js';
+import { methodsForCountry, packageFits } from '../../shipping.js';
+import { containerFits, choosePackaging } from '../../packaging.js';
 import { ESTIMATE_LEVELS } from '../../estimate.js';
 import { DEMAND_TARGETS } from '../../pricing.js';
 import { makeProject, addPart, makePart } from '../../projects.js';
@@ -483,10 +484,33 @@ function orderSection(ctx) {
 
   const methods = methodsForCountry(settings.shipping, settings.countryId);
 
+  // The parcel the couriers and boxes are judged against: the biggest part on
+  // the bed, and how many parts there are. A box or a courier that cannot hold
+  // this is not offered — the app works out what fits instead of listing a
+  // small box that the order would never go in.
+  const parts = quick.parts || [];
+  const unitCount = parts.reduce((t, p) => t + Math.max(1, Math.round(num(p.quantity, 1))), 0);
+  const sizeOf = (p) => p.orientedSize || p.geometry?.size || p.manual || { x: 0, y: 0, z: 0 };
+  const biggest = parts.reduce((best, p) => {
+    const s = sizeOf(p);
+    const v = num(s.x) * num(s.y) * num(s.z);
+    return v > best.v ? { v, size: s } : best;
+  }, { v: 0, size: { x: 50, y: 50, z: 50 } }).size;
+  const parcel = choosePackaging(settings.packaging, {
+    dims: biggest, count: unitCount, countryId: settings.countryId,
+    forcedContainerId: order.packagingContainerId || null,
+    consumables: order.packagingConsumables || null,
+  });
+  const parcelDims = parcel.outerDims;
+  // Couriers that can carry the parcel (by size), plus whatever is currently
+  // chosen so a selection is never silently dropped.
+  const fittingMethods = methods.filter((m) => packageFits(m, parcelDims, 0).fits
+    || m.id === order.shippingMethodId);
+
   const body = [
     selectField('shipping', 'Delivery',
       [{ value: 'auto', label: 'Cheapest that fits (recommended)' },
-        ...methods.map((m) => ({ value: m.id, label: `${m.name} — ${fmtMoney(m.basePrice, settings.currencyCode)}` }))],
+        ...fittingMethods.map((m) => ({ value: m.id, label: `${m.name} — ${fmtMoney(m.basePrice, settings.currencyCode)}` }))],
       order.shippingMethodId, set('shippingMethodId')),
     checkField('collected', 'Customer collects (pickup — no courier)',
       order.packagingCollected, set('packagingCollected'), {
@@ -498,10 +522,17 @@ function orderSection(ctx) {
   ];
 
   if (state.mode !== 'simple') {
+    // Only boxes that actually hold the parts are offered; the current pick is
+    // kept in the list even if the parts changed, so it is never lost silently.
+    const fittingBoxes = settings.packaging.filter((p) => p.kind === 'container'
+      && (containerFits(p, biggest, unitCount) || p.id === order.packagingContainerId));
     body.push(selectField('packaging-container', 'Packaging',
-      [{ value: '', label: 'Choose automatically' },
-        ...settings.packaging.filter((p) => p.kind === 'container').map((p) => ({ value: p.id, label: p.name }))],
+      [{ value: '', label: 'Choose automatically (cheapest that fits)' },
+        ...fittingBoxes.map((p) => ({ value: p.id, label: p.name }))],
       order.packagingContainerId || '', (value) => set('packagingContainerId')(value || null)));
+    if (!fittingBoxes.some((p) => containerFits(p, biggest, unitCount))) {
+      body.push(muted('No box in the catalogue holds this order — add one in Catalogues → Packaging.'));
+    }
     body.push(checkField('insured', 'Insure the shipment', order.insured, set('insured')));
 
     const extras = order.extras.map((extra, index) => el('div', { class: 'row-editor' }, [
