@@ -4,6 +4,16 @@ Things to do later, not yet scheduled. Newest first.
 
 ## Features / ideas
 
+- **Custom filament-roll labels → downloadable PDF (label-printer sizes)** — a
+  company setting turns on making a custom label per roll of filament, each
+  carrying that roll's specific id/code. Let the company choose the label size to
+  match their label printer (a set of common sizes, plus a custom w×h). "Print
+  spool labels" then generates a **downloadable PDF** sized to that label, to send
+  to the label printer (today's spool labels are a browser print sheet — this adds
+  a proper PDF at a chosen size). Allow selecting several rolls and generating
+  **one PDF with all their labels**. Builds on the existing `buildSpoolLabels`
+  sheet and pairs with the per-roll tracking item below (the id/code on the label
+  is the roll's identity). (Raised 2026-09-07.)
 - **Per-roll filament tracking, labelling and guided roll selection** — track each
   physical roll individually, right through to finished, even when several rolls
   are the same supplier + colour (e.g. five rolls of "SA Filaments White PLA").
