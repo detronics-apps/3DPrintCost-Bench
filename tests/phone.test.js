@@ -54,3 +54,14 @@ test('too few or too many digits is rejected', () => {
   assert.equal(validatePhone('012345678901234567', 'ZA').ok, false);
   assert.equal(validatePhone('', 'ZA').ok, false);
 });
+
+test('a wrong national-number length is blocked with the expected count', () => {
+  // ZA national numbers are 9 digits; 7 or 11 are rejected, 9 accepted.
+  assert.equal(validatePhone('082 1234', 'ZA').ok, false, 'too short');
+  assert.equal(validatePhone('082 123 456 789', 'ZA').ok, false, 'too long');
+  assert.match(validatePhone('082 1234', 'ZA').message, /9 digits/);
+  assert.equal(validatePhone('082 123 4567', 'ZA').ok, true, 'exactly nine is fine');
+  // US is 10.
+  assert.equal(validatePhone('555 123 456', 'US').ok, false, 'nine is too short for US');
+  assert.equal(validatePhone('555 123 4567', 'US').ok, true);
+});

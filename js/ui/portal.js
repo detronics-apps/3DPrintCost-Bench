@@ -401,6 +401,17 @@ function customerValidity(config) {
  */
 function goodToKnow() {
   return section('portal-goodtoknow', 'Good to know before you send', [
+    el('h3', { text: 'What the print types balance' }),
+    muted('The “What is it for?” choice on each part tips a balance between four things, and '
+      + 'leaning into one gives a little up on the others: Speed (how quickly and cheaply it comes '
+      + 'off the machine), Cost, Strength (how tough and load-bearing), and Precision (dimensional '
+      + 'accuracy and surface finish). On our ratings a higher score is always better for you — a '
+      + 'Cost of 5 means cheapest, a Cost of 1 the most expensive.'),
+    muted('Roughly: Strength maxes out toughness (more material and time, so slower and pricier); '
+      + 'Function is the solid everyday balance; Visual puts the finish first; and Display only is '
+      + 'the fastest and cheapest, for something that is looked at rather than used. If a part has '
+      + 'to fit or carry a load, say so — tick “must fit another part” above, or pick Strength, so '
+      + 'we do not optimise it for looks or price at the cost of what you actually need.'),
     el('h3', { text: 'Your model file — .stl vs .3mf' }),
     muted('A .3mf file carries your colours and print settings; an .stl is the shape only. If your '
       + 'part is meant to be more than one colour and you send an .stl, we cannot see the colours — '

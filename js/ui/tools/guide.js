@@ -49,6 +49,16 @@ const HOWTOS = [
     'To stock it, open Inventory → “Add hardware”, pick the component, and record a purchase movement.',
     'On a part, open “Components” and add the component with a quantity.',
   ] },
+  { id: 'setup-sync', title: 'Set up team sync with Google Drive (or OneDrive)', category: 'Settings', steps: [
+    'Team sync needs Chrome or Edge on a computer (not a phone or Safari) — it connects the app to a real file.',
+    'Install "Google Drive for desktop" (or OneDrive) so a Drive/OneDrive folder syncs to your computer. Sign in and let it finish syncing.',
+    'In that synced folder, decide on one file for the workshop, e.g. workshop.json — you can create it in the next step.',
+    'In the app open Settings → Team sync and click "Connect a shared file".',
+    'In the file picker, browse into your Google Drive / OneDrive folder and pick workshop.json — or type the name to create it there.',
+    'When the browser asks, allow the app to edit that file. Your work now saves to it automatically.',
+    'To share: have your colleague install the same Drive/OneDrive, let the file sync to their computer, and connect that same workshop.json in their app.',
+    'Best with one person editing at a time. If two people change it, the app shows a conflict banner at the top to resolve — save a backup first if unsure.',
+  ] },
   { id: 'add-postproc', title: 'Add or change a post-processing step', category: 'Settings', steps: [
     'Open Settings → Post-processing.',
     'Edit a step, or click “Add a post-processing step”.',

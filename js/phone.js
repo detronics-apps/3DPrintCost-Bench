@@ -9,12 +9,13 @@
  * dialling code; the form defaults it to the company's own country.
  */
 
-/** Dialling code, national trunk prefix and an example, per country. */
+/** Dialling code, national trunk prefix, example, and the number of digits a
+ *  national number has after the code (`nsn`) so a wrong length is rejected. */
 const DIAL = {
-  ZA: { code: '27', trunk: '0', example: '082 123 4567' },
-  NL: { code: '31', trunk: '0', example: '06 12345678' },
-  CN: { code: '86', trunk: '0', example: '131 2345 6789' },
-  US: { code: '1', trunk: '1', example: '(555) 123-4567' },
+  ZA: { code: '27', trunk: '0', nsn: 9, name: 'South African', example: '082 123 4567' },
+  NL: { code: '31', trunk: '0', nsn: 9, name: 'Dutch', example: '06 12345678' },
+  CN: { code: '86', trunk: '0', nsn: 11, name: 'Chinese', example: '131 2345 6789' },
+  US: { code: '1', trunk: '1', nsn: 10, name: 'US', example: '(555) 123-4567' },
 };
 
 const FALLBACK = { code: '', trunk: '0', example: '' };
@@ -69,7 +70,22 @@ export function validatePhone(value, countryId) {
     digits = info.code + digits;
   }
 
-  if (digits.length < 8 || digits.length > 15) {
+  // Check the length. For a known country the national part (after the dialling
+  // code) must have exactly the right number of digits, so 3 digits or 30 digits
+  // are both rejected clearly; for an unknown country, fall back to a plausible
+  // total range.
+  if (info.nsn) {
+    const national = digits.startsWith(info.code) ? digits.slice(info.code.length) : digits;
+    if (national.length !== info.nsn) {
+      const label = info.name ? `A ${info.name} number` : 'This number';
+      return {
+        ok: false,
+        value: raw,
+        message: `${label} should have ${info.nsn} digits after +${info.code} `
+          + `(you have ${national.length}). For example ${info.example}.`,
+      };
+    }
+  } else if (digits.length < 8 || digits.length > 15) {
     return { ok: false, value: raw, message: 'That does not look like a valid phone number.' };
   }
   return { ok: true, value: `+${digits}`, message: '' };
