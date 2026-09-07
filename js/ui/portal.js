@@ -81,6 +81,9 @@ const state = {
   parts: [makePortalPart()],
   customer: {
     name: '', email: '', phone: '', countryId: null, newsletter: false,
+    // A business can add a VAT number for its invoice; the flag also defaults
+    // the delivery address to a business address (still changeable).
+    isBusiness: false, vatNumber: '',
     notes: '', addressParts: makeAddressParts(),
   },
 };
@@ -305,6 +308,8 @@ function loadClientDetails() {
       c.phone = cust.phone || '';
       c.countryId = cust.countryId || null;
       c.newsletter = !!cust.newsletter;
+      c.isBusiness = !!cust.isBusiness || !!cust.vatNumber;
+      c.vatNumber = cust.vatNumber || '';
       c.notes = cust.notes || '';
       c.addressParts = makeAddressParts(cust.addressParts || {});
       toast('Your details are filled in');
@@ -852,6 +857,21 @@ function render() {
           error: (state.submitAttempted || state.customer.phone) && !valid.phone.ok ? valid.phone.message : null,
         }),
     ].filter(Boolean)),
+
+    checkField('portal-business', 'This is a business (add a VAT number)',
+      state.customer.isBusiness, (v) => {
+        state.customer.isBusiness = v;
+        // Ticking it defaults the address to a business address; they can still
+        // change it back to a home or complex address.
+        if (v && state.customer.addressParts.type !== 'business') {
+          state.customer.addressParts.type = 'business';
+        }
+        render();
+      }, { hint: 'Adds your VAT number to the invoice. The delivery address can still be a home address.' }),
+    state.customer.isBusiness
+      ? validatedInput('portal-vat', 'VAT number', state.customer.vatNumber,
+        (v) => { state.customer.vatNumber = v; render(); })
+      : null,
 
     el('h3', { text: valid.needsAddress ? 'Delivery address' : 'Address (optional)' }),
     addressBlock(),

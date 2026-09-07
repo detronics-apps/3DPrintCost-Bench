@@ -87,6 +87,8 @@ export function portalRequest({
     countryId: customer?.countryId || null,
     // Consent from the form's opt-in — only ever true when the client ticked it.
     newsletter: !!customer?.newsletter,
+    // A business's VAT number, for its invoice.
+    vatNumber: (customer?.vatNumber || '').trim(),
     address: composed,
     ...(addrParts ? { addressParts: addrParts } : {}),
     notes: (customer?.notes || '').trim(),
