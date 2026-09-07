@@ -13,6 +13,11 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the client (the quote form)
 
+- **Print-type radar** (2026-09-07) — each print type shows a four-axis radar
+  (Speed, Cost, Strength, Precision; higher = better, so Cost 5 = cheapest) so you
+  can see at a glance what it trades off before you pick. Six types are available
+  (Extra Strong, Strength, Fit, Function, Visual, Display Only) — the company
+  chooses which to offer.
 - **What the print types balance** (2026-09-07) — the "Good to know" panel now
   explains the four things a print trades off (Speed, Cost, Strength, Precision;
   higher is better for you, so a Cost of 5 = cheapest) and roughly where each
@@ -112,6 +117,12 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the skill / developer (the decisions)
 
+- **Profile radar from editable ratings** (2026-09-07) — each profile carries a
+  `ratings` {speed,cost,strength,precision} 1–5 (higher = better, Cost 5 =
+  cheapest), backfilled onto existing installs by the profile field top-up. A
+  pure `radarChart` SVG (svg/radar.js) renders the diamond; the portal shows the
+  selected profile's, Settings → Print profiles edits the four with a live
+  preview. Which profiles a client sees stays the existing allowedProfiles ticks.
 - **Onboarding import, four separate & unconnected** (2026-09-07) — pure
   `csv.js` (parse) + `imports.js` (four importers returning what to add + errors,
   no mutation); the UI applies. Clients dedup by email/phone; hardware books an

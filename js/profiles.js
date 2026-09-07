@@ -127,9 +127,23 @@ export const FACTOR_LABELS = {
 
 /* --------------------------------------------------------------- profiles -- */
 
-const profile = (id, name, blurb, settings) => ({
-  id, name, blurb, version: 1, builtIn: true, settings,
+const profile = (id, name, blurb, settings, ratings) => ({
+  id, name, blurb, version: 1, builtIn: true, settings, ratings,
 });
+
+/**
+ * How each profile scores on the four things a print trades off, 1–5, where a
+ * HIGHER score is always better for the customer — so a Cost of 5 is the cheapest
+ * and a Cost of 1 the most expensive. These drive the radar the client sees; the
+ * company can retune them in Settings → Print profiles.
+ */
+export const RATING_AXES = [
+  { id: 'speed', name: 'Speed' },
+  { id: 'cost', name: 'Cost' },
+  { id: 'strength', name: 'Strength' },
+  { id: 'precision', name: 'Precision' },
+];
+export const DEFAULT_RATINGS = { speed: 3, cost: 3, strength: 3, precision: 3 };
 
 /** The six shipped profiles, with the values the specification gives. */
 export const DEFAULT_PROFILES = [
@@ -146,7 +160,7 @@ export const DEFAULT_PROFILES = [
       ironing: false,
       fuzzySkin: false,
       layerHeight: 0.2,
-    }),
+    }, { speed: 2, cost: 2, strength: 5, precision: 3 }),
   profile('strength', 'Strength',
     'Structural parts in ordinary PLA. Most of the strength of Extra Strong for '
     + 'a little over half the machine time.', {
@@ -160,7 +174,7 @@ export const DEFAULT_PROFILES = [
       ironing: false,
       fuzzySkin: false,
       layerHeight: 0.2,
-    }),
+    }, { speed: 3, cost: 3, strength: 4, precision: 3 }),
   profile('fit', 'Fit',
     'Dimensional accuracy first. Shrinkage compensation on, everything else left '
     + 'alone so the part measures what the model says.', {
@@ -174,7 +188,7 @@ export const DEFAULT_PROFILES = [
       ironing: false,
       fuzzySkin: false,
       layerHeight: 0.2,
-    }),
+    }, { speed: 4, cost: 3, strength: 2, precision: 5 }),
   profile('function', 'Function',
     'The everyday working part: PETG, moderate infill, three walls. Tougher and '
     + 'more heat-tolerant than PLA without the Strength profile cost.', {
@@ -188,7 +202,7 @@ export const DEFAULT_PROFILES = [
       ironing: false,
       fuzzySkin: false,
       layerHeight: 0.2,
-    }),
+    }, { speed: 3, cost: 3, strength: 3, precision: 3 }),
   profile('visual', 'Visual',
     'Surface finish first. Ironing and fuzzy skin cost time but almost no '
     + 'material: this profile is cheap in grams and expensive in hours.', {
@@ -202,7 +216,7 @@ export const DEFAULT_PROFILES = [
       ironing: true,
       fuzzySkin: true,
       layerHeight: 0.15,
-    }),
+    }, { speed: 2, cost: 4, strength: 2, precision: 4 }),
   profile('display', 'Display Only',
     'The baseline every factor is measured against. Nothing enabled, nothing '
     + 'optimised: a shape to look at.', {
@@ -216,7 +230,7 @@ export const DEFAULT_PROFILES = [
       ironing: false,
       fuzzySkin: false,
       layerHeight: 0.2,
-    }),
+    }, { speed: 5, cost: 5, strength: 1, precision: 2 }),
 ];
 
 /**

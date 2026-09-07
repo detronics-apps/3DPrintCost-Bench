@@ -70,7 +70,7 @@ export function portalConfig(settings, { internal = false } = {}) {
     quoteValidityDays: Math.max(1, Math.round(num(settings.company.quoteValidityDays, 30))),
     profiles: settings.profiles
       .filter((p) => portal.allowedProfiles.includes(p.id))
-      .map((p) => ({ id: p.id, name: p.name, blurb: p.blurb })),
+      .map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, ratings: p.ratings })),
     printers: allowed(settings.printers, portal.allowedPrinters)
       .map((p) => ({ id: p.id, name: p.name })),
     // The machine the form opens on: the company default when it is offered,

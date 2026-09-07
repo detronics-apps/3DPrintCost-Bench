@@ -37,6 +37,7 @@ import { portalConfig, settingsFromConfig } from '../portal-config.js';
 import { gateMatches, entryPostOps } from '../postprocessing.js';
 import { validateEmail, validatePhone, dialInfoFor, formatPhone } from '../phone.js';
 import { packageFits } from '../shipping.js';
+import { radarChart } from './svg/radar.js';
 import { portalRequest } from '../portal-request.js';
 import { makeAddressParts, formatAddress, ADDRESS_TYPES } from '../projects.js';
 import { filamentSlots, mixEditor } from './filament-slots.js';
@@ -559,6 +560,12 @@ function partPanel(ctx, part, index, line) {
       config.profiles.map((p) => ({ value: p.id, label: p.name, title: p.blurb })),
       part.profileId, (v) => { part.profileId = v; render(); }),
     muted(config.profiles.find((p) => p.id === part.profileId)?.blurb || ''),
+    (() => {
+      const chosen = config.profiles.find((p) => p.id === part.profileId);
+      return chosen?.ratings
+        ? el('div', { class: 'radar' }, [radarChart(chosen.ratings, { size: 190 })])
+        : null;
+    })(),
 
     checkField(`portal-mustfit-${part.id}`, 'This part must fit or mate with another part',
       part.mustFit, (v) => { part.mustFit = v; render(); }, {

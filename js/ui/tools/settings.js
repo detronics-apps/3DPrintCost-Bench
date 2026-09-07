@@ -24,7 +24,11 @@ import {
 import {
   DEMAND_TARGETS, CHARGE_MODES, DEFAULT_ALLOCATIONS, LABOUR_PLACEMENTS, thirdsPrice,
 } from '../../pricing.js';
-import { INFILL_PATTERNS, FACTOR_LABELS, FACTOR_ORDER, PUBLISHED_FACTORS, factorsFor } from '../../profiles.js';
+import {
+  INFILL_PATTERNS, FACTOR_LABELS, FACTOR_ORDER, PUBLISHED_FACTORS, factorsFor,
+  RATING_AXES, DEFAULT_RATINGS,
+} from '../../profiles.js';
+import { radarChart } from '../svg/radar.js';
 import { DEFAULT_ESTIMATE_ASSUMPTIONS } from '../../estimate.js';
 import { applyCountry, applyPreset, defaultSettings } from '../../settings.js';
 import { makeId } from '../../projects.js';
@@ -561,6 +565,13 @@ function profilesPanel(ctx) {
     selected.version = num(selected.version, 1) + 1;
     touch(rerender);
   };
+  const setRating = (key) => (value) => {
+    selected.ratings = {
+      ...(selected.ratings || DEFAULT_RATINGS),
+      [key]: Math.max(1, Math.min(5, Math.round(num(value, 3)))),
+    };
+    touch(rerender);
+  };
 
   return [
     el('div', { class: 'panel' }, [
@@ -568,6 +579,16 @@ function profilesPanel(ctx) {
       chips('profile-pick', settings.profiles.map((p) => ({ value: p.id, label: p.name })),
         selected.id, (v) => { state.ui.selectedProfile = v; touch(rerender); }),
       muted(selected.blurb),
+
+      subsection('How it scores for the client (radar)', [
+        muted('1–5, where higher is always better for the customer — so a Cost of 5 is the '
+          + 'cheapest. This is the picture the client sees against each print type on the quote form.'),
+        el('div', { class: 'radar' }, [radarChart(selected.ratings || DEFAULT_RATINGS, { size: 200 })]),
+        el('div', { class: 'field-grid' }, RATING_AXES.map((a) => sliderField(
+          `p-rating-${a.id}`, a.name, (selected.ratings || DEFAULT_RATINGS)[a.id], setRating(a.id),
+          { min: 1, max: 5, step: 1, format: (v) => String(v) },
+        ))),
+      ]),
       el('div', { class: 'field-grid' }, [
         sliderField('p-infill', FACTOR_LABELS.infill, selected.settings.infill, set('infill'),
           { min: 0, max: 100, step: 1, format: (v) => `${v}%` }),

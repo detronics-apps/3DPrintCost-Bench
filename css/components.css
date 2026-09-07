@@ -253,6 +253,10 @@
   background: var(--ok-soft);
   box-shadow: 0 0 0 2px var(--ok) inset;
 }
+
+/* The print-type radar (portal picker and profile settings). */
+.radar { display: flex; justify-content: center; padding: var(--space-2) 0; }
+.radar svg { width: 100%; max-width: 210px; height: auto; }
 .field__req { color: var(--danger); font-weight: 700; }
 
 /* The client's confirm-before-send summary. */
