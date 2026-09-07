@@ -71,6 +71,15 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Multi-colour printer history import** (2026-09-07) — the "Printer history
+  (prior runs)" CSV import now has a "Printer for the sample" picker. A
+  single-colour machine gets the old one-Grams-column template; a multi-head
+  machine (Snapmaker U1, Bambu X1E — four heads each, from the printer's
+  `colourSlots`) gets a grams and a colour column per head, with the printer's
+  name filled in. The importer sums the heads into the run's total grams (which is
+  what a machine's lifetime counts) and keeps the per-head detail; a single Grams
+  column still imports unchanged. Colour is recorded, not costed — prior runs feed
+  only machine lifetime, not stock or a customer.
 - **Nothing is lost pushing an estimate to a project** (2026-09-07) — "Save this
   bed as a project" now carries every per-part choice the estimator holds: the
   fit-critical flag, colour-by-Z bands, a manual parts-per-plate count, an extra
@@ -156,6 +165,18 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the skill / developer (the decisions)
 
+- **Per-head history via colourSlots, summed to a total** (2026-09-07) —
+  `importPrintRuns` now takes `materials` and auto-detects `Head N grams`/`Head N
+  colour` columns (regex on the header, tolerant of spellings), summing head grams
+  into the run's total `grams` so `machineHistory` (which reads only total grams +
+  minutes) is untouched; per-head `{grams,colour,materialId}` is kept as optional
+  `heads` detail, colour matched to a material where possible but the label always
+  preserved. `printRunTemplate(printer)` shapes the sample from the printer's
+  `colourSlots` (loaded-at-once heads: 4 for Snapmaker U1 and Bambu X1E) — not
+  `maxColours` (16 for the X1E, which counts manual swaps). Colour is descriptive,
+  not costed: prior runs are machine-lifetime only, tied to no stock or customer.
+  The UI picks the printer via `state.ui.importPrinterId` (defaults to the default
+  printer).
 - **Import mappers must be field-complete** (2026-09-07) — a part has one canonical
   shape (`makePart`), so any mapper that builds a project part from another source
   must copy every field or it silently drops data. The estimate→project mapper

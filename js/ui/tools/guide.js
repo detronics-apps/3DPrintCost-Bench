@@ -165,6 +165,14 @@ const FAQS = [
       + 'one) and set Order type to “For an employee” (cost, still quoted and paid) or “For the company” (cost, an '
       + 'expense, straight to production). Every part imported from an estimate or a client request keeps all its '
       + 'data and stays fully editable in the project — nothing is lost by pushing it across.' },
+  { q: 'How do I import a multi-colour printer’s history (grams per head)?',
+    a: 'In Settings → Backup & restore → Import from a spreadsheet, at “Printer history”, pick the '
+      + 'printer first. A single-colour machine’s sample has one Grams column; a multi-head machine '
+      + '(the Snapmaker U1 or Bambu X1E, four heads each) gets a grams and a colour column per head. '
+      + 'Fill in the total print time (Minutes or Hours) and each head’s grams and colour; the app '
+      + 'sums the heads into the run’s total. Prior runs only add to the machine’s lifetime hours and '
+      + 'grams — they are not tied to any customer or to stock — so the per-head colour is kept on the '
+      + 'record but not costed.' },
   { q: 'With team sync on, do I still need to press “Save all”?',
     a: 'Not for routine work. When team sync is connected the whole workshop is written to the shared file '
       + 'automatically on every change (and it is conflict-aware), so there is nothing to remember to save. '
