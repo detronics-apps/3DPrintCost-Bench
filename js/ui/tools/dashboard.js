@@ -213,7 +213,9 @@ export function main(ctx) {
   /* --- has the machine paid for itself? --------------------------------- */
 
   const invoices = state.projects.flatMap((p) => p.invoices || []);
-  const roi = returnsOnMachines({ printers: settings.printers, projects: state.projects, invoices });
+  const roi = returnsOnMachines({
+    printers: settings.printers, projects: state.projects, invoices, priorRuns: state.priorRuns,
+  });
   const pool = surplusPool(roi);
 
   nodes.push(el('div', { class: 'panel' }, [

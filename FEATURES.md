@@ -56,6 +56,14 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Import what you already had (CSV)** (2026-09-07) — Settings → Backup &
+  restore → "Import from a spreadsheet". Four separate, additive imports so you
+  start from where the workshop is, not a blank slate: existing clients (so you
+  don't re-type returning customers, matched by email/phone), hardware on hand
+  and rolls of filament on hand (opening stock you can supply immediately), and a
+  printer's prior print history (minutes/hours + grams, so its lifetime counts
+  what it did before the app — not tied to any customer). Each has a one-click
+  sample CSV, only adds, and reports rows it couldn't read by line number.
 - **Fit-critical flag on imports** (2026-09-07) — when a client marks a part as
   having to fit another, the imported project carries a "FIT-CRITICAL" note to
   hold the critical dimensions and check for a dimensioned drawing. Two guide FAQs
@@ -91,6 +99,15 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the skill / developer (the decisions)
 
+- **Onboarding import, four separate & unconnected** (2026-09-07) — pure
+  `csv.js` (parse) + `imports.js` (four importers returning what to add + errors,
+  no mutation); the UI applies. Clients dedup by email/phone; hardware books an
+  opening 'purchase' movement against a matched stock item; filament is a spool
+  per row (startingG = opening balance); print history is prior runs
+  {printerId,minutes,grams,at} folded into `machineHistory(projects, priorRuns)`
+  so a machine's hours/lifetime count pre-app work — deliberately NOT modelled as
+  customer-linked projects. `state.priorRuns` added + migrated. See the
+  detronics-app skill's onboarding pattern (`references/product-patterns.md`).
 - **Fit as a flag, not a new profile** (2026-09-07) — "must fit another part" is a
   per-part boolean (`mustFit`), not a new print profile, so it needs no pricing
   model; it drives a client note, a confirm-summary warning and a FIT-CRITICAL

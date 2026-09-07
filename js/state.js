@@ -134,6 +134,9 @@ export function defaultState() {
     projects: [],
     customers: [],
     inventory: { items: [], movements: [] },
+    // A printer's print history from before the app: prior runs {printerId,
+    // minutes, grams, at} imported by CSV, so a machine's lifetime counts them.
+    priorRuns: [],
     activeProjectId: null,
     activePartId: null,
     activeDocumentId: null,
@@ -181,6 +184,7 @@ export function migrateState(stored) {
       items: Array.isArray(stored.inventory?.items) ? stored.inventory.items : [],
       movements: Array.isArray(stored.inventory?.movements) ? stored.inventory.movements : [],
     },
+    priorRuns: Array.isArray(stored.priorRuns) ? stored.priorRuns : [],
     activeProjectId: stored.activeProjectId ?? null,
     activePartId: stored.activePartId ?? null,
     activeDocumentId: stored.activeDocumentId ?? null,

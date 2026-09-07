@@ -28,6 +28,10 @@ import { INFILL_PATTERNS, FACTOR_LABELS, FACTOR_ORDER, PUBLISHED_FACTORS, factor
 import { DEFAULT_ESTIMATE_ASSUMPTIONS } from '../../estimate.js';
 import { applyCountry, applyPreset, defaultSettings } from '../../settings.js';
 import { makeId } from '../../projects.js';
+import { parseCsv, toCsv } from '../../csv.js';
+import {
+  importClients, importHardwareStock, importFilamentStock, importPrintRuns, SAMPLE_TEMPLATES,
+} from '../../imports.js';
 import {
   state, saveSoon, exportAll, restoreFromFile,
 } from '../../state.js';
@@ -1086,7 +1090,109 @@ function backupPanel(ctx) {
         + 'Google Drive or OneDrive file as you work — a backup that is always current, and that any '
         + 'future version of the app can open.'),
     ]),
+    importCsvPanel(ctx),
   ];
+}
+
+/** The four CSV importers for data that existed before the app was adopted. */
+function importCsvPanel(ctx) {
+  const { rerender } = ctx;
+  const settings = state.settings;
+
+  // Each importer: read the CSV, hand the rows to the pure importer with the
+  // current catalogue/state it needs, apply the result, and report.
+  const IMPORTS = [
+    {
+      key: 'clients', title: 'Existing clients',
+      hint: 'So you do not re-type a returning customer. Columns: First name, Surname, Email, '
+        + 'Phone, VAT number, Address, Notes. Matched by email or phone — importing twice is safe.',
+      run: (rows) => {
+        const res = importClients(rows, state.customers);
+        state.customers.push(...res.added);
+        return { report: `${res.added.length} added, ${res.matched} already known`, errors: res.errors };
+      },
+    },
+    {
+      key: 'hardware', title: 'Hardware on hand',
+      hint: 'What you can supply immediately. Columns: Hardware (name or id from Catalogues → '
+        + 'Hardware), Quantity. Booked in as an opening balance.',
+      run: (rows) => {
+        const res = importHardwareStock(rows, settings.hardware, state.inventory.items);
+        state.inventory.items.push(...res.items);
+        state.inventory.movements.push(...res.movements);
+        return { report: `${res.matched} line${res.matched === 1 ? '' : 's'} booked in`, errors: res.errors };
+      },
+    },
+    {
+      key: 'filament', title: 'Rolls of filament on hand',
+      hint: 'Your spools. Columns: Material (name, "Colour Name", or id), Grams, Batch, Location. '
+        + 'Each row is one spool with its remaining grams as the opening balance.',
+      run: (rows) => {
+        const res = importFilamentStock(rows, settings.materials);
+        state.inventory.items.push(...res.items);
+        return { report: `${res.added} spool${res.added === 1 ? '' : 's'} added`, errors: res.errors };
+      },
+    },
+    {
+      key: 'prints', title: 'Printer history (prior runs)',
+      hint: 'Prints already done on the machine, so its lifetime counts them — not tied to any '
+        + 'customer. Columns: Printer (name or id), Minutes (or Hours), Grams, Date.',
+      run: (rows) => {
+        const res = importPrintRuns(rows, settings.printers);
+        state.priorRuns.push(...res.runs);
+        return { report: `${res.added} run${res.added === 1 ? '' : 's'} added`, errors: res.errors };
+      },
+    },
+  ];
+
+  const rows = IMPORTS.map((imp) => {
+    const input = el('input', {
+      type: 'file', accept: '.csv,text/csv', class: 'visually-hidden',
+      'data-field': `import-${imp.key}`,
+      on: {
+        change: async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          try {
+            const { rows: parsed } = parseCsv(await file.text());
+            if (!parsed.length) { toast('That file has no rows under its header'); return; }
+            const { report, errors } = imp.run(parsed);
+            saveSoon();
+            const tail = errors.length
+              ? ` · ${errors.length} row${errors.length === 1 ? '' : 's'} skipped (line ${errors[0].line}: ${errors[0].msg})`
+              : '';
+            toast(`${imp.title}: ${report}${tail}`);
+            rerender();
+          } catch {
+            toast('Could not read that CSV');
+          }
+        },
+      },
+    });
+    return el('div', { class: 'row-editor row-editor--stacked' }, [
+      el('div', { class: 'row-editor__head' }, [
+        el('strong', { text: imp.title }),
+        buttonRow([
+          button('Sample CSV', () => {
+            const t = SAMPLE_TEMPLATES[imp.key];
+            download(new Blob([toCsv(t.headers, [t.sample])], { type: 'text/csv' }), `${imp.key}-template.csv`);
+          }, { key: `import-sample-${imp.key}` }),
+          button('Import a CSV…', () => input.click(), { key: `import-go-${imp.key}`, primary: true }),
+        ]),
+      ]),
+      muted(imp.hint),
+      input,
+    ]);
+  });
+
+  return el('div', { class: 'panel' }, [
+    el('h3', { text: 'Import from a spreadsheet (CSV)' }),
+    muted('Bring in what the workshop already had before this app — so you start from where you '
+      + 'are, not from a blank slate. Each import is separate and only adds; it never replaces. '
+      + 'Download a sample to see the exact columns.'),
+    ...rows,
+  ]);
 }
 
 /**
