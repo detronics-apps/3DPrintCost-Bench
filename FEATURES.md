@@ -71,6 +71,10 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Deactivate a printer** (2026-09-07) — a printer can be marked "under
+  maintenance" in Catalogues → Printers; it then disappears from the printer
+  choices in the estimator, project parts and the client form, while any estimate
+  or project already using it keeps working. Distinct from Archive (retiring it).
 - **Mass update & delete in Catalogues** (2026-09-07) — Materials, Shipping,
   Packaging, Hardware and Customers each have "Update or delete many at once":
   tick rows, pick a setting (price, days, weight, category, discount…) and apply

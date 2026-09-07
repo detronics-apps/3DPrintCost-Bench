@@ -447,7 +447,8 @@ function machineSection(ctx) {
 
   const body = [
     selectField('printer', 'Printer',
-      settings.printers.filter((p) => !p.archived).map((p) => ({ value: p.id, label: p.name })),
+      settings.printers.filter((p) => !p.archived && (p.active !== false || p.id === quick.printerId))
+        .map((p) => ({ value: p.id, label: p.name + (p.active === false ? ' (under maintenance)' : '') })),
       quick.printerId, (value) => { quick.printerId = value; saveSoon(); rerender(); }),
 
     ...filamentSlots({

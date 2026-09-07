@@ -261,8 +261,18 @@ function printerEditor(ctx) {
 
   return [
     selectField('printer-pick', 'Printer',
-      settings.printers.map((p) => ({ value: p.id, label: p.name + (p.archived ? ' (archived)' : '') })),
+      settings.printers.map((p) => ({
+        value: p.id,
+        label: p.name + (p.archived ? ' (archived)' : (p.active === false ? ' (under maintenance)' : '')),
+      })),
       selected.id, (v) => { state.ui.selectedPrinter = v; touch(rerender); }),
+
+    checkField('printer-active',
+      selected.active === false ? 'Under maintenance — not selectable for new work' : 'Available for new work',
+      selected.active !== false, (v) => { selected.active = v; touch(rerender); }, {
+        hint: 'Turn off while the machine is down. It stays on estimates and projects that already '
+          + 'use it, but is not offered for new ones — in the estimator or the client form.',
+      }),
 
     section('printer-economics', 'Machine economics', [
       muted('The machine-hour cost falls out of these six numbers. Nothing else decides it.'),
