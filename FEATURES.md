@@ -71,6 +71,11 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Components & post-processing on a project part** (2026-09-07) — the project
+  part editor now has the same "Components" (embedded hardware) and
+  "Post-processing" choices as the estimate and client form, per part — so you can
+  add or change a magnet/insert/NFC tag (and its finishing) on a project directly,
+  not only when it came in from an estimate.
 - **Deactivate a printer** (2026-09-07) — a printer can be marked "under
   maintenance" in Catalogues → Printers; it then disappears from the printer
   choices in the estimator, project parts and the client form, while any estimate

@@ -33,6 +33,7 @@ import {
 import {
   makeQuote, invoiceFromQuote, recordPayment, agreeTotal, lockedPricing,
 } from '../../documents.js';
+import { gateMatches, entryPostOps } from '../../postprocessing.js';
 import {
   movementsForRun, materialStock, resinStock, resinGramsForPart, resinItemFor, makeMovement,
 } from '../../inventory.js';
@@ -754,6 +755,99 @@ function slicerFigures(part, liveSlots, settings, set) {
   });
 }
 
+/** The embedded components on one project part — add, change quantity, remove. */
+function partComponents(part, settings, set) {
+  const catalogue = settings.hardware.filter((h) => !h.archived);
+  if (!catalogue.length) return null;
+  const hardware = Array.isArray(part.hardware) ? part.hardware : [];
+  // An after-print component is fitted by default; the operator can untick it.
+  const defaultFit = (entry) => {
+    const spec = catalogue.find((h) => h.id === entry.hardwareId);
+    if (spec && spec.stage === 'after' && !('ops' in entry) && entry.fit === undefined) {
+      entry.ops = { fit: true };
+    }
+    return entry;
+  };
+
+  const rows = hardware.map((entry, hi) => el('div', { class: 'row-editor' }, [
+    selectField(`part-hw-${part.id}-${hi}`, 'Component',
+      catalogue.map((h) => ({ value: h.id, label: h.name })),
+      entry.hardwareId || catalogue[0].id, (v) => {
+        const next = hardware.map((e, i) => (i === hi ? { ...e, hardwareId: v } : e));
+        defaultFit(next[hi]);
+        set({ hardware: next });
+      }),
+    numberField(`part-hwqty-${part.id}-${hi}`, 'Per part', entry.qty ?? 1,
+      (v) => set({ hardware: hardware.map((e, i) => (i === hi ? { ...e, qty: Math.max(0, Math.round(num(v, 1))) } : e)) }),
+      { min: 0, step: 1 }),
+    button('Remove', () => set({ hardware: hardware.filter((_, i) => i !== hi) }),
+      { key: `part-hwrm-${part.id}-${hi}`, danger: true }),
+  ]));
+
+  return subsection('Components', [
+    hardware.length
+      ? el('div', {}, rows)
+      : muted('Magnets, nuts, inserts and NFC tags fitted during or after the print.'),
+    buttonRow([button('Add a component', () => {
+      set({ hardware: [...hardware, defaultFit({ hardwareId: catalogue[0].id, qty: 1 })] });
+    }, { key: `part-hwadd-${part.id}` })]),
+  ]);
+}
+
+/** Post-processing on one project part, read from the configurable operations. */
+function partPostProcessing(part, settings, set) {
+  const ops = settings.postProcessing?.ops || [];
+  const catalogue = settings.hardware;
+  const specOf = (e) => catalogue.find((h) => h.id === e.hardwareId);
+  const hardware = Array.isArray(part.hardware) ? part.hardware : [];
+  const matchesFor = (gate) => hardware
+    .map((e, i) => ({ e, i, spec: specOf(e) }))
+    .filter(({ e, spec }) => spec && num(e.qty, 1) > 0 && gateMatches(gate, spec));
+
+  const setWhole = (opId, on) => {
+    const m = { ...(part.postProcessing || {}) };
+    if (on) m[opId] = true; else delete m[opId];
+    set({ postProcessing: m });
+  };
+  const setComponent = (idx, opId, on) => {
+    set({
+      hardware: hardware.map((e, i) => {
+        if (i !== idx) return e;
+        const map = { ...(e.ops || {}) };
+        if (on) map[opId] = true; else delete map[opId];
+        const { fit, ...rest } = e;
+        return { ...rest, ops: map };
+      }),
+    });
+  };
+
+  const body = [];
+  for (const op of ops) {
+    if (op.archived) continue;
+    const gate = op.gate || { kind: 'always' };
+    const matches = matchesFor(gate);
+    if (op.perComponent) {
+      for (const { e, i, spec } of matches) {
+        const on = entryPostOps(e)[op.id] === true;
+        body.push(checkField(`part-pp-${op.id}-${part.id}-${i}`, `${op.name} the ${spec.name.toLowerCase()}`,
+          on, (v) => setComponent(i, op.id, v), {
+            hint: on ? 'Assembled onto the part before it ships.' : 'Otherwise it ships loose in the box.',
+          }));
+      }
+      continue;
+    }
+    if (gate.kind && gate.kind !== 'always' && matches.length === 0) continue;
+    const on = (part.postProcessing || {})[op.id] === true;
+    body.push(checkField(`part-pp-${op.id}-${part.id}`, op.name, on, (v) => setWhole(op.id, v), { hint: op.hint }));
+    if (gate.kind === 'nfc' && on) {
+      body.push(textField(`part-nfc-url-${part.id}`, 'Link to code onto the tag', part.nfcUrl || '',
+        (v) => set({ nfcUrl: v }), { placeholder: 'https://…' }));
+    }
+  }
+  if (!body.length) body.push(muted('Nothing to finish — this part ships straight off the printer.'));
+  return section(`part-pp-${part.id}`, 'Post-processing', body, { open: false });
+}
+
 function partSidebar(ctx, project, part) {
   const { rerender } = ctx;
   const settings = state.settings;
@@ -790,6 +884,12 @@ function partSidebar(ctx, project, part) {
       },
     },
   });
+
+  // Components (embedded hardware) and post-processing, per part — the same
+  // choices the estimate and the client form offer, so hardware can be added or
+  // changed on a project directly, not only when it came in from an estimate.
+  const componentsSection = partComponents(part, settings, set);
+  const postProcessSection = partPostProcessing(part, settings, set);
 
   return section('part', `Part — ${part.name}`, [
     textField('part-name', 'Name', part.name, (v) => set({ name: v })),
@@ -833,6 +933,9 @@ function partSidebar(ctx, project, part) {
       partName: part.name,
       onMix: (next) => set({ mix: next }),
     }),
+
+    componentsSection,
+    postProcessSection,
 
     subsection('Model', [
       part.geometry
