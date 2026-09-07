@@ -100,6 +100,121 @@ function deleteEntry({
   toast('Deleted');
 }
 
+/* -------------------------------------------------------- mass operations -- */
+
+/** A tick column for a catalogue table, backed by state.ui[selectionKey]. */
+function selectionColumn(selectionKey, ctx) {
+  const { rerender } = ctx;
+  const chosen = new Set(state.ui[selectionKey] || []);
+  return {
+    label: '',
+    get: (x) => checkField(`${selectionKey}-${x.id}`, '', chosen.has(x.id), () => {
+      const next = new Set(state.ui[selectionKey] || []);
+      if (next.has(x.id)) next.delete(x.id); else next.add(x.id);
+      state.ui[selectionKey] = [...next];
+      touch(rerender);
+    }),
+  };
+}
+
+/**
+ * "Update or delete many at once": tick rows in the table, then set one field
+ * across all of them or delete them together. `fields` is [{ id, label, kind,
+ * options?, suffix?, apply(item, value) }]; `remove(ids)` does the deletion.
+ */
+function massOps(ctx, {
+  collection, selectionKey, live, fields, code, remove, quickSelect = [],
+}) {
+  const { rerender } = ctx;
+  const chosen = new Set((state.ui[selectionKey] || []).filter((id) => live.some((x) => x.id === id)));
+  const setChosen = (s) => { state.ui[selectionKey] = [...s]; touch(rerender); };
+  const addIds = (ids) => { const s = new Set(chosen); for (const id of ids) s.add(id); setChosen(s); };
+  const allOn = live.length > 0 && live.every((x) => chosen.has(x.id));
+
+  const fieldId = (state.ui.massField || {})[collection] || fields[0].id;
+  const field = fields.find((f) => f.id === fieldId) || fields[0];
+  const value = state.ui.massValue;
+
+  let valueInput;
+  if (field.kind === 'select') {
+    valueInput = selectField(`mass-value-${collection}`, 'New value', field.options,
+      value ?? field.options[0].value, (v) => { state.ui.massValue = v; touch(rerender); });
+  } else if (field.kind === 'text') {
+    valueInput = textField(`mass-value-${collection}`, 'New value', value ?? '',
+      (v) => { state.ui.massValue = v; touch(rerender); });
+  } else {
+    valueInput = numberField(`mass-value-${collection}`, 'New value', value ?? '',
+      (v) => { state.ui.massValue = num(v); touch(rerender); }, {
+        min: 0, step: field.kind === 'money' ? 0.01 : 1,
+        suffix: field.suffix || (field.kind === 'money' ? code : ''),
+      });
+  }
+
+  return subsection('Update or delete many at once', [
+    muted('Tick items in the table above, then set one field across all of them, or delete them '
+      + 'together. Delete skips anything a project has used — archive those instead.'),
+    buttonRow([
+      button(allOn ? 'Unselect all' : 'Select all',
+        () => setChosen(allOn ? new Set() : new Set(live.map((x) => x.id))),
+        { key: `mass-all-${collection}` }),
+      ...quickSelect.map((q) => button(q.label, () => addIds(q.ids), { key: `mass-qs-${collection}-${q.label}` })),
+      chosen.size ? button('Clear', () => setChosen(new Set()), { key: `mass-clear-${collection}` }) : null,
+      muted(`${chosen.size} selected`),
+    ].filter(Boolean)),
+    el('div', { class: 'field-grid' }, [
+      selectField(`mass-field-${collection}`, 'Setting to update',
+        fields.map((f) => ({ value: f.id, label: f.label })), field.id,
+        (v) => {
+          state.ui.massField = { ...(state.ui.massField || {}), [collection]: v };
+          state.ui.massValue = undefined;
+          touch(rerender);
+        }),
+      valueInput,
+    ]),
+    buttonRow([
+      button(`Apply to ${chosen.size} selected`, () => {
+        let n = 0;
+        for (const x of live) if (chosen.has(x.id)) { field.apply(x, state.ui.massValue); n += 1; }
+        touch(rerender);
+        toast(`Updated ${n} item${n === 1 ? '' : 's'}`);
+      }, { primary: true, key: `mass-apply-${collection}`, disabled: chosen.size === 0 }),
+      button(`Delete ${chosen.size} selected`, () => {
+        if (!chosen.size) return;
+        if (!window.confirm(`Delete ${chosen.size} selected item${chosen.size === 1 ? '' : 's'} for good? `
+          + 'This cannot be undone. Anything a project has used is skipped — archive those instead.')) return;
+        remove([...chosen]);
+      }, { danger: true, key: `mass-delete-${collection}`, disabled: chosen.size === 0 }),
+    ]),
+  ]);
+}
+
+/** Delete many entries, with the same guards as a single delete. `tombstone`
+ *  records shipped-default ids as removed (settings catalogues); `keepOne`
+ *  refuses to empty the list (catalogues need one, customers can go to zero). */
+function massDeleteCatalogue({
+  collection, list, ids, selectKey, rerender, tombstone = true, keepOne = true,
+}) {
+  const used = (id) => JSON.stringify(state.projects).includes(`"${id}"`);
+  let deleted = 0;
+  let skipped = 0;
+  for (const id of ids) {
+    if (keepOne && list.filter((x) => !x.archived).length <= 1) break; // never remove the last one
+    if (used(id)) { skipped += 1; continue; }
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx < 0) continue;
+    list.splice(idx, 1);
+    if (tombstone) {
+      const removed = state.settings.removed || (state.settings.removed = {});
+      removed[collection] = [...new Set([...(removed[collection] || []), id])];
+    }
+    deleted += 1;
+  }
+  state.ui[`sel-${collection}`] = [];
+  if (selectKey) state.ui[selectKey] = list.find((x) => !x.archived)?.id || list[0]?.id || null;
+  touch(rerender);
+  toast(`Deleted ${deleted}${skipped ? `, skipped ${skipped} in use — archive those` : ''}`);
+}
+
 /* ------------------------------------------------------------- printers -- */
 
 function printersPanel(ctx) {
@@ -146,8 +261,18 @@ function printerEditor(ctx) {
 
   return [
     selectField('printer-pick', 'Printer',
-      settings.printers.map((p) => ({ value: p.id, label: p.name + (p.archived ? ' (archived)' : '') })),
+      settings.printers.map((p) => ({
+        value: p.id,
+        label: p.name + (p.archived ? ' (archived)' : (p.active === false ? ' (under maintenance)' : '')),
+      })),
       selected.id, (v) => { state.ui.selectedPrinter = v; touch(rerender); }),
+
+    checkField('printer-active',
+      selected.active === false ? 'Under maintenance — not selectable for new work' : 'Available for new work',
+      selected.active !== false, (v) => { selected.active = v; touch(rerender); }, {
+        hint: 'Turn off while the machine is down. It stays on estimates and projects that already '
+          + 'use it, but is not offered for new ones — in the estimator or the client form.',
+      }),
 
     section('printer-economics', 'Machine economics', [
       muted('The machine-hour cost falls out of these six numbers. Nothing else decides it.'),
@@ -294,45 +419,30 @@ function materialsPanel(ctx) {
   const country = settings.countryId;
   const live = settings.materials.filter((m) => !m.archived);
 
-  const chosen = new Set(state.ui.materialSelection || []);
-  const setChosen = () => { state.ui.materialSelection = [...chosen]; touch(rerender); };
-  const toggle = (id) => { if (chosen.has(id)) chosen.delete(id); else chosen.add(id); setChosen(); };
-  const selectType = (typeId) => { for (const m of live) if (m.type === typeId) chosen.add(m.id); setChosen(); };
-
   const typesPresent = MATERIAL_TYPES.filter((t) => live.some((m) => m.type === t.id));
 
   return [
     banner('info', `Prices are per country and are not interchangeable. These are the `
       + `${country} prices; a spool costs what it costs where you buy it, and there is no `
       + 'exchange rate anywhere in this app.'),
-    subsection('Mass price update', [
-      muted('Tick materials below, or select a whole type, then set one spool price for all '
-        + `of them in ${country}. A material with its own override still wins.`),
-      buttonRow([
-        ...typesPresent.map((t) => button(`All ${t.name}`, () => selectType(t.id),
-          { key: `masssel-${t.id}` })),
-        chosen.size ? button('Clear', () => { state.ui.materialSelection = []; touch(rerender); },
-          { key: 'masssel-clear' }) : null,
-      ].filter(Boolean)),
-      el('div', { class: 'field-grid' }, [
-        numberField('mass-price', `Spool price (${code})`, state.ui.massPrice ?? '',
-          (v) => { state.ui.massPrice = num(v); touch(rerender); }, { min: 0, step: 0.01 }),
-        button(`Apply to ${chosen.size} selected`, () => {
-          const p = Math.max(0, num(state.ui.massPrice));
-          for (const m of live) {
-            if (chosen.has(m.id)) m.prices = { ...(m.prices || {}), [country]: p };
-          }
-          toast(`Set ${chosen.size} spool price${chosen.size === 1 ? '' : 's'} to `
-            + `${fmtMoney(p, code)}`);
-          touch(rerender);
-        }, { primary: true, key: 'mass-apply', disabled: chosen.size === 0 }),
-      ]),
-    ], { open: chosen.size > 0 }),
+    massOps(ctx, {
+      collection: 'materials',
+      selectionKey: 'sel-materials',
+      live,
+      code,
+      fields: [
+        { id: 'price', label: `Spool price (${code})`, kind: 'money', apply: (m, v) => { m.prices = { ...(m.prices || {}), [country]: Math.max(0, num(v)) }; } },
+        { id: 'spoolWeight', label: 'Spool weight (g)', kind: 'number', apply: (m, v) => { m.spoolWeight = Math.max(0, num(v)); } },
+      ],
+      quickSelect: typesPresent.map((t) => ({
+        label: `All ${t.name}`, ids: live.filter((m) => m.type === t.id).map((m) => m.id),
+      })),
+      remove: (ids) => massDeleteCatalogue({
+        collection: 'materials', list: settings.materials, ids, selectKey: 'selectedMaterial', rerender,
+      }),
+    }),
     table([
-      {
-        label: '',
-        get: (m) => checkField(`msel-${m.id}`, '', chosen.has(m.id), () => toggle(m.id)),
-      },
+      selectionColumn('sel-materials', ctx),
       { label: 'Material', get: (m) => `${m.name} · ${m.colour}` },
       { label: 'Type', get: (m) => materialType(m.type).name },
       { label: 'Density', align: 'right', mono: true, get: (m) => `${materialType(m.type).density} g/cm³` },
@@ -447,15 +557,19 @@ function materialEditor(ctx) {
 /* ------------------------------------------------- shipping and packing -- */
 
 function listEditor(ctx, {
-  collection, label, columns, fields, blank, selectedKey,
+  collection, label, columns, fields, blank, selectedKey, massFields = null,
 }) {
   const { rerender } = ctx;
   const settings = state.settings;
   const list = settings[collection];
   const selected = list.find((x) => x.id === state.ui[selectedKey]) || list[0];
+  const live = list.filter((x) => !x.archived);
+  const selectionKey = `sel-${collection}`;
 
+  // With mass operations on, a tick column leads the table so rows can be picked.
+  const tableColumns = massFields ? [selectionColumn(selectionKey, ctx), ...columns] : columns;
   const panel = [
-    table(columns, list.filter((x) => !x.archived)),
+    table(tableColumns, live),
   ];
 
   const add = (item) => {
@@ -478,10 +592,20 @@ function listEditor(ctx, {
         onDuplicate: () => add(blank(selected)),
         onArchive: () => { selected.archived = !selected.archived; touch(rerender); },
         onDelete: () => deleteEntry({
-          collection, list, selected, selectKey, rerender,
+          collection, list, selected, selectKey: selectedKey, rerender,
         }),
       }),
-    ], { open: true })]
+      massFields ? massOps(ctx, {
+        collection,
+        selectionKey,
+        live,
+        fields: massFields,
+        code: settings.currencyCode,
+        remove: (ids) => massDeleteCatalogue({
+          collection, list, ids, selectKey: selectedKey, rerender,
+        }),
+      }) : null,
+    ].filter(Boolean), { open: true })]
     : [section(`${collection}-editor`, label, [muted('Nothing in this catalogue yet.')], { open: true })];
 
   return { panel, editor };
@@ -494,6 +618,10 @@ function shippingParts(ctx) {
     collection: 'shipping',
     label: 'Method',
     selectedKey: 'selectedShipping',
+    massFields: [
+      { id: 'basePrice', label: 'Base price', kind: 'money', apply: (m, v) => { m.basePrice = Math.max(0, num(v)); } },
+      { id: 'days', label: 'Days', kind: 'number', apply: (m, v) => { m.days = Math.max(0, Math.round(num(v))); } },
+    ],
     columns: [
       { label: 'Method', get: (m) => m.name },
       { label: 'Carrier', get: (m) => m.carrier },
@@ -537,6 +665,10 @@ function packagingParts(ctx) {
     collection: 'packaging',
     label: 'Item',
     selectedKey: 'selectedPackaging',
+    massFields: [
+      { id: 'price', label: `Price (${code})`, kind: 'money', apply: (p, v) => { p.prices = { ...(p.prices || {}), [settings.countryId]: Math.max(0, num(v)) }; } },
+      { id: 'weightG', label: 'Weight (g)', kind: 'number', apply: (p, v) => { p.weightG = Math.max(0, num(v)); } },
+    ],
     columns: [
       { label: 'Item', get: (p) => p.name },
       { label: 'Kind', get: (p) => p.kind },
@@ -579,6 +711,10 @@ function hardwareParts(ctx) {
     collection: 'hardware',
     label: 'Component',
     selectedKey: 'selectedHardware',
+    massFields: [
+      { id: 'price', label: `Price (${code})`, kind: 'money', apply: (h, v) => { h.prices = { ...(h.prices || {}), [settings.countryId]: Math.max(0, num(v)) }; } },
+      { id: 'category', label: 'Category', kind: 'text', apply: (h, v) => { h.category = String(v || '').trim(); } },
+    ],
     columns: [
       { label: 'Component', get: (h) => h.name },
       { label: 'Part no.', mono: true, get: (h) => h.partNumber || '—' },
@@ -661,15 +797,38 @@ function customersParts(ctx) {
   const { rerender } = ctx;
   const customers = state.customers;
   const selected = customers.find((c) => c.id === state.ui.selectedCustomer) || customers[0];
+  const liveCustomers = customers.filter((c) => !c.archived);
 
   const panel = customers.length
-    ? [table([
-      { label: 'Customer', get: (c) => c.name },
-      { label: 'Email', get: (c) => c.email || '—' },
-      { label: 'VAT', get: (c) => c.vatNumber || '—' },
-      { label: 'Standing discount', get: (c) => (c.discount?.kind === 'none' ? '—' : c.discount?.kind) },
-      { label: 'Projects', align: 'right', mono: true, get: (c) => String(state.projects.filter((p) => p.customerId === c.id).length) },
-    ], customers.filter((c) => !c.archived))]
+    ? [
+      massOps(ctx, {
+        collection: 'customers',
+        selectionKey: 'sel-customers',
+        live: liveCustomers,
+        code: state.settings.currencyCode,
+        fields: [
+          {
+            id: 'discount', label: 'Standing discount', kind: 'number', suffix: '%',
+            apply: (c, v) => {
+              const pct = Math.max(0, Math.min(95, num(v)));
+              c.discount = pct > 0 ? { kind: 'percent', percent: pct } : { kind: 'none' };
+            },
+          },
+        ],
+        remove: (ids) => massDeleteCatalogue({
+          collection: 'customers', list: state.customers, ids,
+          selectKey: 'selectedCustomer', rerender, tombstone: false, keepOne: false,
+        }),
+      }),
+      table([
+        selectionColumn('sel-customers', ctx),
+        { label: 'Customer', get: (c) => c.name },
+        { label: 'Email', get: (c) => c.email || '—' },
+        { label: 'VAT', get: (c) => c.vatNumber || '—' },
+        { label: 'Standing discount', get: (c) => (c.discount?.kind === 'none' || !c.discount ? '—' : `${c.discount.percent ?? c.discount.kind}${c.discount.kind === 'percent' ? '%' : ''}`) },
+        { label: 'Projects', align: 'right', mono: true, get: (c) => String(state.projects.filter((p) => p.customerId === c.id).length) },
+      ], liveCustomers),
+    ]
     : [emptyState('No customers yet.')];
 
   const addCustomer = (spec) => {

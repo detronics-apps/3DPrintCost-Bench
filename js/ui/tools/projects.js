@@ -807,7 +807,8 @@ function partSidebar(ctx, project, part) {
       settings.profiles.map((p) => ({ value: p.id, label: p.name })),
       part.profileId, (v) => set({ profileId: v, settingOverrides: {} })),
     selectField('part-printer', 'Printer',
-      settings.printers.filter((p) => !p.archived).map((p) => ({ value: p.id, label: p.name })),
+      settings.printers.filter((p) => !p.archived && (p.active !== false || p.id === part.printerId))
+        .map((p) => ({ value: p.id, label: p.name + (p.active === false ? ' (under maintenance)' : '') })),
       part.printerId, (v) => set({ printerId: v })),
     // The loaded filament, driven by the printer: a single-colour machine asks
     // for one material and one colour; a multi-material one (a Snapmaker U1, up

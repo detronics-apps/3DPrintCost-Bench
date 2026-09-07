@@ -45,7 +45,10 @@ export function pricingSettings(settings) {
 /** What the company hands out: the options, plus what is needed to price them. */
 export function portalConfig(settings, { internal = false } = {}) {
   const portal = settings.customerPortal;
-  const allowed = (list, ids) => list.filter((x) => !x.archived && (!ids.length || ids.includes(x.id)));
+  // Also drops a printer that is under maintenance (active === false); materials
+  // have no `active`, so they are unaffected.
+  const allowed = (list, ids) => list.filter((x) => !x.archived && x.active !== false
+    && (!ids.length || ids.includes(x.id)));
 
   return {
     v: 1,
