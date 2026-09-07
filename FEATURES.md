@@ -71,6 +71,41 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Multi-colour printer history import** (2026-09-07) — the "Printer history
+  (prior runs)" CSV import now has a "Printer for the sample" picker. A
+  single-colour machine gets the old one-Grams-column template; a multi-head
+  machine (Snapmaker U1, Bambu X1E — four heads each, from the printer's
+  `colourSlots`) gets a grams and a colour column per head, with the printer's
+  name filled in. The importer sums the heads into the run's total grams (which is
+  what a machine's lifetime counts) and keeps the per-head detail; a single Grams
+  column still imports unchanged. Colour is recorded, not costed — prior runs feed
+  only machine lifetime, not stock or a customer.
+- **Nothing is lost pushing an estimate to a project** (2026-09-07) — "Save this
+  bed as a project" now carries every per-part choice the estimator holds: the
+  fit-critical flag, colour-by-Z bands, a manual parts-per-plate count, an extra
+  direct cost, the estimate method (auto/manual/slicer) and the model file name —
+  which were previously dropped. A client request already carried everything.
+  With the fit flag now on the project part too, every field that comes in from
+  an estimate or a client request is fully editable in the project.
+- **Fit-critical flag on a project part** (2026-09-07) — the project part editor
+  now has the "This part must fit or mate with another part" tick (with the
+  hold-the-dimensions reminder), the same as the client form — so the operator
+  can set or clear it directly, not only receive it from a client request.
+- **Two new How-to answers** (2026-09-07) — the guide's FAQs now cover where to
+  choose internal vs customer pricing (the project's "Order type", not the quick
+  Estimate) and whether "Save all" is still needed with team sync on (no, sync
+  auto-saves; "Save all" is an occasional downloadable backup).
+- **Production really draws down stock** (2026-09-07) — recording a print on a
+  project part now subtracts the filament and each component's quantity from the
+  actual stock items on hand — the spool in use (the emptiest one still with
+  stock), the tracked component, the resin bottle — so the Inventory "On hand"
+  figures fall. Deleting the print puts it all back. (Previously the draw was
+  booked against an aggregate id that never touched the real stock counts.)
+- **Components & post-processing on a project part** (2026-09-07) — the project
+  part editor now has the same "Components" (embedded hardware) and
+  "Post-processing" choices as the estimate and client form, per part — so you can
+  add or change a magnet/insert/NFC tag (and its finishing) on a project directly,
+  not only when it came in from an estimate.
 - **Deactivate a printer** (2026-09-07) — a printer can be marked "under
   maintenance" in Catalogues → Printers; it then disappears from the printer
   choices in the estimator, project parts and the client form, while any estimate
@@ -130,6 +165,38 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the skill / developer (the decisions)
 
+- **Per-head history via colourSlots, summed to a total** (2026-09-07) —
+  `importPrintRuns` now takes `materials` and auto-detects `Head N grams`/`Head N
+  colour` columns (regex on the header, tolerant of spellings), summing head grams
+  into the run's total `grams` so `machineHistory` (which reads only total grams +
+  minutes) is untouched; per-head `{grams,colour,materialId}` is kept as optional
+  `heads` detail, colour matched to a material where possible but the label always
+  preserved. `printRunTemplate(printer)` shapes the sample from the printer's
+  `colourSlots` (loaded-at-once heads: 4 for Snapmaker U1 and Bambu X1E) — not
+  `maxColours` (16 for the X1E, which counts manual swaps). Colour is descriptive,
+  not costed: prior runs are machine-lifetime only, tied to no stock or customer.
+  The UI picks the printer via `state.ui.importPrinterId` (defaults to the default
+  printer).
+- **Import mappers must be field-complete** (2026-09-07) — a part has one canonical
+  shape (`makePart`), so any mapper that builds a project part from another source
+  must copy every field or it silently drops data. The estimate→project mapper
+  (estimate.js "Save this bed as a project") was missing `mustFit`, `colourBands`,
+  `partsPerPlateOverride`, `otherDirectCost`, `estimateMethod` and the model name
+  (mapped to the project's `modelFileId`, not the estimator's `modelName`); the
+  portal→project mapper (`partFrom`) was already complete. `mustFit` is now also
+  editable on the project part, closing portal↔project parity. Estimator-only
+  fields the project never reads (`orientedUp`) are deliberately not carried —
+  the resulting `orientedSize` is.
+- **Production movements resolve to real stock ids** (2026-09-07) —
+  `movementsForRun` now takes an optional `inventory` and resolves each draw to a
+  real stock item id: filament to the chosen `attempt.spoolId`, else the emptiest
+  in-stock spool of that material (`spoolsFor(...)[0]` — finish the near-empty one
+  first); a component to the stock item whose `refId` matches the spec. It falls
+  back to the old aggregate `material:`/`hardware:` ids when no inventory is
+  passed, so the pure tests (which call it without inventory and assert only
+  quantities/reasons) stay green. The caller passes `state.inventory`; the resin
+  draw's gate is `resinGramsForPart(...) > 0`, not the dead `part.needsResin`
+  boolean. `balances` keys strictly on `itemId`, so only a real id nets.
 - **Profile radar from editable ratings** (2026-09-07) — each profile carries a
   `ratings` {speed,cost,strength,precision} 1–5 (higher = better, Cost 5 =
   cheapest), backfilled onto existing installs by the profile field top-up. A

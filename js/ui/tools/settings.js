@@ -34,7 +34,8 @@ import { applyCountry, applyPreset, defaultSettings } from '../../settings.js';
 import { makeId } from '../../projects.js';
 import { parseCsv, toCsv } from '../../csv.js';
 import {
-  importClients, importHardwareStock, importFilamentStock, importPrintRuns, SAMPLE_TEMPLATES,
+  importClients, importHardwareStock, importFilamentStock, importPrintRuns,
+  SAMPLE_TEMPLATES, printRunTemplate,
 } from '../../imports.js';
 import {
   state, saveSoon, exportAll, restoreFromFile,
@@ -1162,15 +1163,26 @@ function importCsvPanel(ctx) {
     },
     {
       key: 'prints', title: 'Printer history (prior runs)',
+      printerPicker: true,
       hint: 'Prints already done on the machine, so its lifetime counts them — not tied to any '
-        + 'customer. Columns: Printer (name or id), Minutes (or Hours), Grams, Date.',
+        + 'customer. Pick the printer to get its sample: a single-colour machine has one Grams '
+        + 'column; a multi-head machine (Snapmaker U1, Bambu X1E) has a grams and a colour column '
+        + 'per head. Minutes (or Hours) is the whole print; Grams are summed across the heads.',
       run: (rows) => {
-        const res = importPrintRuns(rows, settings.printers);
+        const res = importPrintRuns(rows, settings.printers, settings.materials);
         state.priorRuns.push(...res.runs);
         return { report: `${res.added} run${res.added === 1 ? '' : 's'} added`, errors: res.errors };
       },
     },
   ];
+
+  // The printer whose sample the "Printer history" import offers — it decides
+  // whether the template is single-colour or has a grams+colour pair per head.
+  const printers = settings.printers.filter((p) => !p.archived);
+  if (!state.ui.importPrinterId || !printers.some((p) => p.id === state.ui.importPrinterId)) {
+    state.ui.importPrinterId = settings.defaultPrinterId || printers[0]?.id || null;
+  }
+  const importPrinter = () => printers.find((p) => p.id === state.ui.importPrinterId) || printers[0] || null;
 
   const rows = IMPORTS.map((imp) => {
     const input = el('input', {
@@ -1197,20 +1209,32 @@ function importCsvPanel(ctx) {
         },
       },
     });
+    const sampleFor = () => {
+      if (imp.printerPicker) {
+        const p = importPrinter();
+        return { t: printRunTemplate(p), name: `printer-history-${p?.id || 'printer'}.csv` };
+      }
+      return { t: SAMPLE_TEMPLATES[imp.key], name: `${imp.key}-template.csv` };
+    };
     return el('div', { class: 'row-editor row-editor--stacked' }, [
       el('div', { class: 'row-editor__head' }, [
         el('strong', { text: imp.title }),
         buttonRow([
           button('Sample CSV', () => {
-            const t = SAMPLE_TEMPLATES[imp.key];
-            download(new Blob([toCsv(t.headers, [t.sample])], { type: 'text/csv' }), `${imp.key}-template.csv`);
+            const { t, name } = sampleFor();
+            download(new Blob([toCsv(t.headers, [t.sample])], { type: 'text/csv' }), name);
           }, { key: `import-sample-${imp.key}` }),
           button('Import a CSV…', () => input.click(), { key: `import-go-${imp.key}`, primary: true }),
         ]),
       ]),
       muted(imp.hint),
+      imp.printerPicker && printers.length
+        ? selectField(`import-printer-${imp.key}`, 'Printer for the sample',
+          printers.map((p) => ({ value: p.id, label: p.name })),
+          state.ui.importPrinterId, (v) => { state.ui.importPrinterId = v; saveSoon(); rerender(); })
+        : null,
       input,
-    ]);
+    ].filter(Boolean));
   });
 
   return el('div', { class: 'panel' }, [

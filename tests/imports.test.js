@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsv, field, toCsv } from '../js/csv.js';
 import {
-  importClients, importHardwareStock, importFilamentStock, importPrintRuns,
+  importClients, importHardwareStock, importFilamentStock, importPrintRuns, printRunTemplate,
 } from '../js/imports.js';
 import { makeCustomer } from '../js/projects.js';
 
@@ -118,4 +118,56 @@ test('print history accepts hours when minutes are absent', () => {
   const { rows } = parseCsv('Printer,Hours,Grams\nP1,10,50\n');
   const res = importPrintRuns(rows, printers);
   assert.equal(res.runs[0].minutes, 600, '10 hours becomes 600 minutes');
+});
+
+test('multi-head history sums the heads into the total and keeps per-head detail', () => {
+  const printers = [{ id: 'snapmaker-u1', name: 'Snapmaker U1', colourSlots: 4 }];
+  const materials = [
+    { id: 'petg-dark-grey', name: 'PETG', colour: 'Dark Grey' },
+    { id: 'pla-white', name: 'PLA', colour: 'White' },
+  ];
+  const { rows } = parseCsv(
+    'Printer,Minutes,Head 1 grams,Head 1 colour,Head 2 grams,Head 2 colour,'
+    + 'Head 3 grams,Head 3 colour,Head 4 grams,Head 4 colour,Date\n'
+    + 'Snapmaker U1,480,120,Dark Grey PETG,45,White PLA,0,,0,,2026-02-01\n',
+  );
+  const res = importPrintRuns(rows, printers, materials);
+  assert.equal(res.runs.length, 1);
+  const run = res.runs[0];
+  assert.equal(run.grams, 165, '120 + 45 across the used heads');
+  assert.equal(run.minutes, 480);
+  assert.equal(run.heads.length, 2, 'only the heads that ran are kept');
+  assert.equal(run.heads[0].materialId, 'petg-dark-grey', 'colour matched to a material');
+  assert.equal(run.heads[0].colour, 'Dark Grey PETG');
+  assert.equal(run.heads[1].materialId, 'pla-white');
+});
+
+test('a single Grams column still imports (no heads), unchanged', () => {
+  const printers = [{ id: 'ender-3', name: 'Creality Ender-3', colourSlots: 1 }];
+  const { rows } = parseCsv('Printer,Minutes,Grams,Date\nCreality Ender-3,300,90,2026-01-10\n');
+  const res = importPrintRuns(rows, printers, []);
+  assert.equal(res.runs[0].grams, 90);
+  assert.equal(res.runs[0].heads, undefined, 'no per-head detail on a single-colour run');
+});
+
+test('an unknown head colour is kept as a label, not dropped', () => {
+  const printers = [{ id: 'p1', name: 'P1', colourSlots: 2 }];
+  const { rows } = parseCsv('Printer,Minutes,Head 1 grams,Head 1 colour\nP1,60,30,Glow Green\n');
+  const res = importPrintRuns(rows, printers, []);
+  assert.equal(res.runs[0].grams, 30);
+  assert.equal(res.runs[0].heads[0].colour, 'Glow Green');
+  assert.equal(res.runs[0].heads[0].materialId, null);
+});
+
+test('printRunTemplate is single-column for a single-colour printer, per-head for many', () => {
+  const single = printRunTemplate({ name: 'Creality Ender-3', colourSlots: 1 });
+  assert.deepEqual(single.headers, ['Printer', 'Minutes', 'Grams', 'Date']);
+  assert.equal(single.sample.Printer, 'Creality Ender-3');
+
+  const multi = printRunTemplate({ name: 'Snapmaker U1', colourSlots: 4 });
+  assert.ok(multi.headers.includes('Head 1 grams') && multi.headers.includes('Head 4 colour'));
+  assert.ok(!multi.headers.includes('Head 5 grams'), 'only as many heads as the printer loads');
+  assert.equal(multi.headers[0], 'Printer');
+  assert.equal(multi.headers.at(-1), 'Date');
+  assert.equal(multi.sample.Printer, 'Snapmaker U1');
 });

@@ -152,13 +152,45 @@ export function importFilamentStock(rows, materials = []) {
   return { items, added, errors };
 }
 
+/** The head numbers a row names, e.g. "Head 1 grams" and "H2 colour" → [1, 2]. */
+function headIndices(row) {
+  const found = new Set();
+  for (const key of Object.keys(row || {})) {
+    const m = /^\s*(?:head|h)\s*(\d+)\b/i.exec(key);
+    if (m) found.add(Number(m[1]));
+  }
+  return [...found].sort((a, b) => a - b);
+}
+
+/**
+ * The grams and colour a row records for one head. Grams come from any of the
+ * head-grams spellings; colour is matched to a material where it can be, and the
+ * label is kept either way so a colour the catalogue does not know is not lost.
+ */
+function headFrom(row, n, materials) {
+  const grams = Math.max(0, num(field(row,
+    `head ${n} grams`, `head${n} grams`, `h${n} grams`, `head ${n} g`, `h${n} g`, `head ${n}`)));
+  const colour = field(row,
+    `head ${n} colour`, `head ${n} color`, `head${n} colour`, `head${n} color`,
+    `h${n} colour`, `h${n} color`, `head ${n} material`, `h${n} material`);
+  if (grams <= 0 && !colour) return null;
+  const mat = findMaterial(materials, colour);
+  return { grams, colour, materialId: mat?.id || null };
+}
+
 /**
  * A printer's existing print history → prior run records {printerId, minutes,
  * grams, at}. These are NOT projects and touch no customer; they exist only so
  * the machine's hours (and how far into its life it is) count what it did before
  * the app. A row gives a printer and either a print time or grams used.
+ *
+ * A multi-head printer (a Snapmaker U1, a Bambu X1E) can give the grams and
+ * colour of each head in "Head N grams"/"Head N colour" columns; those are summed
+ * into the run's total grams (which is all the machine's lifetime needs) and the
+ * per-head detail is kept on the run. A single "Grams" column still works, so an
+ * older single-colour file imports unchanged.
  */
-export function importPrintRuns(rows, printers = []) {
+export function importPrintRuns(rows, printers = [], materials = []) {
   const runs = [];
   const errors = [];
   let added = 0;
@@ -172,19 +204,56 @@ export function importPrintRuns(rows, printers = []) {
     const minutes = num(field(row, 'minutes', 'print time', 'mins', 'time'));
     const hours = num(field(row, 'hours', 'print time hours', 'hrs'));
     const mins = minutes > 0 ? minutes : hours * 60;
-    const grams = Math.max(0, num(field(row, 'grams', 'g', 'material', 'filament')));
+
+    // Per-head grams/colour when the file gives them; otherwise a single Grams
+    // column. The total grams is the sum either way — the lifetime maths uses it.
+    const heads = headIndices(row).map((n) => headFrom(row, n, materials)).filter(Boolean);
+    const grams = heads.length
+      ? heads.reduce((t, h) => t + h.grams, 0)
+      : Math.max(0, num(field(row, 'grams', 'g', 'material', 'filament')));
     if (mins <= 0 && grams <= 0) { errors.push({ line, msg: 'row has no print time or grams' }); return; }
 
     runs.push({
       printerId: printer.id,
       minutes: Math.max(0, mins),
       grams,
+      ...(heads.length ? { heads } : {}),
       at: isoDate(field(row, 'date', 'completed', 'when')),
     });
     added += 1;
   });
 
   return { runs, added, errors };
+}
+
+/**
+ * The sample CSV for a printer's prior-run history, shaped to the printer: a
+ * single-colour machine gets one Grams column; a multi-head machine gets a grams
+ * and a colour column per loaded head (its `colourSlots`), with the printer's own
+ * name filled in so the row is ready to edit.
+ */
+export function printRunTemplate(printer) {
+  const slots = Math.max(1, Math.round(num(printer?.colourSlots, 1)));
+  const name = printer?.name || 'Bambu Lab X1E';
+  if (slots <= 1) {
+    return {
+      headers: ['Printer', 'Minutes', 'Grams', 'Date'],
+      sample: { Printer: name, Minutes: '620', Grams: '180', Date: '2026-01-15' },
+    };
+  }
+  const demoGrams = [120, 45, 30, 20, 15, 10, 8, 6];
+  const demoColour = ['Dark Grey PETG', 'White PLA', 'Black PLA', 'Red PLA',
+    'Blue PLA', 'Green PLA', 'Yellow PLA', 'Natural PLA'];
+  const headers = ['Printer', 'Minutes'];
+  const sample = { Printer: name, Minutes: '620' };
+  for (let i = 1; i <= slots; i += 1) {
+    headers.push(`Head ${i} grams`, `Head ${i} colour`);
+    sample[`Head ${i} grams`] = String(demoGrams[i - 1] ?? 0);
+    sample[`Head ${i} colour`] = demoColour[i - 1] ?? '';
+  }
+  headers.push('Date');
+  sample.Date = '2026-01-15';
+  return { headers, sample };
 }
 
 /** The header rows for the downloadable sample templates, one per import. */

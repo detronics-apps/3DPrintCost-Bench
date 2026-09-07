@@ -1230,18 +1230,29 @@ function exportSection(ctx) {
             printerId: state.quick.printerId,
             materialId: state.quick.materialId,
             geometry: part.geometry,
+            // The estimator names the model on `modelName`; a project identifies
+            // it by `modelFileId`, so carry the name across into that field.
+            modelFileId: part.modelName || null,
             manual: { ...part.manual },
             orientedSize: part.orientedSize,
             // The bed's loaded filament is shared by every part; a project keeps
             // it per part, so each carries a copy along with its own mix.
             slots: (state.quick.slots || []).map((s) => ({ ...s })),
             mix: Array.isArray(part.mix) ? part.mix.map((m) => ({ ...m })) : null,
+            // Colour-by-Z bands are a per-part choice, so they travel too.
+            colourBands: Array.isArray(part.colourBands) ? part.colourBands.map((b) => ({ ...b })) : [],
             hardware: part.hardware.map((h) => ({ ...h })),
             complexity: part.complexity,
             // The post-processing choices belong to the part, so they travel too
             // (per-component choices ride on the hardware entries copied above).
             postProcessing: { ...(part.postProcessing || {}) },
             nfcUrl: part.nfcUrl,
+            // Fit-critical flag, and the manual overrides the estimator allows,
+            // so nothing the user set on the bed is dropped on the way to a project.
+            mustFit: !!part.mustFit,
+            partsPerPlateOverride: part.partsPerPlateOverride || 0,
+            otherDirectCost: part.otherDirectCost || 0,
+            estimateMethod: part.estimateMethod || 'auto',
             // A project's slicer figures are totals for the whole print; the
             // estimator's are per part, so scale them up on the way in.
             slicer: totalSlicer(part.slicer, part.quantity),
