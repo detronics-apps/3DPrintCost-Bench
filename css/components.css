@@ -268,6 +268,9 @@
 .row-editor--stacked {
   display: flex;
   flex-direction: column;
+  /* The base .row-editor uses align-items:end, which in a column flow would pin
+     every field to the right edge. Stretch them to fill the row instead. */
+  align-items: stretch;
   gap: var(--space-3);
   padding: var(--space-3) 0;
 }
