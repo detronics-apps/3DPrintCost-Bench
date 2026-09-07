@@ -317,7 +317,8 @@ function addressBlock() {
     textInput('portal-addr-province', 'Province', a.province, set('province')),
     textInput('portal-addr-postal', 'Postal code', a.postalCode, set('postalCode')),
   ]));
-  rows.push(textInput('portal-addr-country', 'Country', a.country, set('country')));
+  // The country is chosen once by the picker above (it also sets the dialling
+  // code), so it is not repeated here.
   return el('div', {}, rows);
 }
 
@@ -793,7 +794,12 @@ function render() {
     el('div', { class: 'field-grid' }, [
       countryOptions.length
         ? selectField('portal-country', 'Country', countryOptions, phoneCountry,
-          (v) => { state.customer.countryId = v; render(); })
+          (v) => {
+            state.customer.countryId = v;
+            // The address shows the country too, so keep it in step with the picker.
+            state.customer.addressParts.country = countryOptions.find((c) => c.value === v)?.label || '';
+            render();
+          })
         : null,
       validatedInput('portal-phone', 'Phone', state.customer.phone,
         (v) => { state.customer.phone = v; render(); },
