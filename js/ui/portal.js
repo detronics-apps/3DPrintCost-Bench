@@ -253,6 +253,92 @@ function validatedInput(id, label, value, onChange, options = {}) {
   ].filter(Boolean));
 }
 
+/** A per-part line for the confirmation summary: what they chose, in words. */
+function orderSummaryNodes() {
+  const config = state.config || {};
+  const ops = config.pricing?.postProcessing?.ops || [];
+  const catalogue = config.pricing?.hardware || [];
+  const opName = (id) => ops.find((o) => o.id === id)?.name || id;
+  const hwName = (id) => catalogue.find((h) => h.id === id)?.name || id;
+
+  return state.parts.map((p, i) => {
+    const comps = (p.hardware || []).filter((h) => h.hardwareId)
+      .map((h) => `${Math.max(1, num(h.qty, 1))}× ${hwName(h.hardwareId)}`);
+    const wholeOps = Object.keys(p.postProcessing || {})
+      .filter((k) => p.postProcessing[k]).map(opName);
+    const compOps = [];
+    for (const h of p.hardware || []) {
+      for (const opId of Object.keys(entryPostOps(h))) {
+        compOps.push(`${opName(opId)} the ${hwName(h.hardwareId).toLowerCase()}`);
+      }
+    }
+    const finishing = [...wholeOps, ...compOps];
+    return el('div', { class: 'summary-part' }, [
+      el('strong', { text: `${p.modelName || `Part ${i + 1}`} × ${Math.max(1, num(p.quantity, 1))}` }),
+      comps.length ? el('div', { class: 'muted', text: `Components: ${comps.join(', ')}` }) : null,
+      el('div', { class: 'muted', text: finishing.length ? `Finishing: ${finishing.join(', ')}` : 'No post-processing' }),
+    ].filter(Boolean));
+  });
+}
+
+/** The context-aware warnings shown in the confirmation summary. */
+function orderNoteNodes() {
+  const catalogue = state.config?.pricing?.hardware || [];
+  const specOf = (e) => catalogue.find((h) => h.id === e.hardwareId);
+  const notes = [];
+
+  const anyPost = state.parts.some((p) => Object.keys(p.postProcessing || {}).some((k) => p.postProcessing[k])
+    || (p.hardware || []).some((h) => Object.keys(entryPostOps(h)).length));
+  if (!anyPost) {
+    notes.push(['warn', 'No post-processing was selected. If a print needs finishing — support '
+      + 'removed, for instance — it will not be done unless you add it. Is that right?']);
+  }
+
+  if (state.shippingMethodId === 'collect') {
+    const totalParts = state.parts.reduce((n, p) => n + Math.max(1, num(p.quantity, 1)), 0);
+    let m = 'You have chosen to collect this yourself, with no packaging — you will receive the '
+      + 'parts as they come off the printer.';
+    if (totalParts > 2) m += ' With several parts, you might want a box to carry them — ask us if so.';
+    notes.push(['info', m]);
+  }
+
+  const loose = [];
+  for (const p of state.parts) {
+    for (const h of p.hardware || []) {
+      const spec = specOf(h);
+      if (spec && spec.stage === 'after' && num(h.qty, 1) > 0 && entryPostOps(h).fit !== true) {
+        loose.push(spec.name.toLowerCase());
+      }
+    }
+  }
+  if (loose.length) {
+    const names = [...new Set(loose)];
+    const plural = loose.length > 1;
+    notes.push(['warn', `You added ${names.join(', ')} but have not chosen to have ${plural ? 'them' : 'it'} `
+      + `fitted, so ${plural ? 'they' : 'it'} will ship loose in the box for you to install.`]);
+  }
+  return notes.map(([lvl, text]) => banner(lvl, text));
+}
+
+/** Confirm-before-send: a summary of the order with any warnings, then send. */
+function showConfirmSummary(onConfirm) {
+  const overlay = el('div', { class: 'modal-overlay', 'data-field': 'portal-confirm' }, [
+    el('div', { class: 'modal' }, [
+      el('h2', { text: 'Please check your order' }),
+      muted('Here is what you have asked for. If it looks right, send it over.'),
+      el('div', { class: 'summary-parts' }, orderSummaryNodes()),
+      ...orderNoteNodes(),
+      buttonRow([
+        button('Back — let me change something', () => overlay.remove(), { key: 'summary-back' }),
+        button('Yes, this is right — send it', () => { overlay.remove(); onConfirm(); },
+          { primary: true, key: 'summary-confirm' }),
+      ]),
+    ]),
+  ]);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
 /** Scroll to the first field with a problem and focus it, for the sanity check. */
 function focusFirstInvalid(valid) {
   const order = ['portal-name', 'portal-email', 'portal-phone', 'portal-addr-street'];
@@ -525,7 +611,8 @@ function portalPostProcessing(part, config) {
     body.push(muted('Nothing to finish — this part ships straight off the printer.'));
   }
 
-  return section(`portal-pp-${part.id}`, 'Post-processing', body, { open: false });
+  return section(`portal-pp-${part.id}`, 'Add post-processing?  (support, resin, coding, fit…)',
+    body, { open: false });
 }
 
 function requestText(result) {
@@ -799,7 +886,7 @@ function render() {
   // through; an invalid one turns the offending fields red and jumps to the
   // first one, keeping everything the client has already typed.
   const sanityChecked = (action) => {
-    if (valid.ok) { action(); return; }
+    if (valid.ok) { showConfirmSummary(action); return; }
     state.submitAttempted = true;
     render();
     focusFirstInvalid(valid);

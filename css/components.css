@@ -251,6 +251,27 @@
 .field--valid .input { border-color: var(--ok); }
 .field__req { color: var(--danger); font-weight: 700; }
 
+/* The client's confirm-before-send summary. */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.45);
+}
+.modal {
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--space-4);
+  width: min(560px, 100%); max-height: 85vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+.summary-parts { display: flex; flex-direction: column; gap: var(--space-3); }
+.summary-part {
+  display: flex; flex-direction: column; gap: 2px;
+  padding-bottom: var(--space-2); border-bottom: 1px dashed var(--border);
+}
+
 .field--check { flex-direction: column; }
 .check__label {
   display: flex; align-items: center; gap: var(--space-2);
