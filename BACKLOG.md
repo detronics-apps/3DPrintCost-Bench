@@ -2,8 +2,33 @@
 
 Things to do later, not yet scheduled. Newest first.
 
+## Sanity checks to run (validation — user to do)
+
+- **Estimate vs a real sliced part** — slice a real part and compare the app's
+  time and material estimate against the slicer's, to see how closely they relate
+  (feeds the calibration loop and the estimator assumptions). (Raised 2026-09-08.)
+- **Resin used on an NFC tag** — measure the actual grams of resin used to
+  coat/embed an NFC tag and record that tag's size, so the resin-coat op's
+  grams-per-cm² can be set from real data rather than a guess. (Raised 2026-09-08.)
+- **Snapmaker print-history upload** — upload all the prints done on the Snapmaker
+  (via Settings → Backup & restore → Printer history import) to compare the app's
+  filament-usage estimate against actual; prompted by running out of white PLA on
+  a roll before its tracked amount said it should. Validates the grams estimate
+  and roll tracking. (Raised 2026-09-08.)
+
 ## Features / ideas
 
+- **Project part editor = superset of both estimators (the most capable editor)** —
+  the project is where a job is fine-tuned as it goes into production, so its part
+  editor should expose *every* per-part control the main Estimate tool and the
+  client form offer — and today it is missing the Advanced/Expert ones. Bring
+  across, mode-gated (Advanced/Expert) the same way the estimator gates them: the
+  print-settings overrides (infill %, infill pattern, wall loops — the
+  nozzle/infill tuning, via `settingOverrides`), labour complexity, the
+  parts-per-plate override and other-direct-cost (fields already carry into a
+  project — they just need editors), and the estimate-method / slicer-figures
+  controls. End state: nothing you can set on an estimate (internal or client) is
+  unavailable on the project. (Raised 2026-09-08.)
 - **Banking details on their own lines** — on the quote/invoice the banking
   details currently print on one line; put each part (bank, account name, account
   number, branch/branch code, reference) on its own line so they are easy to read
