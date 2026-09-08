@@ -263,8 +263,19 @@ export function buildPrintSheet(doc, { host }) {
   if (doc.bankingDetails) {
     const bank = make('div', 'sheet__terms');
     bank.appendChild(make('h3', null, 'Payment / banking details'));
-    bank.appendChild(make('p', null, doc.bankingDetails));
+    // Each detail (bank, account name, number, branch, reference) is typed on
+    // its own line and printed on its own line, so a client can read and copy
+    // them without the parts running together.
+    for (const line of doc.bankingDetails.split('\n').map((l) => l.trim()).filter(Boolean)) {
+      bank.appendChild(make('p', 'sheet__bankline', line));
+    }
     sheet.appendChild(bank);
+  }
+
+  if (isInvoice && doc.thankYouNote) {
+    const thanks = make('div', 'sheet__thanks');
+    thanks.appendChild(make('p', null, doc.thankYouNote));
+    sheet.appendChild(thanks);
   }
 
   host.appendChild(sheet);

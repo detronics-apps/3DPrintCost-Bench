@@ -152,9 +152,16 @@ function companyPanel(ctx) {
         }),
       textField('company-banking', 'Banking details (printed on quotes and invoices)',
         settings.company.bankingDetails, set('bankingDetails'), {
-          multiline: true, rows: 3,
-          hint: 'Bank, account name and number, branch/reference — so a client who accepts a quote '
-            + 'can pay straight away. Prints on the quote and invoice.',
+          multiline: true, rows: 5,
+          hint: 'Put each detail on its own line — bank, account name, account number, '
+            + 'branch/branch code, reference — and each prints on its own line so a client can '
+            + 'read and copy them. Prints on the quote and invoice.',
+        }),
+      textField('company-thankyou', 'Thank-you note (printed on invoices)',
+        settings.company.thankYouNote, set('thankYouNote'), {
+          multiline: true, rows: 2,
+          hint: 'A short message printed at the foot of an invoice. This is the default; you can '
+            + 'edit it per document when you open one. Distinct from the packaging thank-you card.',
         }),
       el('div', { class: 'field-grid' }, [
         numberField('quote-validity', 'Quote valid for', settings.company.quoteValidityDays,

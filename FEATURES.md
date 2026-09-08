@@ -71,6 +71,15 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Readable banking + invoice thank-you** (2026-09-08) — two touches to the
+  printed documents. Type each banking detail on its own line in Settings →
+  Company (bank, account name, account number, branch code, reference) and each
+  prints on its own line on the quote and invoice, so a client can read and copy
+  them instead of them running together on one line. And a short **thank-you
+  note** now prints at the foot of an **invoice** — set the default in Settings →
+  Company, or edit it for one invoice from Quotes & invoices (open the invoice →
+  "Thank-you note" in the sidebar). It is separate from the packaging thank-you
+  card that goes in the box.
 - **Multi-colour printer history import** (2026-09-07) — the "Printer history
   (prior runs)" CSV import now has a "Printer for the sample" picker. A
   single-colour machine gets the old one-Grams-column template; a multi-head

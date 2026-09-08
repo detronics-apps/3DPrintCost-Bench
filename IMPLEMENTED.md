@@ -9,6 +9,34 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Quote & invoice documents (quick wins)
+
+_Rolls up into the `FEATURES.md` operator feature "Readable banking + invoice
+thank-you"._
+
+- **Banking details on their own lines** — each banking detail now prints on its
+  own line on the quote and invoice instead of collapsing onto one. Why: a client
+  could not easily read or copy the bank/account/branch/reference when they ran
+  together. How: the field is unchanged (still one multiline string in
+  `settings.company.bankingDetails`); the render in `js/ui/export.js` splits it on
+  `\n`, trims and drops blanks, and emits one `<p class="sheet__bankline">` per
+  line, styled tight (`line-height:1.5`, no `<p>` margin) in `css/components.css`.
+  The Settings hint (`js/ui/tools/settings.js`) now tells the user to put each
+  detail on its own line, and the textarea grew to 5 rows. No migration — an
+  existing single-line value still renders (as one line). (2026-09-08, d7c2579)
+- **Custom thank-you note on the invoice** — a short thank-you message prints,
+  centred and italic, at the foot of an invoice (not on quotes). Why: a personal
+  close on the invoice, distinct from the packaging thank-you card in the box.
+  How: new company default `thankYouNote` in `js/settings.js` defaults + a
+  `== null` migration merge; carried onto the document in `makeQuote`
+  (`js/documents.js`) as `doc.thankYouNote`; rendered in `js/ui/export.js` gated on
+  `isInvoice && doc.thankYouNote` into `.sheet__thanks`; a company-default editor
+  in Settings → Company and a per-document editor section (invoice only) in the
+  Quotes & invoices sidebar (`js/ui/tools/documents.js`) that persists to the doc.
+  Rule followed: document-level copy is snapshotted onto the doc at build time (as
+  terms/refundPolicy/bankingDetails already are), so reprice resets it to today's
+  company default — consistent with the other document fields. (2026-09-08, d7c2579)
+
 ## Project part editor: parity with the estimators, and production
 
 _Rolls up into the `FEATURES.md` operator features on project parts._

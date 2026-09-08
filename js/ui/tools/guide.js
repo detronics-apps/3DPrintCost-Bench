@@ -456,6 +456,13 @@ export function main(ctx) {
             + 'not under-counted. The “Sustained share of the rated flow” slider is still the main '
             + 'lever if estimates run low — and pasted slicer figures always win.',
         }),
+        statTile('Banking details & thank-you', 'Settings → Company', {
+          hint: 'Put each banking detail on its own line (bank, account name, account number, '
+            + 'branch code, reference) and each prints on its own line on the quote and invoice, so '
+            + 'a client can read and copy them. A separate “thank-you note” prints at the foot of '
+            + 'an invoice — set the default in Settings, or edit it per invoice from Quotes & '
+            + 'invoices. (This is not the packaging thank-you card that goes in the box.)',
+        }),
       ]),
     ], { open: false }),
 

@@ -23,17 +23,6 @@ word to reprioritise.
 
 ## Feature clusters
 
-### Quote & invoice documents  _(quick wins)_
-
-- **Banking details on their own lines** — on the quote/invoice the banking
-  details currently print on one line; put each part (bank, account name, account
-  number, branch/branch code, reference) on its own line so they are easy to read
-  and copy. (Raised 2026-09-08.)
-- **Custom thank-you note on the invoice** — a place to add a custom thank-you
-  message that prints on the invoice (editable per document, with a company-level
-  default in Settings). Distinct from the packaging thank-you card. (Raised
-  2026-09-08.)
-
 ### Project part editor — the most capable editor
 
 - **Project part editor = superset of both estimators** — the project is where a

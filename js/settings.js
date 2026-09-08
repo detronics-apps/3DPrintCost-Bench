@@ -51,6 +51,10 @@ export function defaultSettings() {
       // Where the customer pays. Printed on the quote (and invoice) so a client
       // who accepts a quote can pay straight away. Left blank until you fill it in.
       bankingDetails: '',
+      // A short custom thank-you message printed at the foot of an invoice. This
+      // is the company-level default; it can be edited per document. Distinct
+      // from the packaging thank-you card that goes in the box.
+      thankYouNote: 'Thank you for your business — we appreciate it.',
       quoteValidityDays: 30,
       handlingDays: 1,
       // Branding for the printed quote and invoice, so any company can make the
@@ -412,6 +416,9 @@ export function migrateSettings(stored) {
   }
   if (merged.company.bankingDetails == null) {
     merged.company.bankingDetails = defaults.company.bankingDetails;
+  }
+  if (merged.company.thankYouNote == null) {
+    merged.company.thankYouNote = defaults.company.thankYouNote;
   }
   // The scheduler block is newer than most stored settings.
   if (!merged.scheduler || typeof merged.scheduler !== 'object') {

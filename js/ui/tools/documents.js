@@ -262,6 +262,13 @@ export function sidebar(ctx) {
       }, { primary: true, key: 'record-payment' })]),
     ]) : null,
 
+    doc.kind === 'invoice' ? section('doc-thankyou', 'Thank-you note', [
+      textField('doc-thankyou-note', 'Printed at the foot of this invoice', doc.thankYouNote || '',
+        (v) => { persist(project, { ...doc, thankYouNote: v }); touch(rerender); },
+        { multiline: true, rows: 2 }),
+      muted('Starts from your Settings default; edited here it changes only this invoice.'),
+    ], { open: false }) : null,
+
     section('doc-export', 'Send and export', [
       buttonRow([
         button('Print or save as PDF', () => {

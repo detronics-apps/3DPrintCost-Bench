@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 — Quote & invoice document polish (2026-09-08)
+
+- **Banking details on their own lines** — each banking detail (bank, account
+  name, account number, branch code, reference) is typed on its own line in
+  Settings → Company and now prints on its own line on the quote and invoice, so
+  a client can read and copy them instead of them running together.
+- **Custom thank-you note on the invoice** — a short thank-you message prints at
+  the foot of an invoice. Set the company default in Settings → Company; edit it
+  per invoice from Quotes & invoices. Distinct from the packaging thank-you card.
+
 ## 1.0.0 — First public release (2026-09-04)
 
 The app ships as **3DPrintCost Bench**: costing, quoting, production scheduling

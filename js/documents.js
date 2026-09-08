@@ -162,6 +162,7 @@ export function makeQuote({ number, project, customer, result, order, settings, 
     terms: settings.company?.terms || '',
     refundPolicy: settings.company?.refundPolicy || '',
     bankingDetails: settings.company?.bankingDetails || '',
+    thankYouNote: settings.company?.thankYouNote || '',
 
     /** Never rendered to a customer. */
     internal: {

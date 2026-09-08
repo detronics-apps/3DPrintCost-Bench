@@ -581,6 +581,11 @@
 .sheet__total--strong { font-weight: 700; border-top: 0.5mm solid var(--sheet-accent); margin-top: 1mm; padding-top: 2mm; }
 .sheet__terms { margin-top: 8mm; font-size: 9pt; }
 .sheet__terms h3 { margin: 0 0 1mm; font-size: 9pt; }
+/* Each banking detail on its own tight line, so it reads and copies cleanly. */
+.sheet__bankline { margin: 0; line-height: 1.5; }
+/* A quiet, centred thank-you at the foot of an invoice. */
+.sheet__thanks { margin-top: 8mm; font-size: 9pt; font-style: italic; text-align: center; color: #555; }
+.sheet__thanks p { margin: 0; }
 
 .backup-reminder { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
 
