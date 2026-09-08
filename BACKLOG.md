@@ -95,6 +95,28 @@ Things to do later, not yet scheduled. Newest first.
 _Both of the previously-listed FAQ additions (internal-vs-customer pricing; team
 sync vs "Save all") were written into the guide's FAQs on 2026-09-07._
 
+- **Order-flow flowchart in How-to (decision-driven, by section)** — generate a
+  detailed flowchart of the whole process, estimate → quoting → payment →
+  production → post-processing → packaging → delivery → aftercare/feedback, laid
+  out in **columns per section**, that shows how the company's configured options
+  and the client's selections route an order — i.e. which decision makes an order
+  jump from which section to which. It must be specific, not generic:
+  - _Expedite_ — if the company offers expedite and the client picks it (pays the
+    estimate up front), show the order skipping the normal quote-then-pay wait and
+    jumping straight toward production; if not picked, the normal path.
+  - _Order type_ — customer order vs internal-employee (cost, still quoted+paid)
+    vs internal-company (cost, an expense; skips quote and payment straight to
+    production); show each jumping to the right section.
+  - _Packaging_ — packaging vs pickup vs no-packaging, and which of the Packaging
+    / Delivery sections each keeps or skips.
+  - _Post-processing_ — whether any finishing is selected (and which), routing
+    through or around the Post-processing section.
+  - Plus hold/cancel/reopen off-ramps.
+  It should reflect what THIS company has switched on (so it mirrors their own
+  setup), help them understand how their system routes orders, and be shareable
+  with the client later so they see the bigger picture. Builds on the existing
+  workflow phases (`js/workflow.js` PHASES / `advance` / `clientProgressReport`);
+  a diagram, so consider the diagramming approach. (Raised 2026-09-08.)
 - **Suppress/reword the "save a backup" reminder while team sync is connected** —
   the periodic backup nudge is redundant once sync auto-saves to the shared file;
   soften or hide it when a sync file is connected. (Raised 2026-09-07.)
