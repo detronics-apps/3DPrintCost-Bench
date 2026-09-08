@@ -23,7 +23,7 @@ thank-you"._
   line, styled tight (`line-height:1.5`, no `<p>` margin) in `css/components.css`.
   The Settings hint (`js/ui/tools/settings.js`) now tells the user to put each
   detail on its own line, and the textarea grew to 5 rows. No migration — an
-  existing single-line value still renders (as one line). (2026-09-08, d7c2579)
+  existing single-line value still renders (as one line). (2026-09-08, e35c385)
 - **Custom thank-you note on the invoice** — a short thank-you message prints,
   centred and italic, at the foot of an invoice (not on quotes). Why: a personal
   close on the invoice, distinct from the packaging thank-you card in the box.
@@ -35,7 +35,7 @@ thank-you"._
   Quotes & invoices sidebar (`js/ui/tools/documents.js`) that persists to the doc.
   Rule followed: document-level copy is snapshotted onto the doc at build time (as
   terms/refundPolicy/bankingDetails already are), so reprice resets it to today's
-  company default — consistent with the other document fields. (2026-09-08, d7c2579)
+  company default — consistent with the other document fields. (2026-09-08, e35c385)
 
 ## Project part editor: parity with the estimators, and production
 
