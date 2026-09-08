@@ -1,6 +1,11 @@
 # Backlog
 
-Things to do later, not yet scheduled. Newest first.
+Open requests, **grouped into feature clusters and roughly ranked** (a cluster is
+a set of small requests that ship together as one `FEATURES.md` feature). When an
+item ships it moves to `IMPLEMENTED.md` with how it was done; when one is declined
+it moves to `REJECTED.md` with why. See the `detronics-app` skill's
+`references/backlog.md` for the pipeline. Ranking is a starting point — say the
+word to reprioritise.
 
 ## Sanity checks to run (validation — user to do)
 
@@ -16,15 +21,32 @@ Things to do later, not yet scheduled. Newest first.
   a roll before its tracked amount said it should. Validates the grams estimate
   and roll tracking. (Raised 2026-09-08.)
 
-## Features / ideas
+## Feature clusters
 
-- **Plus-addressing on the company email** — let the company route different kinds
-  of correspondence through sub-addresses on their one inbox, e.g.
-  `shop.detronics+sales@…` and `shop.detronics+feedback@…` (the "+tag" that Gmail
-  and most providers deliver to the base address). A setting to define the tags /
-  which purpose uses which, so the right address shows in the right place — a sales
-  address on the quote/portal, a feedback address on the aftercare/thank-you — all
-  landing in the single mailbox. (Raised 2026-09-08.)
+### Quote & invoice documents  _(quick wins)_
+
+- **Banking details on their own lines** — on the quote/invoice the banking
+  details currently print on one line; put each part (bank, account name, account
+  number, branch/branch code, reference) on its own line so they are easy to read
+  and copy. (Raised 2026-09-08.)
+- **Custom thank-you note on the invoice** — a place to add a custom thank-you
+  message that prints on the invoice (editable per document, with a company-level
+  default in Settings). Distinct from the packaging thank-you card. (Raised
+  2026-09-08.)
+
+### Project part editor — the most capable editor
+
+- **Project part editor = superset of both estimators** — the project is where a
+  job is fine-tuned as it goes into production, so its part editor should expose
+  *every* per-part control the main Estimate tool and the client form offer — and
+  today it is missing the Advanced/Expert ones. Bring across, mode-gated
+  (Advanced/Expert) the same way the estimator gates them: the print-settings
+  overrides (infill %, infill pattern, wall loops — the nozzle/infill tuning, via
+  `settingOverrides`), labour complexity, the parts-per-plate override and
+  other-direct-cost (fields already carry into a project — they just need
+  editors), and the estimate-method / slicer-figures controls. End state: nothing
+  you can set on an estimate (internal or client) is unavailable on the project.
+  (Raised 2026-09-08.)
 - **Nozzle size affects print time + a nozzle-change operation** — only when the
   company says it uses more than one nozzle size (a company setting; off by default
   so nobody who runs one nozzle ever sees it). Two parts: (1) confirm/make the
@@ -34,36 +56,11 @@ Things to do later, not yet scheduled. Newest first.
   other than the machine's current/default one, book a **nozzle-change operation
   both ways** — swap to the needed nozzle before, and back to the default after —
   as a labour/time operation (like the post-processing steps). Per-part nozzle
-  choice would live with the other advanced print settings. (Raised 2026-09-08.)
-- **Project part editor = superset of both estimators (the most capable editor)** —
-  the project is where a job is fine-tuned as it goes into production, so its part
-  editor should expose *every* per-part control the main Estimate tool and the
-  client form offer — and today it is missing the Advanced/Expert ones. Bring
-  across, mode-gated (Advanced/Expert) the same way the estimator gates them: the
-  print-settings overrides (infill %, infill pattern, wall loops — the
-  nozzle/infill tuning, via `settingOverrides`), labour complexity, the
-  parts-per-plate override and other-direct-cost (fields already carry into a
-  project — they just need editors), and the estimate-method / slicer-figures
-  controls. End state: nothing you can set on an estimate (internal or client) is
-  unavailable on the project. (Raised 2026-09-08.)
-- **Banking details on their own lines** — on the quote/invoice the banking
-  details currently print on one line; put each part (bank, account name, account
-  number, branch/branch code, reference) on its own line so they are easy to read
-  and copy. (Raised 2026-09-08.)
-- **Custom thank-you note on the invoice** — a place to add a custom thank-you
-  message that prints on the invoice (editable per document, with a company-level
-  default in Settings). Distinct from the packaging thank-you card. (Raised
+  choice would live with the other advanced print settings (above). (Raised
   2026-09-08.)
-- **Custom filament-roll labels → downloadable PDF (label-printer sizes)** — a
-  company setting turns on making a custom label per roll of filament, each
-  carrying that roll's specific id/code. Let the company choose the label size to
-  match their label printer (a set of common sizes, plus a custom w×h). "Print
-  spool labels" then generates a **downloadable PDF** sized to that label, to send
-  to the label printer (today's spool labels are a browser print sheet — this adds
-  a proper PDF at a chosen size). Allow selecting several rolls and generating
-  **one PDF with all their labels**. Builds on the existing `buildSpoolLabels`
-  sheet and pairs with the per-roll tracking item below (the id/code on the label
-  is the roll's identity). (Raised 2026-09-07.)
+
+### Filament & inventory management
+
 - **Per-roll filament tracking, labelling and guided roll selection** — track each
   physical roll individually, right through to finished, even when several rolls
   are the same supplier + colour (e.g. five rolls of "SA Filaments White PLA").
@@ -86,6 +83,27 @@ Things to do later, not yet scheduled. Newest first.
     against the emptiest spool; the new part is surfacing the "load roll X, then
     roll Y" guidance and letting a job span/allocate across specific rolls.
   (Raised 2026-09-07.)
+- **Custom filament-roll labels → downloadable PDF (label-printer sizes)** — a
+  company setting turns on making a custom label per roll of filament, each
+  carrying that roll's specific id/code. Let the company choose the label size to
+  match their label printer (a set of common sizes, plus a custom w×h). "Print
+  spool labels" then generates a **downloadable PDF** sized to that label, to send
+  to the label printer (today's spool labels are a browser print sheet — this adds
+  a proper PDF at a chosen size). Allow selecting several rolls and generating
+  **one PDF with all their labels**. Builds on the existing `buildSpoolLabels`
+  sheet; the id/code on the label is the roll's identity from the item above.
+  (Raised 2026-09-07.)
+- **Colour swatches on filament colours** — give each material/colour a colour
+  code (a hex value) and show a small coloured square next to the colour name
+  wherever a material is listed or picked: the Materials catalogue, the estimator
+  and project filament/head pickers, the client form, spool labels, and slicer
+  head rows. Would need a `colourHex` field on a material (with a sensible default
+  and an editor/colour-picker in Catalogues → Materials), a migration to add it,
+  and a small reusable swatch element. Consider a multi-colour/gradient material
+  (e.g. silk rainbow) — maybe two stops or a "varies" marker. (Raised 2026-09-07.)
+
+### Workflow & dashboard
+
 - **Dashboard refresh on close, with a Reopen that logs edits** — a closed project
   can go stale on the Dashboard: close with quantity 1 → the Dashboard shows 1;
   later change the quantity to 4 → it updates everywhere else, but the Dashboard
@@ -98,19 +116,18 @@ Things to do later, not yet scheduled. Newest first.
   project is never silent. Investigate whether the Dashboard staleness is a bug to
   fix directly or is the intended price-lock behaviour that the reopen/re-close
   cycle should govern. (Raised 2026-09-07.)
-- **Colour swatches on filament colours** — give each material/colour a colour
-  code (a hex value) and show a small coloured square next to the colour name
-  wherever a material is listed or picked: the Materials catalogue, the estimator
-  and project filament/head pickers, the client form, spool labels, and slicer
-  head rows. Would need a `colourHex` field on a material (with a sensible default
-  and an editor/colour-picker in Catalogues → Materials), a migration to add it,
-  and a small reusable swatch element. Consider a multi-colour/gradient material
-  (e.g. silk rainbow) — maybe two stops or a "varies" marker. (Raised 2026-09-07.)
+
+### Communication
+
+- **Plus-addressing on the company email** — let the company route different kinds
+  of correspondence through sub-addresses on their one inbox, e.g.
+  `shop.detronics+sales@…` and `shop.detronics+feedback@…` (the "+tag" that Gmail
+  and most providers deliver to the base address). A setting to define the tags /
+  which purpose uses which, so the right address shows in the right place — a sales
+  address on the quote/portal, a feedback address on the aftercare/thank-you — all
+  landing in the single mailbox. (Raised 2026-09-08.)
 
 ## How-to / guide additions
-
-_Both of the previously-listed FAQ additions (internal-vs-customer pricing; team
-sync vs "Save all") were written into the guide's FAQs on 2026-09-07._
 
 - **Order-flow flowchart in How-to (decision-driven, by section)** — generate a
   detailed flowchart of the whole process, estimate → quoting → payment →
