@@ -4,6 +4,14 @@ Things to do later, not yet scheduled. Newest first.
 
 ## Features / ideas
 
+- **Banking details on their own lines** — on the quote/invoice the banking
+  details currently print on one line; put each part (bank, account name, account
+  number, branch/branch code, reference) on its own line so they are easy to read
+  and copy. (Raised 2026-09-08.)
+- **Custom thank-you note on the invoice** — a place to add a custom thank-you
+  message that prints on the invoice (editable per document, with a company-level
+  default in Settings). Distinct from the packaging thank-you card. (Raised
+  2026-09-08.)
 - **Custom filament-roll labels → downloadable PDF (label-printer sizes)** — a
   company setting turns on making a custom label per roll of filament, each
   carrying that roll's specific id/code. Let the company choose the label size to
