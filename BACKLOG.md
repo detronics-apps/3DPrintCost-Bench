@@ -18,6 +18,23 @@ Things to do later, not yet scheduled. Newest first.
 
 ## Features / ideas
 
+- **Plus-addressing on the company email** — let the company route different kinds
+  of correspondence through sub-addresses on their one inbox, e.g.
+  `shop.detronics+sales@…` and `shop.detronics+feedback@…` (the "+tag" that Gmail
+  and most providers deliver to the base address). A setting to define the tags /
+  which purpose uses which, so the right address shows in the right place — a sales
+  address on the quote/portal, a feedback address on the aftercare/thank-you — all
+  landing in the single mailbox. (Raised 2026-09-08.)
+- **Nozzle size affects print time + a nozzle-change operation** — only when the
+  company says it uses more than one nozzle size (a company setting; off by default
+  so nobody who runs one nozzle ever sees it). Two parts: (1) confirm/make the
+  time-per-print respond to the chosen nozzle size — a larger nozzle lays down more
+  per pass (faster), a smaller one is slower and finer — so the estimate reflects
+  it; check the current model actually does this. (2) When a part needs a nozzle
+  other than the machine's current/default one, book a **nozzle-change operation
+  both ways** — swap to the needed nozzle before, and back to the default after —
+  as a labour/time operation (like the post-processing steps). Per-part nozzle
+  choice would live with the other advanced print settings. (Raised 2026-09-08.)
 - **Project part editor = superset of both estimators (the most capable editor)** —
   the project is where a job is fine-tuned as it goes into production, so its part
   editor should expose *every* per-part control the main Estimate tool and the
