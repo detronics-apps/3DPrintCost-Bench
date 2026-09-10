@@ -235,8 +235,11 @@ test('the empirical factors are shown but cannot produce an impossible part', ()
     'on a real part the published factors exceed solid, and that must be detected');
   assert.ok(line.estimate.levels.empirical.bodyVolume <= solidVolume * 1.021,
     'the clamp must hold at the solid volume');
-  assert.ok(line.notes.some((n) => /solid volume/.test(n.text)),
-    'the clamp must be reported, not silent');
+  // The clamp is still reported, but as a calm INFO note (not an alarming warning),
+  // because the quote does not use the clamped figure — the geometric estimate does.
+  const clampNote = line.notes.find((n) => /not possible|reference only/.test(n.text));
+  assert.ok(clampNote, 'the clamp must be reported, not silent');
+  assert.equal(clampNote.level, 'info', 'and it is informational, not a warning');
 
   // The geometric estimate is the one used for quoting, and it is physical.
   assert.ok(line.estimate.levels.geometric.bodyVolume <= solidVolume * 1.021);

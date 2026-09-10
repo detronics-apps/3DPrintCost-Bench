@@ -281,13 +281,19 @@ export function estimatePart({
   })();
 
   if (empirical.clamped) {
+    // Info, not a warning: the quote does NOT use this figure. The published
+    // factors are a ratio measured on one calibration part, so on some parts they
+    // ask for more than the part could hold — a known limitation of reading them
+    // as multipliers, not a problem with this quote. The geometric estimate (the
+    // default) is built from this part's own settings and can never exceed solid,
+    // so the price is sound; this note is kept only for the Expert "how it works".
     notes.push({
-      level: 'warn',
-      text: `The published ${profile.name} factor of ${empirical.factor.toFixed(2)}× asks for `
-        + `${(empirical.raw / 1000).toFixed(1)} cm³ of material in a part whose solid volume is only `
-        + `${(geo.solid / 1000).toFixed(1)} cm³. It has been held at the solid volume. `
-        + 'The factors multiply the wall and infill effects together, which counts the same '
-        + 'interior twice — they describe the part they were measured on, not this one.',
+      level: 'info',
+      text: `The published ${profile.name} factors (${empirical.factor.toFixed(2)}× material) are a `
+        + 'ratio measured on one calibration part, so on this part they work out to '
+        + `${(empirical.raw / 1000).toFixed(1)} cm³ — more than its ${(geo.solid / 1000).toFixed(1)} cm³ `
+        + 'of solid, which is not possible. The quote uses the geometric estimate instead (built from '
+        + 'this part’s own settings, so it can never exceed solid); the factor figure is reference only.',
     });
   }
 

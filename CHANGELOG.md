@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.8 — Calmer empirical-factor note (2026-09-10)
+
+- **The “factor asks for more than the solid volume” message is no longer a
+  warning** — it was alarming on ordinary parts, when the quote never used that
+  figure in the first place: the geometric estimate (built from the part’s own
+  settings, so it can never exceed solid) is what prices the part. The note is now
+  a calm, reference-only line that says so, and no longer shows as an order warning.
+
 ## 1.0.7 — Project shared bed: one printer for the whole job (2026-09-10)
 
 - **The printer and loaded filament are now a project-level choice** — set once
