@@ -29,7 +29,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   allowance total. Tests: components sum to the default; an 18% legacy workshop
   keeps 18% after migration; the three "section" engine examples now zero the
   allowance via components. The remaining panel/full-invoice reconciliation stays
-  open in `BACKLOG.md`. (2026-09-10, <commit>)
+  open in `BACKLOG.md`. (2026-09-10, d9d1187)
 
 ## Project page: parts, layout, colour-by-height (v1.0.5)
 
