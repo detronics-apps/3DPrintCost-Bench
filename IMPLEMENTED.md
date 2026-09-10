@@ -27,7 +27,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   overlap and stay on the bed; oversize parts overflow; a full bed spills to a second
   plate). Verified live: Bracket ×6 + Cover ×2 + Clip ×12 laid out on one bed,
   colour-coded and labelled. Supersedes the "layout draws only the selected part"
-  caveat noted on the v1.0.7 shared-bed entry. (2026-09-10, <commit>)
+  caveat noted on the v1.0.7 shared-bed entry. (2026-09-10, 47eda04)
 
 ## Project shared bed: one printer for the whole job (v1.0.7)
 
