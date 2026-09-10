@@ -20,7 +20,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   `partSidebar` (project unless override); the attempt uses `part.printerOverride ?
   part.printerId : project.printerId`. The scheduler's fallback printer id also
   prefers `project.printerId`. Verified live: Multi-colour shows "Snapmaker U1", not
-  X1E. (2026-09-10, <commit>)
+  X1E. (2026-09-10, fd6b065)
 
 ## Stock movement: the reason sets the sign (v1.0.11)
 
