@@ -20,7 +20,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   "(adds)"/"(removes)"; `adjustment` stays in the model only as the display value
   for old entries and the `reason()` fallback (so `reason('nonsense').id ===
   'adjustment'` still holds). Verified live: production of 50 stores −50, and the
-  picker no longer offers adjustment. (2026-09-10, <commit>)
+  picker no longer offers adjustment. (2026-09-10, 557f647)
 
 ## Workflow-ordered navigation (v1.0.10)
 
