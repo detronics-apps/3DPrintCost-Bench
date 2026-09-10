@@ -93,10 +93,8 @@ share the same top-to-bottom, decision-ordered layout. One big cluster._
 
 ## Inventory & stock movements
 
-- **Movement reasons carry fixed signs; drop manual adjustment** — in the record-a-
-  movement flow the sign should follow the reason automatically: *used in
-  production* and *scrapped* are **negative**; *purchase* and *return to stock* are
-  **positive**. Remove the free "manual adjustment" reason. (Raised 2026-09-10.)
+_Movement signs-by-reason shipped v1.0.11. Remaining:_
+
 - **Orders record movements on completion** — once an order is complete it should
   book the stock movements automatically; confirm whether this already happens and
   make it so if not, and ensure it pulls through to the Dashboard. (Raised

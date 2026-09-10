@@ -248,24 +248,33 @@ export function sidebar(ctx) {
     ]),
 
     section('stock-move', 'Record a movement', [
-      muted('Positive adds to stock, negative takes it out. Production movements are '
-        + 'recorded automatically when a print is booked in.'),
+      muted('Enter how much — the reason decides whether it is added or taken out: Purchased '
+        + 'and Returned to stock add; Used in production and Scrapped remove. Production '
+        + 'movements are recorded automatically when a print is booked in.'),
       selectField('move-reason', 'Reason',
-        MOVEMENT_REASONS.map((r) => ({ value: r.id, label: r.name })),
+        // "Manual adjustment" is gone: every real movement has a reason that sets its
+        // sign. The reason is kept in the model only so old adjustment entries still
+        // read correctly and an unknown id has somewhere to fall back to.
+        MOVEMENT_REASONS.filter((r) => r.id !== 'adjustment')
+          .map((r) => ({ value: r.id, label: `${r.name} (${r.sign > 0 ? 'adds' : 'removes'})` })),
         state.ui.adjustReason || 'purchase',
         (v) => { state.ui.adjustReason = v; touch(rerender); }),
-      numberField('move-amount', 'Change', adjustment,
-        (v) => { state.ui.adjustAmount = num(v); touch(rerender); },
-        { suffix: unitOf(selected) }),
+      numberField('move-amount', 'Quantity', Math.abs(adjustment),
+        (v) => { state.ui.adjustAmount = Math.abs(num(v)); touch(rerender); },
+        { min: 0, suffix: unitOf(selected) }),
       textField('move-note', 'Note', state.ui.adjustNote || '',
         (v) => { state.ui.adjustNote = v; saveSoon(); }),
       buttonRow([button('Record it', () => {
-        const amount = num(state.ui.adjustAmount);
-        if (!amount) { toast('Enter an amount first'); return; }
+        const amount = Math.abs(num(state.ui.adjustAmount));
+        if (!amount) { toast('Enter a quantity first'); return; }
+        const reasonId = state.ui.adjustReason || 'purchase';
+        // The reason sets the sign, so the operator never has to remember whether a
+        // scrap is a minus. A zero-sign reason (only the retired adjustment) is guarded.
+        const sign = reason(reasonId).sign || 1;
         state.inventory.movements.push(makeMovement({
           itemId: selected.id,
-          reason: state.ui.adjustReason || 'purchase',
-          quantity: amount,
+          reason: reasonId,
+          quantity: amount * sign,
           note: state.ui.adjustNote || '',
         }));
         state.ui.adjustAmount = 0;

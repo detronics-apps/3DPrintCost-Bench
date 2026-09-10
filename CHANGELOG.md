@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.11 — Stock movements: the reason sets the sign (2026-09-10)
+
+- **Record a movement by reason, not by remembering a minus** — you now enter a
+  plain quantity and the reason decides the direction: Purchased and Returned to
+  stock add; Used in production and Scrapped remove. "Manual adjustment" is gone
+  (old adjustment entries still display correctly).
+
 ## 1.0.10 — Workflow-ordered navigation (2026-09-10)
 
 - **The top tabs now read the workflow left to right** — Estimate | Projects ·

@@ -9,6 +9,19 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Stock movement: the reason sets the sign (v1.0.11)
+
+- **Reason-driven movement signs; "Manual adjustment" retired** — the manual
+  record-a-movement form (`js/ui/tools/inventory.js`) took a signed "Change" the
+  operator had to sign themselves. Now it takes a positive **Quantity** and applies
+  `reason(id).sign` (purchase/return +1, production/scrap −1) on record, so the
+  reason decides add-vs-remove. The dropdown filters out `adjustment`
+  (`MOVEMENT_REASONS.filter(r => r.id !== 'adjustment')`) and labels each option
+  "(adds)"/"(removes)"; `adjustment` stays in the model only as the display value
+  for old entries and the `reason()` fallback (so `reason('nonsense').id ===
+  'adjustment'` still holds). Verified live: production of 50 stores −50, and the
+  picker no longer offers adjustment. (2026-09-10, <commit>)
+
 ## Workflow-ordered navigation (v1.0.10)
 
 - **Top tabs reordered to the workflow, with group separators** — `buildTabs`

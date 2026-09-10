@@ -71,6 +71,10 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Workflow-ordered tabs** (2026-09-10) — the top tabs now read left to right the
+  way the work flows: Estimate, then Projects · Schedule (production), then
+  Dashboard · Quotes · Inventory (managing the work), then Catalogues · Settings
+  (configuration), then How to use — with a quiet line between each group.
 - **Mixed-part bed layout** (2026-09-10) — a "Beds & layout" picture now places
   every part of a job on the plate together, colour-coded and labelled, so you can
   see which parts share which bed and roughly where they go — spilling onto more
