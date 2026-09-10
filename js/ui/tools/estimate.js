@@ -1168,20 +1168,27 @@ function allocationPanel(result) {
   const code = result.currencyCode;
   return el('div', { class: 'panel' }, [
     el('h3', { text: 'Where the commercial share goes' }),
-    muted('These weights divide up money already charged. They are not added to the '
-      + 'price — that would be a 152% markup nobody decided on.'),
+    muted('The Weight is a relative score you set — not a percentage. The Share is that '
+      + 'weight as its portion of 100%, so the Shares add up to 100%. These divide up money '
+      + 'already in the price (the commercial thirds); nothing here is added on top. A line '
+      + 'marked “already charged” names a cost the customer already pays — its “Already '
+      + 'charged” column shows that real direct cost, so you can see it against the notional '
+      + 'share.'),
     table([
       { label: 'Bucket', key: 'name' },
-      { label: 'Weight', align: 'right', mono: true, get: (r) => `${(r.weight * 100).toFixed(0)}%` },
+      { label: 'Weight', align: 'right', mono: true, get: (r) => (r.weight * 100).toFixed(0) },
       { label: 'Share', align: 'right', mono: true, get: (r) => fmtRate(r.share) },
       { label: 'Amount', align: 'right', mono: true, get: (r) => fmtMoney(r.amount, code) },
       {
-        label: '',
-        get: (r) => (r.overlapsDirect
-          ? pill('already charged directly', 'warn')
-          : ''),
+        label: 'Already charged',
+        align: 'right',
+        mono: true,
+        get: (r) => (r.overlapsDirect ? fmtMoney(r.alreadyCharged, code) : '—'),
       },
     ], result.allocation.lines),
+    muted(`Weights add up to a score of ${(result.allocation.weightSum * 100).toFixed(0)}, `
+      + 'not 100 — that is fine, because a weight is only a proportion of the others. The '
+      + 'Share column is what turns them into percentages of the whole.'),
   ]);
 }
 

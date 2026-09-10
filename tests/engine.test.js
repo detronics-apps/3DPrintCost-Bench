@@ -186,6 +186,25 @@ const bracket = () => ({
   colours: 1,
 });
 
+test('a company-internal order drops the rejection and general allowances', () => {
+  const s = settings();
+  s.scrap = { ...s.scrap, mode: 'percent', rate: 0.1, minimumSamples: 0 };
+  s.ctc = { ...s.ctc, generalAllowance: 0.1 };
+  const employee = calculateLine(bracket(), s, { internal: true });
+  const company = calculateLine(bracket(), s, { internal: true, companyInternal: true });
+
+  // Employee-internal is still a billed job at cost: it keeps both allowances.
+  assert.ok(employee.production.scrapAllowance > 0, 'employee keeps the rejection allowance');
+  assert.ok(employee.production.generalAllowance > 0, 'employee keeps the general allowance');
+  assert.ok(employee.ctc > employee.production.total, 'the allowance raises the employee CTC');
+
+  // Company-internal is a bare expense: no rejection allowance, no general
+  // allowance, so its CTC is exactly the direct production cost.
+  assert.equal(round(company.production.scrapAllowance), 0, 'company drops the rejection allowance');
+  assert.equal(round(company.production.generalAllowance), 0, 'company drops the general allowance');
+  close(company.ctc, company.production.total, 1e-9, 'company CTC is the direct cost only');
+});
+
 test('a real line produces finite, ordered numbers all the way down', () => {
   const s = settings();
   const line = calculateLine(bracket(), s);

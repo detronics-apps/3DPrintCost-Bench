@@ -116,6 +116,11 @@ export function calculateLine(line, settings, context = {}) {
   // and NO profit or growth. It is what a print for the company's own use costs,
   // not what a customer is charged.
   const internal = !!context.internal;
+  // A COMPANY-internal print (the company's own R&D/office use, booked as an
+  // expense) is the barest case: it also drops the rejection allowance and the
+  // general allowance, so it is exactly the direct cost of making it. An
+  // EMPLOYEE-internal print is still a billed job at cost, so it keeps both.
+  const companyInternal = !!context.companyInternal;
 
   const country = findCountry(settings.countries, settings.countryId);
   const currencyCode = settings.currencyCode || country.currency;
@@ -419,7 +424,9 @@ export function calculateLine(line, settings, context = {}) {
   /* -- scrap ------------------------------------------------------------- */
 
   const scrap = scrapModel(settings, printer, hardware.failureRate, context.history);
-  const scrapAllowance = atRisk * (scrap.attempts - 1);
+  // Company-internal drops the rejection allowance — an internal expense is not
+  // padded for scrap risk. Employee and customer orders keep it.
+  const scrapAllowance = companyInternal ? 0 : atRisk * (scrap.attempts - 1);
   const production = direct + scrapAllowance;
 
   // A failed print wastes the labour that went into it too, wherever that
@@ -430,7 +437,9 @@ export function calculateLine(line, settings, context = {}) {
 
   /* -- CTC --------------------------------------------------------------- */
 
-  const allowanceRate = Math.max(0, num(settings.ctc?.generalAllowance, 0.1));
+  // Company-internal drops the general allowance too, so its CTC is exactly the
+  // direct production cost. Employee and customer orders keep the allowance.
+  const allowanceRate = companyInternal ? 0 : Math.max(0, num(settings.ctc?.generalAllowance, 0.1));
   const generalAllowance = production * allowanceRate;
   const ctc = production + generalAllowance;
 

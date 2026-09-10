@@ -29,7 +29,7 @@ import {
 } from '../../projects.js';
 import {
   workflowState, advance, clientProgressReport, phaseName, PHASES, isInternal, displayPhase,
-  phaseSkipped,
+  phaseSkipped, isCompanyInternal,
 } from '../../workflow.js';
 import {
   makeQuote, invoiceFromQuote, recordPayment, agreeTotal, lockedPricing,
@@ -54,7 +54,8 @@ const commit = (project) => { replaceProject(project); };
 
 function priceProject(project, settings) {
   const customer = customerFor(project);
-  return calculateOrder(orderFromProject(project, { customer }), settings, { internal: isInternal(project) });
+  return calculateOrder(orderFromProject(project, { customer }), settings,
+    { internal: isInternal(project), companyInternal: isCompanyInternal(project) });
 }
 
 /* ------------------------------------------------ shared document actions -- */

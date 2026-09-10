@@ -71,6 +71,19 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Pricing-model clarity** (2026-09-10) — three changes so the numbers read the
+  way they work. (1) "Where the commercial share goes" no longer looks like a 152%
+  markup: the Weight is a plain score you set, the Share is that weight's slice of
+  100% (the shares total 100%), and a new "Already charged" column shows the real
+  direct cost for buckets that name one (machine, labour, packaging), so you can see
+  the actual figure beside the notional share. (2) Every "How this works" panel that
+  warns about a common mistake now follows it with a green "How it actually works"
+  line — the correction, not just the error. (3) A project set to *internal —
+  company* is now priced at bare direct cost: the rejection and general allowances
+  drop away (an internal expense isn't padded); an *internal — employee* job keeps
+  them, since it's still billed at cost. _A deeper re-model of the commercial share
+  (general allowance = the un-accounted categories, categories capturing the full
+  invoice) is proposed and awaiting sign-off, since it changes the price._
 - **Your logo and electricity tariff now stick** (2026-09-10) — a bug reset the
   company logo and the electricity tariff to their defaults on every load (and on
   every team-sync round-trip), so the logo kept vanishing and the tariff kept

@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.4 — Pricing-model clarity (2026-09-10)
+
+- **Commercial-share panel reads honestly** — in "Where the commercial share
+  goes", the **Weight** is now a plain score (no `%`), the **Share** is that
+  weight as its portion of 100% (the shares add up to 100%), and a new **Already
+  charged** column shows the real direct cost for each bucket that names one
+  (machine, labour, packaging, …) so you can see it against the notional share.
+  No pricing change — this is the display the confusing "weights add to 152%"
+  made unreadable.
+- **"How this works" panels now give the correction** — every panel that names a
+  "commonly got wrong" now follows it with a green "How it actually works" line,
+  so you never leave with only the misconception.
+- **Company-internal orders drop the allowances** — a project whose order type is
+  *internal — company* is now priced at the bare direct cost: the rejection
+  allowance and the general allowance fall away (an internal expense is not padded
+  for scrap risk or overhead). Employee-internal still keeps both, since it is a
+  billed job at cost.
+
 ## 1.0.3 — Fix: logo and electricity tariff no longer reset (2026-09-10)
 
 - **Company logo and electricity tariff now persist** — both were silently reset

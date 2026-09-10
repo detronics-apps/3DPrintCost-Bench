@@ -15,7 +15,7 @@ import { el } from './dom.js';
 import { fmtMoney, fmtRate, num } from '../money.js';
 
 /** One entry. `worked` is a list of `[left, right]` lines already formatted. */
-export function explainCard({ title, plain, formula, worked, mistake, source }) {
+export function explainCard({ title, plain, formula, worked, mistake, correction, source }) {
   return el('details', { class: 'explain' }, [
     el('summary', { class: 'explain__summary' }, [
       el('span', { text: title }),
@@ -33,6 +33,13 @@ export function explainCard({ title, plain, formula, worked, mistake, source }) 
       mistake ? el('p', { class: 'explain__mistake' }, [
         el('strong', { text: 'Commonly got wrong: ' }),
         mistake,
+      ]) : null,
+      // The correction sits right under the misconception, marked green, so the
+      // reader never leaves with only the wrong version in mind. A card that names
+      // a mistake should always answer it.
+      correction ? el('p', { class: 'explain__correction' }, [
+        el('strong', { text: 'How it actually works: ' }),
+        correction,
       ]) : null,
     ]),
   ]);
@@ -81,6 +88,9 @@ export function explainLine(line, result, settings) {
       + 'app will use those instead — and for a multi-colour print that matters '
       + 'more than anywhere else, because how much a machine purges depends on '
       + 'the model and only the slicer knows it.',
+    correction: 'The figure is the app’s best estimate from its ranked sources, and the '
+      + 'label above names which one it used. It is honest about being an estimate — paste '
+      + 'the slicer’s grams and minutes in and that, marked Slicer, is what the price uses.',
   }));
 
   if (e.levels.empirical && e.levels.geometric) {
@@ -109,6 +119,9 @@ export function explainLine(line, result, settings) {
       mistake: 'Reading the factor table as physics. It is calibration data from one '
         + 'part. Record a few real prints and the app will learn a correction from your '
         + 'own machines, which is what the factors were reaching for.',
+      correction: 'The factors are a starting calibration, not a law. Log a few real prints '
+        + 'and the app learns a per-machine correction from your own results, replacing the '
+        + 'published guess with your data.',
     }));
   }
 
@@ -136,6 +149,9 @@ export function explainLine(line, result, settings) {
     mistake: 'Assuming the cheap machine makes the cheap part. It has a lower hourly '
       + 'rate and a lower flow rate, so it takes longer — the answer is only visible at '
       + 'the finished part, which is what the printer comparison is for.',
+    correction: 'Compare the finished-part cost, not the hourly rate: a slower cheap machine '
+      + 'can cost more per part than a faster dear one. The printer comparison does exactly '
+      + 'that sum for you.',
   }));
 
   cards.push(explainCard({
@@ -154,6 +170,9 @@ export function explainLine(line, result, settings) {
     ],
     mistake: 'Ignoring it because it is small. It is small — and it is a real cost that '
       + 'belongs in the Cost to Company rather than being buried in a percentage.',
+    correction: 'Electricity is metered as its own Cost-to-Company line — heat-up, printing '
+      + 'and idle at your tariff — so it is priced explicitly on every part and never lost '
+      + 'inside a percentage.',
   }));
 
   cards.push(explainCard({
@@ -172,6 +191,9 @@ export function explainLine(line, result, settings) {
     ],
     mistake: 'Charging only the print-watching time. The enquiry, the slicing, the '
       + 'inspection and the invoice are all real hours somebody worked.',
+    correction: 'Labour is costed as the whole workflow — enquiry, slicing, inspection, '
+      + 'invoicing — with each operation scaled by how often it happens, so the real hours '
+      + 'are recovered exactly once and a batch spreads the one-off ones.',
   }));
 
   cards.push(explainCard({
@@ -192,6 +214,9 @@ export function explainLine(line, result, settings) {
     mistake: 'Applying the scrap rate to the invoicing time as well. A failed print '
       + 'wastes the plastic and the machine hours; it does not make you raise the '
       + 'invoice twice, so order-scope labour is left out of the allowance.',
+    correction: 'Only the at-risk costs — plastic and machine hours — carry the scrap '
+      + 'allowance, priced as attempts per good part; order-scope labour is excluded, so a '
+      + 'reprint is never billed as a second invoice.',
   }));
 
   cards.push(explainCard({
@@ -218,6 +243,9 @@ export function explainLine(line, result, settings) {
     mistake: 'Putting shipping in here. Shipping is money the customer is passed for '
       + 'moving a box; it does not change what the part cost to make, and the app will '
       + 'not let it into this number.',
+    correction: 'Cost to Company is production only — material, machine, electricity, labour, '
+      + 'hardware, scrap, plus the general allowance. Shipping is a fulfilment extra added '
+      + 'after the part price, never inside CTC.',
   }));
 
   const p = line.price;
@@ -253,6 +281,9 @@ export function explainLine(line, result, settings) {
     mistake: 'Adding the company allocation percentages on top of this. Marketing 20%, '
       + 'R&D 20%, profit 50% and the rest divide up the two commercial thirds you have '
       + 'already charged. Adding them would make a 152% markup nobody decided on.',
+    correction: 'The allocation only DIVIDES the two commercial thirds you have already '
+      + 'charged — it is a breakdown of that money, not an addition to it. The part price is '
+      + 'exactly CTC plus those thirds (plus recovered labour); nothing else is stacked on top.',
   }));
 
   if (result) {
@@ -272,6 +303,9 @@ export function explainLine(line, result, settings) {
       ],
       mistake: 'Pointing demand at the whole price. Below 1.00× that discounts your own '
         + 'cost recovery, and the part sells for less than it cost to make.',
+      correction: 'Demand moves only the commercial and profit shares, never cost recovery, '
+        + 'so a quiet-workshop discount can thin the margin but never sell the part below '
+        + 'what it cost to make.',
     }));
   }
 
@@ -306,6 +340,8 @@ export function explainOrder(result, settings) {
     mistake: 'Letting the shipping charge count towards free shipping. The threshold is '
       + 'measured on the part value, or a R820 order plus R90 shipping would qualify for '
       + 'free shipping on the strength of the shipping.',
+    correction: 'Free shipping is judged on the part value alone, so a courier charge can '
+      + 'never tip an order over the threshold on the strength of the courier charge.',
   }));
 
   const free = result.shipping.freeRule;
@@ -323,6 +359,8 @@ export function explainOrder(result, settings) {
     ],
     mistake: 'Setting the threshold below three times your typical cost. At CTC × 3 a '
       + `${money(free.threshold)} threshold is a part costing ${money(free.threshold / 3)} to make.`,
+    correction: 'Set the threshold at roughly three times a typical part’s Cost to Company, '
+      + 'so free shipping is only ever earned on an order whose margin can absorb the courier.',
   }));
 
   const alloc = result.allocation;
@@ -344,6 +382,9 @@ export function explainOrder(result, settings) {
     mistake: 'Reading a bucket that names a direct cost — machine, labour, packaging — '
       + 'as a second charge. Those are internal shares of money the customer has already '
       + 'paid once. The app marks each one.',
+    correction: 'A bucket tagged “already charged directly” (machine, labour, packaging, …) '
+      + 'is only showing where money the customer already paid is notionally allocated — '
+      + 'never a second charge, and the app labels each one.',
   }));
 
   return cards;

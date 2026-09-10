@@ -9,6 +9,39 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Pricing-model clarity (display + corrections + company-internal)
+
+_Rolls up into the `FEATURES.md` operator feature "Pricing-model clarity". The
+deeper commercial-share re-model (general-allowance redefinition, full-invoice
+categories) stays in `BACKLOG.md` pending sign-off — it changes the price._
+
+- **Commercial-share panel reads honestly** — in `allocationPanel`
+  (`js/ui/tools/estimate.js`) the Weight column now prints a plain score
+  (`(weight*100).toFixed(0)`, no `%`), the Share stays `fmtRate` (sums to 100%),
+  and a new **Already charged** column shows `line.alreadyCharged` for buckets with
+  `overlapsDirect` (the real direct cost, already computed by `allocate` in
+  `js/pricing.js`) so notional vs actual is visible. Intro/footer `muted` text
+  rewritten to explain weight-as-score. Pure display — no pricing change. Why: the
+  "weights add to 152% with a % sign" made the panel read as a 150% markup. Verified
+  live: weights 20/50/10…, shares total 100%, Labour already-charged R121.00.
+  (2026-09-10, <commit>)
+- **"How this works" panels show the correction** — `explainCard`
+  (`js/ui/explain.js`) gained a `correction` field rendered as `.explain__correction`
+  (green left border, `--ok`, in `css/components.css`) directly under the red
+  `mistake`. All 12 cards that name a "commonly got wrong" now answer it with a
+  "How it actually works" line. Why: a teaching tool must not leave the reader with
+  only the misconception. Rule: a card with a `mistake` should always carry a
+  `correction`. (2026-09-10, <commit>)
+- **Company-internal orders drop the rejection + general allowances** — a project
+  whose order type is *internal — company* is priced at bare direct cost. How: new
+  `context.companyInternal` in `calculateLine` (`js/engine.js`) — `scrapAllowance`
+  and `allowanceRate` are forced to 0 when set; passed from `priceProject`
+  (`js/ui/tools/projects.js`) as `isCompanyInternal(project)` (workflow.js). The
+  existing `internal` boolean (employee OR company) still drops labour/profit/demand;
+  this adds the company-only allowance drop, so employee-internal keeps both (still
+  a billed job at cost). Locked with a `tests/engine.test.js` case (employee keeps
+  both; company zeroes both and CTC == direct cost). (2026-09-10, <commit>)
+
 ## Bug: logo and electricity tariff kept resetting
 
 - **Logo and electricity tariff no longer reset** — both silently reverted to
