@@ -36,7 +36,7 @@ remains open._
   into the calc, so the editors drive real numbers, not cosmetics; `updatePart` is
   a shallow merge, so `set({ settingOverrides: next })` replaces the whole object.
   Verified by rendering the tool's `sidebar()` against live state (cache-busted
-  import) and asserting every new control's label is present. (2026-09-10, <commit>)
+  import) and asserting every new control's label is present. (2026-09-10, 64f1928)
 
 ## Quote & invoice documents (quick wins)
 
