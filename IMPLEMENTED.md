@@ -26,7 +26,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   `tests/settings.test.js` cases (logo + tariff survive migration). Data already
   wiped can't be recovered — re-enter once, then it persists. → harvest candidate:
   the `typeof null === 'object'` deep-merge trap belongs in the skill's pitfalls.
-  (2026-09-10, <commit>)
+  (2026-09-10, 6ffe645)
 
 ## Project part editor: parity with the estimators (Advanced/Expert controls)
 
