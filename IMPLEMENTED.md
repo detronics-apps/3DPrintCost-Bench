@@ -9,6 +9,35 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Project part editor: parity with the estimators (Advanced/Expert controls)
+
+_Rolls up into the `FEATURES.md` operator feature "Every estimator control on a
+project part". First of the "Project part editor" cluster; the nozzle item
+remains open._
+
+- **Project part editor = superset of both estimators** — the project part editor
+  gained the Advanced/Expert per-part controls the Estimate tool and client form
+  already had and it was missing: the print-setting overrides (infill %, infill
+  pattern, wall loops, layer height, shrinkage, angle optimisation, ironing, fuzzy
+  skin), a labour-complexity multiplier, a parts-per-plate override, an
+  other-direct-cost per part, and the estimate-method selector on the slicer
+  figures. Why: the project is where a job is fine-tuned into production, so
+  nothing settable on an estimate should be unavailable there. How: two helpers in
+  `js/ui/tools/projects.js` — `partSettingOverrides(part, settings, set)` mirrors
+  the estimator's "This part's settings" (a sparse `settingOverrides` diff against
+  the profile: a value equal to the profile's is deleted, not stored) and
+  `partAdvanced(...)` holds parts-per-plate / complexity / other-direct; the
+  estimate-method select was added to the existing `slicerFigures`. All gated on
+  `state.mode !== 'simple'` (return `null` in Simple), so the render array just
+  filters them out. Imported `sliderField`/`moneyField` from controls and
+  `INFILL_PATTERNS`/`FACTOR_LABELS` (profiles.js) + `ESTIMATE_LEVELS` (estimate.js)
+  — the same constants the estimator uses, so the two screens can never drift.
+  Every field already existed on `makePart` and flowed through `orderFromProject`
+  into the calc, so the editors drive real numbers, not cosmetics; `updatePart` is
+  a shallow merge, so `set({ settingOverrides: next })` replaces the whole object.
+  Verified by rendering the tool's `sidebar()` against live state (cache-busted
+  import) and asserting every new control's label is present. (2026-09-10, <commit>)
+
 ## Quote & invoice documents (quick wins)
 
 _Rolls up into the `FEATURES.md` operator feature "Readable banking + invoice

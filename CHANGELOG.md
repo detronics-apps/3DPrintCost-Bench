@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.2 — Project part editor: parity with the estimators (2026-09-10)
+
+- **Every estimator control on a project part** — the project part editor now
+  exposes the same Advanced/Expert per-part levers the Estimate tool and client
+  form offer: the print-setting overrides (infill %, infill pattern, wall loops,
+  layer height, shrinkage, angle optimisation, ironing, fuzzy skin via
+  `settingOverrides`), a labour-complexity multiplier, a parts-per-plate override,
+  an other-direct-cost per part, and the estimate-method selector on the slicer
+  figures. All mode-gated (hidden in Simple) exactly as the estimator gates them.
+  The fields already rode into a project from an estimate; this adds their
+  editors, so nothing you can set on an estimate is unavailable on the project.
+
 ## 1.0.1 — Quote & invoice document polish (2026-09-08)
 
 - **Banking details on their own lines** — each banking detail (bank, account

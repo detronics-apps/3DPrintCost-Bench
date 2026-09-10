@@ -463,6 +463,14 @@ export function main(ctx) {
             + 'an invoice — set the default in Settings, or edit it per invoice from Quotes & '
             + 'invoices. (This is not the packaging thank-you card that goes in the box.)',
         }),
+        statTile('Project part = full estimator', 'Projects → Part', {
+          hint: 'Past Simple, a project part shows every per-part control the Estimate tool and '
+            + 'client form do: override the profile’s infill, pattern, wall loops, layer height, '
+            + 'shrinkage, ironing and the rest for one part; a labour-complexity multiplier; a '
+            + 'parts-per-plate override; an other-direct cost; and which estimate to trust. So a '
+            + 'job can be fine-tuned into production without going back to the estimator.',
+          tone: 'accent',
+        }),
       ]),
     ], { open: false }),
 

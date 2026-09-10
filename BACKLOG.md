@@ -25,17 +25,6 @@ word to reprioritise.
 
 ### Project part editor — the most capable editor
 
-- **Project part editor = superset of both estimators** — the project is where a
-  job is fine-tuned as it goes into production, so its part editor should expose
-  *every* per-part control the main Estimate tool and the client form offer — and
-  today it is missing the Advanced/Expert ones. Bring across, mode-gated
-  (Advanced/Expert) the same way the estimator gates them: the print-settings
-  overrides (infill %, infill pattern, wall loops — the nozzle/infill tuning, via
-  `settingOverrides`), labour complexity, the parts-per-plate override and
-  other-direct-cost (fields already carry into a project — they just need
-  editors), and the estimate-method / slicer-figures controls. End state: nothing
-  you can set on an estimate (internal or client) is unavailable on the project.
-  (Raised 2026-09-08.)
 - **Nozzle size affects print time + a nozzle-change operation** — only when the
   company says it uses more than one nozzle size (a company setting; off by default
   so nobody who runs one nozzle ever sees it). Two parts: (1) confirm/make the

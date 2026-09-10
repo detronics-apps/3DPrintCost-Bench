@@ -10,6 +10,7 @@ import { el, toast } from '../dom.js';
 import {
   section, subsection, numberField, textField, selectField, checkField, button,
   buttonRow, banner, statTile, table, muted, emptyState, pill, costRow,
+  sliderField, moneyField,
 } from '../controls.js';
 import { moneyDiagram } from '../svg/money.js';
 import { explainLine, explainOrder } from '../explain.js';
@@ -34,6 +35,8 @@ import {
   makeQuote, invoiceFromQuote, recordPayment, agreeTotal, lockedPricing,
 } from '../../documents.js';
 import { gateMatches, entryPostOps } from '../../postprocessing.js';
+import { INFILL_PATTERNS, FACTOR_LABELS } from '../../profiles.js';
+import { ESTIMATE_LEVELS } from '../../estimate.js';
 import {
   movementsForRun, materialStock, resinStock, resinGramsForPart, resinItemFor, makeMovement,
 } from '../../inventory.js';
@@ -751,7 +754,15 @@ function slicerFigures(part, liveSlots, settings, set) {
     ...gramFields,
     numberField(`part-slicer-min-${part.id}`, 'Total print time', slicer.minutes ?? 0,
       (v) => set({ slicer: { ...slicer, minutes: num(v) } }), { min: 0, suffix: 'min' }),
-  ], {
+    // Which estimate to trust — the same control the estimator offers. Advanced+
+    // only; Simple always uses the best available figure.
+    state.mode !== 'simple'
+      ? selectField(`part-estimate-method-${part.id}`, 'Which estimate to use',
+        [{ value: 'auto', label: 'Best available (recommended)' },
+          ...ESTIMATE_LEVELS.map((l) => ({ value: l.id, label: l.name }))],
+        part.estimateMethod || 'auto', (v) => set({ estimateMethod: v }))
+      : null,
+  ].filter(Boolean), {
     hint: qty > 1
       ? `The whole print, not per part — the app divides across the ${qty} for you.`
       : 'The whole print as the slicer reports it.',
@@ -851,6 +862,79 @@ function partPostProcessing(part, settings, set) {
   return section(`part-pp-${part.id}`, 'Post-processing', body, { open: false });
 }
 
+/**
+ * The per-part print-setting overrides — the same "This part's settings" the
+ * estimator offers, so a project part is a superset of both estimators. Overrides
+ * are stored as a sparse `settingOverrides` diff against the chosen profile: a
+ * value equal to the profile's is deleted, not stored, so the profile stays the
+ * source of truth and only genuine departures are recorded. Hidden in Simple.
+ */
+function partSettingOverrides(part, settings, set) {
+  if (state.mode === 'simple') return null;
+  const profile = settings.profiles.find((p) => p.id === part.profileId) || settings.profiles[0];
+  if (!profile) return null;
+  const overrides = part.settingOverrides || {};
+  const merged = { ...profile.settings, ...overrides };
+  const overridden = Object.keys(overrides).length > 0;
+  const setOverride = (field) => (value) => {
+    const next = { ...overrides };
+    if (value === profile.settings[field]) delete next[field];
+    else next[field] = value;
+    set({ settingOverrides: next });
+  };
+
+  return subsection('This part’s settings', [
+    sliderField(`part-infill-${part.id}`, FACTOR_LABELS.infill, merged.infill, setOverride('infill'), {
+      min: 0, max: 100, step: 1, format: (v) => `${v}%`,
+    }),
+    selectField(`part-infill-pattern-${part.id}`, FACTOR_LABELS.infillPattern,
+      INFILL_PATTERNS.map((p) => ({ value: p.id, label: p.name })),
+      merged.infillPattern, setOverride('infillPattern')),
+    sliderField(`part-walls-${part.id}`, FACTOR_LABELS.wallLoops, merged.wallLoops, setOverride('wallLoops'), {
+      min: 1, max: 12, step: 1, format: (v) => `${v}`,
+    }),
+    selectField(`part-layer-height-${part.id}`, FACTOR_LABELS.layerHeight,
+      [0.08, 0.1, 0.12, 0.15, 0.16, 0.2, 0.24, 0.28, 0.3].map((h) => ({ value: String(h), label: `${h} mm` })),
+      String(merged.layerHeight), (v) => setOverride('layerHeight')(Number(v))),
+    checkField(`part-shrinkage-${part.id}`, FACTOR_LABELS.shrinkage, merged.shrinkage, setOverride('shrinkage')),
+    checkField(`part-angle-opt-${part.id}`, FACTOR_LABELS.angleOptimisation, merged.angleOptimisation, setOverride('angleOptimisation')),
+    checkField(`part-ironing-${part.id}`, FACTOR_LABELS.ironing, merged.ironing, setOverride('ironing')),
+    checkField(`part-fuzzy-${part.id}`, FACTOR_LABELS.fuzzySkin, merged.fuzzySkin, setOverride('fuzzySkin')),
+    overridden
+      ? buttonRow([button(`Back to the ${profile.name} profile`,
+        () => set({ settingOverrides: {} }), { key: `part-reset-overrides-${part.id}` })])
+      : null,
+  ].filter(Boolean), {
+    hint: overridden
+      ? 'These differ from the saved profile. The quote records what was actually used.'
+      : 'Changing anything here overrides the profile for this part only.',
+  });
+}
+
+/**
+ * The advanced per-part levers the estimator has and a project must not lose:
+ * a parts-per-plate override, a labour-complexity multiplier and an other-direct
+ * cost. The fields already ride into a project from an estimate — this is their
+ * editor. Hidden in Simple.
+ */
+function partAdvanced(part, settings, set) {
+  if (state.mode === 'simple') return null;
+  return subsection('Advanced', [
+    numberField(`part-per-plate-${part.id}`, 'Parts per plate', part.partsPerPlateOverride || 0,
+      (v) => set({ partsPerPlateOverride: Math.max(0, Math.round(num(v))) }), {
+        min: 0, step: 1, hint: 'Zero lets the app work it out from the shared bed.',
+      }),
+    sliderField(`part-complexity-${part.id}`, 'Labour complexity', part.complexity ?? 1,
+      (v) => set({ complexity: v }), {
+        min: 0.5, max: 3, step: 0.1, format: (v) => `${v.toFixed(1)}×`,
+        info: 'Scales every labour operation for this part. Use it for something fiddly '
+          + 'to remove, clean or inspect.',
+      }),
+    moneyField(`part-other-direct-${part.id}`, 'Other direct cost per part', part.otherDirectCost || 0,
+      (v) => set({ otherDirectCost: num(v) }), settings.currencyCode),
+  ]);
+}
+
 function partSidebar(ctx, project, part) {
   const { rerender } = ctx;
   const settings = state.settings;
@@ -909,6 +993,7 @@ function partSidebar(ctx, project, part) {
     selectField('part-profile', 'Print intent',
       settings.profiles.map((p) => ({ value: p.id, label: p.name })),
       part.profileId, (v) => set({ profileId: v, settingOverrides: {} })),
+    partSettingOverrides(part, settings, set),
     // Fit-critical flag, same as the client form. A client can set it on a
     // request (it rides in as a FIT-CRITICAL note); this lets the operator set or
     // clear it on a project part directly.
@@ -966,6 +1051,7 @@ function partSidebar(ctx, project, part) {
       fileInput,
     ]),
 
+    partAdvanced(part, settings, set),
     slicerFigures(part, liveSlots, settings, set),
 
     buttonRow([

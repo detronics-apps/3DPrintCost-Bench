@@ -71,6 +71,17 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Every estimator control on a project part** (2026-09-10) — the project part
+  editor is now a superset of both estimators: past Simple it shows the same
+  per-part tuning the Estimate tool and client form do — override the profile's
+  infill %, infill pattern, wall loops, layer height, shrinkage, angle
+  optimisation, ironing and fuzzy skin for one part; scale its labour with a
+  "Labour complexity" multiplier; force a parts-per-plate count; add an
+  other-direct cost; and pick which estimate to trust on the slicer figures.
+  Nothing you can set on an estimate is missing from a project part now, so a job
+  can be fine-tuned as it goes into production without dropping back to the
+  estimator. Everything is hidden in Simple and appears in Advanced/Expert, the
+  same as on the estimate.
 - **Readable banking + invoice thank-you** (2026-09-08) — two touches to the
   printed documents. Type each banking detail on its own line in Settings →
   Company (bank, account name, account number, branch code, reference) and each
