@@ -24,14 +24,14 @@ categories) stays in `BACKLOG.md` pending sign-off — it changes the price._
   rewritten to explain weight-as-score. Pure display — no pricing change. Why: the
   "weights add to 152% with a % sign" made the panel read as a 150% markup. Verified
   live: weights 20/50/10…, shares total 100%, Labour already-charged R121.00.
-  (2026-09-10, <commit>)
+  (2026-09-10, be8b055)
 - **"How this works" panels show the correction** — `explainCard`
   (`js/ui/explain.js`) gained a `correction` field rendered as `.explain__correction`
   (green left border, `--ok`, in `css/components.css`) directly under the red
   `mistake`. All 12 cards that name a "commonly got wrong" now answer it with a
   "How it actually works" line. Why: a teaching tool must not leave the reader with
   only the misconception. Rule: a card with a `mistake` should always carry a
-  `correction`. (2026-09-10, <commit>)
+  `correction`. (2026-09-10, be8b055)
 - **Company-internal orders drop the rejection + general allowances** — a project
   whose order type is *internal — company* is priced at bare direct cost. How: new
   `context.companyInternal` in `calculateLine` (`js/engine.js`) — `scrapAllowance`
@@ -40,7 +40,7 @@ categories) stays in `BACKLOG.md` pending sign-off — it changes the price._
   existing `internal` boolean (employee OR company) still drops labour/profit/demand;
   this adds the company-only allowance drop, so employee-internal keeps both (still
   a billed job at cost). Locked with a `tests/engine.test.js` case (employee keeps
-  both; company zeroes both and CTC == direct cost). (2026-09-10, <commit>)
+  both; company zeroes both and CTC == direct cost). (2026-09-10, be8b055)
 
 ## Bug: logo and electricity tariff kept resetting
 
