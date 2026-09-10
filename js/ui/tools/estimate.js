@@ -21,6 +21,7 @@ import {
 } from '../controls.js';
 import { moneyDiagram, thirdsDiagram } from '../svg/money.js';
 import { plateInBuildVolume, orientationChart } from '../svg/part.js';
+import { bedPlan } from '../svg/bed.js';
 import { savingsChart } from '../svg/savings.js';
 import { plateSaving } from '../../savings.js';
 import { splitByColour } from '../../colourplates.js';
@@ -1374,6 +1375,19 @@ export function main(ctx) {
   nodes.push(el('div', { class: 'viewport__stage' }, [
     thirdsDiagram({ price: line.price, currencyCode: code }),
   ]));
+
+  // Every part on the shared bed, positioned together on each plate.
+  const bedPrinter = settings.printers.find((p) => p.id === state.quick.printerId) || settings.printers[0];
+  const bedItems = state.quick.parts.map((p, i) => ({
+    id: p.id,
+    label: p.name || `Part ${i + 1}`,
+    size: p.orientedSize || p.geometry?.size || (p.manual ? { x: p.manual.x, y: p.manual.y } : null),
+    count: p.quantity,
+  })).filter((it) => it.size && it.size.x && it.size.y);
+  const bedNode = bedPlan(bedItems, bedPrinter?.build);
+  if (bedNode) {
+    nodes.push(el('div', { class: 'panel' }, [el('h3', { text: 'Beds & layout' }), bedNode]));
+  }
 
   const geometry = line.geometry;
   const printer = settings.printers.find((p) => p.id === line.printer.id);

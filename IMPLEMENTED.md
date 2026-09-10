@@ -9,6 +9,26 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Mixed-part bed layout, shared across estimate/project/portal (v1.0.9)
+
+- **Different parts positioned together on one plate, drawn** — new pure
+  `arrangeBed(items, build)` (`js/bedplan.js`): a shelf packer (largest footprint
+  first) that gives x/y positions for every part's oriented footprint, spilling
+  onto more plates as each fills, flagging parts too big for the bed. A floor, not a
+  nest (same caveat as `partsPerPlate`/`packBed`). Rendered by `bedPlan(items,
+  build)` (`js/ui/svg/bed.js`) as top-down small-multiple plate SVGs — each part a
+  labelled, colour-coded rounded rect, with a legend and overflow note; a flat plan,
+  not isometric, so small parts aren't hidden behind tall ones. CSS `.bedplan*` in
+  `components.css`. Wired into all three surfaces from the one component: the
+  project `bedLayoutPanel` (replacing the text-only colour split), the estimate main
+  (after the thirds diagram), and the portal render (after "Printer and colours").
+  Why: the owner wanted to see which parts share each plate and where — for the
+  workshop and the client. Locked with `tests/bedplan.test.js` (positions don't
+  overlap and stay on the bed; oversize parts overflow; a full bed spills to a second
+  plate). Verified live: Bracket ×6 + Cover ×2 + Clip ×12 laid out on one bed,
+  colour-coded and labelled. Supersedes the "layout draws only the selected part"
+  caveat noted on the v1.0.7 shared-bed entry. (2026-09-10, <commit>)
+
 ## Project shared bed: one printer for the whole job (v1.0.7)
 
 _From a live design discussion (pros/cons of per-part vs per-project printer),

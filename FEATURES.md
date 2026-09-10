@@ -71,6 +71,12 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Mixed-part bed layout** (2026-09-10) — a "Beds & layout" picture now places
+  every part of a job on the plate together, colour-coded and labelled, so you can
+  see which parts share which bed and roughly where they go — spilling onto more
+  plates as each fills. It shows on the estimate, the project and the customer
+  portal (the client sees the same bed you do). It's an approximate shelf-packing
+  layout, not a slicer nest, and says so.
 - **Project shared bed: one printer for the whole job** (2026-09-10) — the printer
   and the loaded filament are now chosen once for the project (Printer & loaded
   filament), and every part prints on that shared bed — so an assembly of six parts

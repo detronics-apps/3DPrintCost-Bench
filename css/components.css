@@ -589,6 +589,16 @@
 .sheet__thanks { margin-top: 8mm; font-size: 9pt; font-style: italic; text-align: center; color: #555; }
 .sheet__thanks p { margin: 0; }
 
+/* -------------------------------------------------------------- bed plan -- */
+.bedplan { display: flex; flex-direction: column; gap: var(--space-3); }
+.bedplan__legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: 13px; }
+.bedplan__key { display: inline-flex; align-items: center; gap: 6px; }
+.bedplan__swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
+.bedplan__grid { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.bedplan__plate { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.bedplan__svg { width: 100%; max-width: 380px; height: auto; display: block; }
+.bedplan__cap { font-size: 12px; color: var(--text-dim); text-align: center; }
+
 .backup-reminder { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
 
 /* -------------------------------------------------------------- branding -- */

@@ -14,7 +14,7 @@ import {
 } from '../controls.js';
 import { moneyDiagram } from '../svg/money.js';
 import { plateInBuildVolume } from '../svg/part.js';
-import { splitByColour } from '../../colourplates.js';
+import { bedPlan } from '../svg/bed.js';
 import { explainLine, explainOrder } from '../explain.js';
 import { downloadJson, downloadCsv, orderCsv, copyText } from '../export.js';
 import { readMesh } from '../../mesh.js';
@@ -1206,26 +1206,17 @@ function bedLayoutPanel(ctx, project, result) {
   const settings = state.settings;
   const printer = settings.printers.find((p) => p.id === project.printerId) || settings.printers[0];
   const limit = slotLimit(printer);
-  const label = (id) => {
-    const m = settings.materials.find((x) => x.id === id);
-    return m ? `${m.colour} ${m.name}` : id;
-  };
-  const projectColours = (project.slots || []).map((s) => s.materialId).filter(Boolean);
-  const coloursOf = (part) => {
-    const bands = (part.colourBands || []).map((b) => b.materialId).filter(Boolean);
-    return bands.length ? [...new Set(bands)] : projectColours;
-  };
 
   const shared = project.parts.filter((p) => !p.printerOverride);
   const overrides = project.parts.filter((p) => p.printerOverride);
-  const split = splitByColour(shared.map((p) => ({ id: p.id, colours: coloursOf(p) })), limit);
-  const nameOf = (id) => project.parts.find((p) => p.id === id)?.name || 'Part';
 
-  const bedsList = split.plates.map((plate, i) => el('div', { class: 'part-block' }, [
-    el('strong', { text: `Bed ${i + 1}` }),
-    muted(`Colours: ${(plate.colours.length ? plate.colours : projectColours).map(label).join(', ') || '—'}`),
-    muted(`Parts: ${plate.parts.map(nameOf).join(', ') || '—'}`),
-  ]));
+  // The mixed-part plate plan: every shared part positioned on the bed, so the
+  // operator sees which parts share each plate and roughly where they sit.
+  const footprintOf = (p) => p.orientedSize || p.geometry?.size || p.manual || null;
+  const planItems = shared
+    .map((p) => ({ id: p.id, label: p.name, size: footprintOf(p), count: p.quantity }))
+    .filter((it) => it.size && it.size.x && it.size.y);
+  const plan = bedPlan(planItems, printer.build);
 
   // The selected part, drawn on its plate inside the build volume.
   const part = activePart();
@@ -1255,15 +1246,13 @@ function bedLayoutPanel(ctx, project, result) {
   return el('div', { class: 'panel' }, [
     el('h3', { text: 'Beds & layout' }),
     muted(`${printer.name} holds ${limit} colour${limit === 1 ? '' : 's'} at once. Parts sharing the `
-      + 'bed are packed onto the fewest plates; a part moved to a different printer prints on its own.'),
-    split.plates.length ? el('div', {}, bedsList) : muted('No parts on the shared bed yet.'),
+      + 'bed are laid out onto the fewest plates; a part moved to a different printer prints on its own.'),
+    plan || muted('Add parts with a size or a model to see the bed layout.'),
     overrides.length
       ? muted(`On other printers: ${overrides.map((p) => `${p.name} — `
         + `${settings.printers.find((x) => x.id === p.printerId)?.name || '?'}`).join('; ')}.`)
       : null,
-    part
-      ? muted(`Layout: ${part.name} on ${line?.printer.name || printer.name}.`)
-      : muted('Open a part to see its plate layout.'),
+    part && stage ? muted(`In the build volume: ${part.name} on ${line?.printer.name || printer.name}.`) : null,
     stage,
   ].filter(Boolean));
 }

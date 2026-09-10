@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.9 — Mixed-part bed layout in all three places (2026-09-10)
+
+- **See different parts positioned together on one plate** — a new top-down "Beds
+  & layout" picture places every part of a job on the bed, colour-coded and
+  labelled, spilling onto more plates as each fills, so you can see which parts
+  share which plate and roughly where they sit. It shows on the **estimate**, the
+  **project** and the **customer portal** — the same view for you and the client.
+  It’s an approximate shelf-packing layout (a floor, not a slicer nest), and says so.
+
 ## 1.0.8 — Calmer empirical-factor note (2026-09-10)
 
 - **The “factor asks for more than the solid volume” message is no longer a

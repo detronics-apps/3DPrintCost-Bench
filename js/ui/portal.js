@@ -41,6 +41,7 @@ import { radarChart } from './svg/radar.js';
 import { portalRequest } from '../portal-request.js';
 import { makeAddressParts, formatAddress, ADDRESS_TYPES } from '../projects.js';
 import { filamentSlots, mixEditor } from './filament-slots.js';
+import { bedPlan } from './svg/bed.js';
 import { plateSaving } from '../savings.js';
 import { savingsChart } from './svg/savings.js';
 
@@ -848,6 +849,19 @@ function render() {
     muted('Load the colours you want. On a part with more than one loaded, say how much of '
       + 'each it is in that part above.'),
   ]));
+
+  // The bed picture: every part positioned together on the plate(s), so the
+  // client sees how their parts share a bed — the same view the workshop sees.
+  const bedItems = state.parts.map((p, i) => ({
+    id: p.id || `p${i}`,
+    label: p.name || `Part ${i + 1}`,
+    size: p.orientedSize || p.geometry?.size || (p.manual ? { x: p.manual.x, y: p.manual.y } : null),
+    count: p.quantity,
+  })).filter((it) => it.size && it.size.x && it.size.y);
+  const bedNode = bedPlan(bedItems, printer?.build);
+  if (bedNode) {
+    nodes.push(el('div', { class: 'panel' }, [el('h2', { text: 'On the bed' }), bedNode]));
+  }
 
   // Only couriers that can actually carry the parcel (by size) are offered; the
   // full method specs with their size limits ride in the pricing slice.
