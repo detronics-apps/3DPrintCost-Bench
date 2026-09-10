@@ -38,7 +38,7 @@ the quote→project colour-split pre-populate stay open in `BACKLOG.md`._
   from the estimate / defaulted), just no longer hand-edited here.
 - **Order-type hint corrected** — updated the order-type field hint to say a
   *company* internal order drops the rejection and general allowances (following
-  the v1.0.4 engine change) while an *employee* order keeps them. (2026-09-10, <commit>)
+  the v1.0.4 engine change) while an *employee* order keeps them. (2026-09-10, e5c929f)
 
 ## Pricing-model clarity (display + corrections + company-internal)
 
