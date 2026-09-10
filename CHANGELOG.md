@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.6 — General allowance = its named categories (2026-09-10)
+
+- **The general allowance is now the sum of what it covers** — marketing, admin,
+  R&D and storage, each a % of the production cost, set in Settings → Cost to
+  Company (and on the estimate’s Allowances panel). The old single "general
+  allowance %" is replaced by these four; the "How this works → Cost to Company"
+  panel itemises them so you can see the allowance add up. No price moves on
+  upgrade: your existing allowance total is split across the four in proportion and
+  preserved exactly — adjust them from there.
+
 ## 1.0.5 — Project page: parts, layout, colour-by-height (2026-09-10)
 
 - **Add another part from the part editor** — the part editor’s action row now has

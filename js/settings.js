@@ -126,7 +126,17 @@ export function defaultSettings() {
     },
 
     ctc: {
+      // The general allowance is the sum of the commercial costs that are NOT
+      // computed anywhere else in the price — marketing, admin, R&D and storage.
+      // Each is a % of the production cost; the effective allowance is their sum.
+      // `generalAllowance` is kept as that sum for display and drift comparison.
       generalAllowance: 0.10,
+      allowanceComponents: {
+        marketing: 0.04,
+        admin: 0.02,
+        rnd: 0.03,
+        storage: 0.01,
+      },
       otherDirectPerPart: 0,
     },
     scrap: {
@@ -219,6 +229,32 @@ export function defaultSettings() {
  * replaces the shipped one outright - merging element by element would
  * resurrect a printer they deleted and renumber the rest.
  */
+/**
+ * The categories the general allowance is made of — the commercial costs the
+ * price does NOT compute anywhere else. Machine, labour, electricity, material,
+ * hardware, rejections/scrap, profit, packaging and handling all have their own
+ * lines; these four do not, so they live in the allowance.
+ */
+export const ALLOWANCE_COMPONENTS = [
+  { id: 'marketing', name: 'Marketing' },
+  { id: 'admin', name: 'Admin' },
+  { id: 'rnd', name: 'R&D' },
+  { id: 'storage', name: 'Storage' },
+];
+
+/**
+ * The effective general-allowance rate: the sum of the allowance components when
+ * present, else the legacy single `generalAllowance` rate. One reader, so the
+ * engine, the snapshot and the panels can never disagree on what the allowance is.
+ */
+export function ctcAllowanceRate(ctc) {
+  const c = ctc?.allowanceComponents;
+  if (c && typeof c === 'object') {
+    return Math.max(0, ALLOWANCE_COMPONENTS.reduce((t, k) => t + num(c[k.id]), 0));
+  }
+  return Math.max(0, num(ctc?.generalAllowance, 0.1));
+}
+
 function mergeInto(base, incoming) {
   if (incoming === null || incoming === undefined) return base;
   // A null/undefined default has no structure to merge into, so the stored value
@@ -425,6 +461,20 @@ export function migrateSettings(stored) {
   if (merged.company.thankYouNote == null) {
     merged.company.thankYouNote = defaults.company.thankYouNote;
   }
+  // The general allowance became a sum of named components. A stored workshop from
+  // before that had only the single rate: split it across the four in proportion
+  // to the shipped defaults (4:2:3:1) so the TOTAL is preserved exactly and no
+  // price moves on upgrade. `mergeInto` may have filled allowanceComponents from
+  // defaults, so key the rebuild on whether the STORED object carried them.
+  if (!raw.ctc || !raw.ctc.allowanceComponents || typeof raw.ctc.allowanceComponents !== 'object') {
+    const rate = Math.max(0, num(merged.ctc.generalAllowance, 0.1));
+    merged.ctc.allowanceComponents = {
+      marketing: rate * 0.4, admin: rate * 0.2, rnd: rate * 0.3, storage: rate * 0.1,
+    };
+  }
+  // Keep the legacy single rate as the live sum, so drift and snapshots that read
+  // `generalAllowance` still see the effective allowance.
+  merged.ctc.generalAllowance = ctcAllowanceRate(merged.ctc);
   // The scheduler block is newer than most stored settings.
   if (!merged.scheduler || typeof merged.scheduler !== 'object') {
     merged.scheduler = clone(defaults.scheduler);

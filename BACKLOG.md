@@ -20,26 +20,20 @@ _The confusion here touches every quote, so it ranks high. Display + internal-
 company allowances shipped in v1.0.4; the deeper re-model below needs sign-off
 because it changes the actual price._
 
-- **Commercial-share → full-invoice categories, and the general allowance re-model
-  (needs approval — changes prices)** — the DISPLAY is fixed (weights are scores,
-  shares sum to 100%, real "already charged" amounts shown). The remaining, deeper
-  ask changes how the numbers are *computed* and must be signed off first:
+- **Commercial-share panel → full-invoice categories that reconcile top-to-bottom**
+  — the general-allowance redefinition shipped (option A, v1.0.6: the allowance is
+  now the sum of marketing + admin + R&D + storage). What remains is the panel/
+  invoice reconciliation:
   - _Categories capture the full invoice._ Every rand of the invoice falls into a
     category. The ones calculated their own way (machine, labour, rejections/scrap,
-    profit, packaging, handling) show their **actual computed** value/share of the
-    invoice — not a fixed weight. So if rejections are weighted 10 but compute to
-    15% of the invoice, the panel shows 15% ("you thought 10, it computes to 15%").
-  - _General allowance = the un-accounted shares._ Today the per-part general
-    allowance is a flat % uplift on production cost (`ctc.generalAllowance`, 10%).
-    Redefine it as the **sum of the commercial shares not computed elsewhere** —
-    marketing, admin, R&D, storage — as a % of the full amount. This changes CTC
-    and therefore the price, and has a circularity to resolve (the allowance is a
-    % of a total that includes it), so it needs a decision on the exact formula.
-  - _Top and bottom must agree._ The bottom "where the commercial share goes" must
-    reconcile to the diagrams at the top of the page. (Packaging example: 10%
+    profit, packaging, handling) show their **actual computed** rand/share of the
+    invoice — not a fixed weight — and the un-accounted four read from the general-
+    allowance components now that those are real numbers.
+  - _Top and bottom must agree._ The "where the commercial share goes" panel must
+    reconcile to the money diagram at the top of the page. (Packaging example: 10%
     notional but a R90 packaging on a R90 part is 50% of that order — categories
     are where the money *actually* goes on the invoice, from the real amount.)
-  (Raised 2026-09-10; display shipped 2026-09-10, v1.0.4.)
+  (Raised 2026-09-10; display shipped v1.0.4; general allowance shipped v1.0.6.)
 
 ## Project page & project part editor
 

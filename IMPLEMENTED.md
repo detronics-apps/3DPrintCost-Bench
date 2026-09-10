@@ -9,6 +9,28 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## General allowance = its named categories (v1.0.6, option A)
+
+- **General allowance is the sum of marketing + admin + R&D + storage** — replaced
+  the flat single `ctc.generalAllowance` rate with `ctc.allowanceComponents`
+  ({marketing, admin, rnd, storage}, each a % of production cost). Why: the user
+  asked that the general allowance BE the commercial costs not computed anywhere
+  else, so it's legible and adjustable per category (option A — applied to
+  production cost, so no circularity). How: `ALLOWANCE_COMPONENTS` list +
+  `ctcAllowanceRate(ctc)` helper (sum of components, else legacy rate) in
+  `js/settings.js` — one reader; the engine (`calculateLine` and
+  `calculateFromCosts`) imports and uses it for `allowanceRate` (companyInternal
+  still forces 0). Migration: a stored workshop with no `allowanceComponents` has
+  its old rate split 4:2:3:1 across the four so the TOTAL is preserved exactly (no
+  price moves on upgrade); `generalAllowance` is then re-synced to the sum every
+  load, so drift/snapshots that read it stay correct. Settings → Cost to Company
+  and the estimate's Allowances panel now edit the four (each recomputes the cached
+  sum); the "How this works → Cost to Company" card itemises them under the
+  allowance total. Tests: components sum to the default; an 18% legacy workshop
+  keeps 18% after migration; the three "section" engine examples now zero the
+  allowance via components. The remaining panel/full-invoice reconciliation stays
+  open in `BACKLOG.md`. (2026-09-10, <commit>)
+
 ## Project page: parts, layout, colour-by-height (v1.0.5)
 
 _Rolls up into the `FEATURES.md` operator feature "Project page: parts, layout,

@@ -43,7 +43,7 @@ test('section 50 reproduces exactly, to the cent', () => {
 
 test('section 1: the R10 CTC example, shipping outside the thirds', () => {
   const s = settings();
-  s.ctc.generalAllowance = 0;
+  s.ctc.allowanceComponents = { marketing: 0, admin: 0, rnd: 0, storage: 0 }; // no general allowance
   s.thirds.growthClientShare = 0; // the spec's numbers predate the growth split
   const r = calculateFromCosts({ material: 10 }, s, { shippingOverride: 90 });
   assert.equal(round(r.ctc), 10);
@@ -56,7 +56,7 @@ test('section 1: the R10 CTC example, shipping outside the thirds', () => {
 
 test('section 22: free shipping is measured on the part value, not the invoice', () => {
   const s = settings();
-  s.ctc.generalAllowance = 0;
+  s.ctc.allowanceComponents = { marketing: 0, admin: 0, rnd: 0, storage: 0 }; // no general allowance
   s.thirds.growthClientShare = 0; // exact price threshold, before the growth split
   s.freeShipping = { enabled: true, threshold: 900, appliesTo: 'after', basis: 'order' };
 
@@ -75,7 +75,7 @@ test('section 22: free shipping is measured on the part value, not the invoice',
 
 test('section 26: demand moves the price and never the cost', () => {
   const s = settings();
-  s.ctc.generalAllowance = 0;
+  s.ctc.allowanceComponents = { marketing: 0, admin: 0, rnd: 0, storage: 0 }; // no general allowance
   s.thirds.growthClientShare = 0; // exact demand arithmetic, before the growth split
 
   const normal = calculateFromCosts({ material: 100 }, s, { demand: 1, shippingOverride: 0 });

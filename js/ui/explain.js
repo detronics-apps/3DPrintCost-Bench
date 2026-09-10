@@ -13,6 +13,7 @@
 
 import { el } from './dom.js';
 import { fmtMoney, fmtRate, num } from '../money.js';
+import { ALLOWANCE_COMPONENTS } from '../settings.js';
 
 /** One entry. `worked` is a list of `[left, right]` lines already formatted. */
 export function explainCard({ title, plain, formula, worked, mistake, correction, source }) {
@@ -219,15 +220,25 @@ export function explainLine(line, result, settings) {
       + 'reprint is never billed as a second invoice.',
   }));
 
+  // The general allowance broken into the categories it covers, each a slice of
+  // the actual allowance so they sum to it exactly (and to nothing when a
+  // company-internal order has dropped the allowance).
+  const allowComps = settings.ctc?.allowanceComponents || {};
+  const allowRateSum = ALLOWANCE_COMPONENTS.reduce((t, c) => t + num(allowComps[c.id]), 0);
+  const allowanceLines = allowRateSum > 0
+    ? ALLOWANCE_COMPONENTS.map((c) => [`  ${c.name}`,
+      money(line.production.generalAllowance * num(allowComps[c.id]) / allowRateSum)])
+    : [];
+
   cards.push(explainCard({
     title: 'Cost to Company',
     source: `allowance ${fmtRate(line.production.allowanceRate)}`,
-    plain: 'Everything the part actually costs to make, plus a configurable general '
-      + 'allowance for the small direct costs nobody itemises. This is the number the '
-      + 'rule of thirds works from, and it contains no shipping, no packaging and no '
-      + 'profit.',
+    plain: 'Everything the part actually costs to make, plus a general allowance for the '
+      + 'commercial costs the price does not itemise anywhere else — marketing, admin, R&D '
+      + 'and storage. This is the number the rule of thirds works from, and it contains no '
+      + 'shipping, no packaging and no profit.',
     formula: 'CTC = (material + machine + electricity + labour + hardware + other + scrap) '
-      + '× (1 + allowance)',
+      + '× (1 + allowance)\nallowance = marketing + admin + R&D + storage',
     worked: [
       ['Material', money(line.production.material)],
       ['Machine', money(line.production.machine)],
@@ -238,6 +249,7 @@ export function explainLine(line, result, settings) {
       ['Scrap allowance', money(line.production.scrapAllowance)],
       ['Production cost', money(line.production.total)],
       [`General allowance at ${fmtRate(line.production.allowanceRate)}`, money(line.production.generalAllowance)],
+      ...allowanceLines,
       ['Cost to Company', money(line.ctc)],
     ],
     mistake: 'Putting shipping in here. Shipping is money the customer is passed for '

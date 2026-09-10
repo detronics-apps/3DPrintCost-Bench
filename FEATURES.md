@@ -71,6 +71,13 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **General allowance = its named categories** (2026-09-10) — the mystery "general
+  allowance %" is now the sum of the four commercial costs it actually covers:
+  marketing, admin, R&D and storage, each a % of the production cost, set in
+  Settings → Cost to Company (and on the estimate's Allowances panel). The "How
+  this works → Cost to Company" panel itemises them so the allowance visibly adds
+  up. Nothing you were charging changes on upgrade — your old allowance total is
+  split across the four and preserved; tune them from there.
 - **Project page: parts, layout, colour-by-height** (2026-09-10) — four changes to
   building a project. You can now add another part straight from the part editor
   (an "Add another part" button in its action row — no more hunting for it), and

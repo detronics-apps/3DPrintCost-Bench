@@ -33,6 +33,7 @@ import {
   mixForEstimate, primarySlot, slotsUsed, changeModel, defaultSlots, purgeTower, DEFAULT_TOWER,
 } from './filaments.js';
 import { findMaterial, pricePerGram, materialType, gramsFor } from './materials.js';
+import { ctcAllowanceRate } from './settings.js';
 import { labourCost, resolveLabourRate } from './labour.js';
 import { postProcessing, topAreaCm2, normalizePostSelection } from './postprocessing.js';
 import { partColourPlan, swapCost } from './colourplan.js';
@@ -438,8 +439,9 @@ export function calculateLine(line, settings, context = {}) {
   /* -- CTC --------------------------------------------------------------- */
 
   // Company-internal drops the general allowance too, so its CTC is exactly the
-  // direct production cost. Employee and customer orders keep the allowance.
-  const allowanceRate = companyInternal ? 0 : Math.max(0, num(settings.ctc?.generalAllowance, 0.1));
+  // direct production cost. Employee and customer orders keep the allowance, which
+  // is the sum of its named components (marketing, admin, R&D, storage).
+  const allowanceRate = companyInternal ? 0 : ctcAllowanceRate(settings.ctc);
   const generalAllowance = production * allowanceRate;
   const ctc = production + generalAllowance;
 
@@ -967,7 +969,7 @@ export function calculateFromCosts(costs, settings, { quantity = 1, demand = nul
   const scrapAllowance = directTotal * (attempts - 1);
   const production = directTotal + scrapAllowance;
 
-  const allowanceRate = Math.max(0, num(settings.ctc?.generalAllowance, 0.1));
+  const allowanceRate = ctcAllowanceRate(settings.ctc);
   const generalAllowance = production * allowanceRate;
   const ctc = production + generalAllowance;
 

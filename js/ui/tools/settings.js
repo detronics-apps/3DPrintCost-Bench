@@ -30,7 +30,9 @@ import {
 } from '../../profiles.js';
 import { radarChart } from '../svg/radar.js';
 import { DEFAULT_ESTIMATE_ASSUMPTIONS } from '../../estimate.js';
-import { applyCountry, applyPreset, defaultSettings } from '../../settings.js';
+import {
+  applyCountry, applyPreset, defaultSettings, ALLOWANCE_COMPONENTS, ctcAllowanceRate,
+} from '../../settings.js';
 import { makeId } from '../../projects.js';
 import { parseCsv, toCsv } from '../../csv.js';
 import {
@@ -396,11 +398,21 @@ function pricingPanel(ctx) {
 
     el('div', { class: 'panel' }, [
       el('h3', { text: 'Cost to Company' }),
-      percentField('ctc-allowance', 'General allowance', settings.ctc.generalAllowance,
-        (v) => { settings.ctc.generalAllowance = v; touch(rerender); }, {
-          info: 'The small direct costs nobody itemises. This is not shipping and it is '
-            + 'not profit.',
-        }),
+      subsection('General allowance', [
+        muted('The commercial costs the price does not compute anywhere else. Each is a % of '
+          + 'the production cost; the general allowance is their sum. Everything else — machine, '
+          + 'labour, electricity, material, hardware, rejections, profit, packaging, handling — is '
+          + 'costed on its own line, so it is not here.'),
+        el('div', { class: 'field-grid' }, ALLOWANCE_COMPONENTS.map((c) => percentField(
+          `ctc-allow-${c.id}`, c.name, settings.ctc.allowanceComponents?.[c.id] ?? 0,
+          (v) => {
+            const comps = { ...(settings.ctc.allowanceComponents || {}), [c.id]: v };
+            settings.ctc.allowanceComponents = comps;
+            settings.ctc.generalAllowance = ctcAllowanceRate(settings.ctc);
+            touch(rerender);
+          }))),
+        muted(`General allowance (sum): ${fmtRate(ctcAllowanceRate(settings.ctc))}`),
+      ]),
       moneyField('other-direct', 'Other direct cost per part', settings.ctc.otherDirectPerPart,
         (v) => { settings.ctc.otherDirectPerPart = num(v); touch(rerender); }, code),
       subsection('Rejection and scrap', [

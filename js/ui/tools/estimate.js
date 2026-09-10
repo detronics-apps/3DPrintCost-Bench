@@ -24,6 +24,7 @@ import { plateInBuildVolume, orientationChart } from '../svg/part.js';
 import { savingsChart } from '../svg/savings.js';
 import { plateSaving } from '../../savings.js';
 import { splitByColour } from '../../colourplates.js';
+import { ALLOWANCE_COMPONENTS, ctcAllowanceRate } from '../../settings.js';
 import { partColourPlan, swapCost } from '../../colourplan.js';
 import { slotLimit } from '../../printers.js';
 import { explainLine, explainOrder } from '../explain.js';
@@ -645,10 +646,16 @@ function pricingSection(ctx) {
         }),
     ]),
     subsection('Allowances', [
-      percentField('ctc-allowance', 'General CTC allowance', settings.ctc.generalAllowance,
-        (v) => set('ctc.generalAllowance', v), {
-          info: 'Covers the small direct costs nobody itemises. Not shipping.',
-        }),
+      muted(`General allowance (sum of the four below): ${fmtRate(ctcAllowanceRate(settings.ctc))}. `
+        + 'The commercial costs not computed anywhere else.'),
+      el('div', { class: 'field-grid' }, ALLOWANCE_COMPONENTS.map((c) => percentField(
+        `ctc-allow-${c.id}`, c.name, settings.ctc.allowanceComponents?.[c.id] ?? 0,
+        (v) => {
+          settings.ctc.allowanceComponents = { ...(settings.ctc.allowanceComponents || {}), [c.id]: v };
+          settings.ctc.generalAllowance = ctcAllowanceRate(settings.ctc);
+          saveSoon();
+          rerender();
+        }))),
       percentField('scrap-rate', 'Rejection allowance', settings.scrap.rate,
         (v) => set('scrap.rate', v)),
       selectField('scrap-mode', 'Rejection based on', [
