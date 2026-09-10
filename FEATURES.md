@@ -71,6 +71,11 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Your logo and electricity tariff now stick** (2026-09-10) — a bug reset the
+  company logo and the electricity tariff to their defaults on every load (and on
+  every team-sync round-trip), so the logo kept vanishing and the tariff kept
+  falling back to the domestic block rate. Fixed. If yours were already lost, set
+  them once more and they will stay put.
 - **Every estimator control on a project part** (2026-09-10) — the project part
   editor is now a superset of both estimators: past Simple it shows the same
   per-part tuning the Estimate tool and client form do — override the profile's

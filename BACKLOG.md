@@ -14,16 +14,6 @@ project blocker; then the big unifying "step-by-step flow" for the three estimat
 surfaces; then inventory/movements and per-roll identity; then analytics, print
 settings, nav and the smaller polish. Say the word to re-rank.
 
-## Bugs to fix first
-
-- **Logo and electricity tariff keep resetting** — despite team sync being on
-  (OneDrive), the company **logo** is repeatedly lost (re-uploaded several times)
-  and the **electricity tariff** keeps reverting to the domestic block tariff
-  instead of the selected *small-business single-phase*. Find why these two
-  company settings are not persisting/merging — likely a load/merge/migration or a
-  sync round-trip that overwrites them with defaults. Treat as data-loss-adjacent;
-  never clear stored settings. (Raised 2026-09-10.)
-
 ## Pricing model: clarity and correctness
 
 _The confusion here touches every quote, so it ranks high. These are one cluster._

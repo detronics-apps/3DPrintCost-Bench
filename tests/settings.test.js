@@ -19,6 +19,22 @@ test('the default currency is South African rand', () => {
   assert.equal(s.currencyCode, 'ZAR');
 });
 
+test('a stored company logo survives migration (default is null)', () => {
+  const s = defaultSettings();
+  s.company.logo = 'data:image/png;base64,AAAA';
+  const migrated = migrateSettings(s);
+  assert.equal(migrated.company.logo, 'data:image/png;base64,AAAA',
+    'the uploaded logo is not discarded by the merge');
+});
+
+test('a stored electricity tariff survives migration (default is null)', () => {
+  const s = defaultSettings();
+  s.electricityAlternativeId = 'small-business-single-phase';
+  const migrated = migrateSettings(s);
+  assert.equal(migrated.electricityAlternativeId, 'small-business-single-phase',
+    'the chosen alternative tariff is not reset to the default');
+});
+
 test('migration fills a missing default printer with a real, unarchived machine', () => {
   const s = defaultSettings();
   delete s.defaultPrinterId;

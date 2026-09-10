@@ -9,6 +9,25 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Bug: logo and electricity tariff kept resetting
+
+- **Logo and electricity tariff no longer reset** — both silently reverted to
+  their defaults on every load and every team-sync round-trip. Root cause: the
+  settings deep-merge `mergeInto` (js/settings.js) hit the `typeof null ===
+  'object'` trap — for a field whose default is `null` (`company.logo`,
+  `electricityAlternativeId`) with a stored **primitive** (a data-URI string, a
+  tariff id), it fell past `typeof base !== 'object'` (false for null) to `typeof
+  incoming !== 'object'` (true for the string) and returned `base` (null),
+  discarding the stored value. Fix: one guard — `if (base === null || base ===
+  undefined) return incoming;` placed before the object checks, so a null default
+  lets the stored value win wholesale. Why it looked like a sync problem: sync
+  round-trips through `exportAll` → `applyWorkshop` → `migrateSettings` → the same
+  merge, so it reset on reconnect too. Proven with a node repl and locked with two
+  `tests/settings.test.js` cases (logo + tariff survive migration). Data already
+  wiped can't be recovered — re-enter once, then it persists. → harvest candidate:
+  the `typeof null === 'object'` deep-merge trap belongs in the skill's pitfalls.
+  (2026-09-10, <commit>)
+
 ## Project part editor: parity with the estimators (Advanced/Expert controls)
 
 _Rolls up into the `FEATURES.md` operator feature "Every estimator control on a

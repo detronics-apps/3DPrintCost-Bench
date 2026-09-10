@@ -221,6 +221,11 @@ export function defaultSettings() {
  */
 function mergeInto(base, incoming) {
   if (incoming === null || incoming === undefined) return base;
+  // A null/undefined default has no structure to merge into, so the stored value
+  // wins wholesale. This must come BEFORE the object checks: `typeof null` is
+  // 'object', so without it a null default (e.g. company.logo,
+  // electricityAlternativeId) would fall through and discard a stored primitive.
+  if (base === null || base === undefined) return incoming;
   if (Array.isArray(base)) return Array.isArray(incoming) ? incoming : base;
   if (typeof base !== 'object') return incoming;
   if (typeof incoming !== 'object') return base;

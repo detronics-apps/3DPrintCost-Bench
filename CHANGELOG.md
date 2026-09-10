@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3 — Fix: logo and electricity tariff no longer reset (2026-09-10)
+
+- **Company logo and electricity tariff now persist** — both were silently reset
+  on every load (and every team-sync round-trip): the settings deep-merge hit the
+  `typeof null === 'object'` trap, so a field whose default is `null` (the logo and
+  the alternative-tariff id) discarded the stored value and fell back to the
+  default. `mergeInto` now returns the stored value when the default is null. If
+  yours were already lost, set them once more and they will stick.
+
 ## 1.0.2 — Project part editor: parity with the estimators (2026-09-10)
 
 - **Every estimator control on a project part** — the project part editor now
