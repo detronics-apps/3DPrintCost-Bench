@@ -19,7 +19,7 @@ import { readMesh } from '../../mesh.js';
 import { platformInflate } from '../../zip.js';
 import { analyse, fmtSize, mm3ToCm3 } from '../../geometry.js';
 import { calculateOrder } from '../../engine.js';
-import { filamentSlots, mixEditor } from '../filament-slots.js';
+import { filamentSlots } from '../filament-slots.js';
 import { reconcileSlots, defaultSlots } from '../../filaments.js';
 import { findMaterial, materialLabel } from '../../materials.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
@@ -37,6 +37,8 @@ import {
 import { gateMatches, entryPostOps } from '../../postprocessing.js';
 import { INFILL_PATTERNS, FACTOR_LABELS } from '../../profiles.js';
 import { ESTIMATE_LEVELS } from '../../estimate.js';
+import { slotLimit } from '../../printers.js';
+import { partColourPlan, swapCost } from '../../colourplan.js';
 import {
   movementsForRun, materialStock, resinStock, resinGramsForPart, resinItemFor, makeMovement,
 } from '../../inventory.js';
@@ -653,10 +655,11 @@ function projectSidebar(ctx, project, result) {
         { value: 'employee', label: 'Internal — for an employee (cost, they pay)' },
         { value: 'company', label: 'Internal — for the company (cost, an expense)' },
       ], project.internal || 'off', (v) => setProject({ internal: v }), {
-        hint: 'Internal orders price at the physical cost — material, machine, electricity, '
-          + 'hardware, the rejection and general allowances — with no labour and no profit, and '
-          + 'they skip packaging and delivery. An employee still gets quoted and pays the cost; a '
-          + 'company print skips the quote and payment and goes straight to production as an expense.',
+        hint: 'Internal orders price at the physical cost — material, machine, electricity and '
+          + 'hardware — with no labour and no profit, and they skip packaging and delivery. An '
+          + 'employee order keeps the rejection and general allowances and is still quoted and paid '
+          + 'at cost; a company order is a bare expense — it also drops those two allowances and '
+          + 'goes straight to production, skipping the quote and payment.',
       }),
       textField('project-notes', 'Notes', project.notes, (v) => setProject({ notes: v }), { multiline: true }),
     ]),
@@ -936,6 +939,61 @@ function partAdvanced(part, settings, set) {
   ]);
 }
 
+/**
+ * Colour-change-by-height for one project part — the same per-part control the
+ * estimate tool offers. Colours are bands up the part's height; the machine loads
+ * the first few in its heads, and a colour beyond that is a hand swap at its
+ * height (labour, a machine wait, no overnight run). Stored as `part.colourBands`;
+ * every edit returns a new array through `set`.
+ */
+function partColourBands(part, settings, set) {
+  const printer = settings.printers.find((p) => p.id === part.printerId) || settings.printers[0];
+  const limit = slotLimit(printer);
+  const materials = settings.materials.filter((m) => !m.archived);
+  const bands = Array.isArray(part.colourBands) ? part.colourBands : [];
+  const label = (id) => {
+    const m = settings.materials.find((x) => x.id === id);
+    return m ? `${m.colour} ${m.name}` : id;
+  };
+  const plan = partColourPlan(bands, { heads: limit });
+  const swap = swapCost(plan.swapCount, {
+    swapLabourMinutes: settings.colour.swapLabourMinutes,
+    swapWaitMinutes: settings.colour.swapWaitMinutes,
+  });
+  const setBand = (i, patch) => set({ colourBands: bands.map((b, j) => (j === i ? { ...b, ...patch } : b)) });
+
+  const bandRows = bands.map((b, i) => el('div', { class: 'row-editor' }, [
+    selectField(`part-band-mat-${part.id}-${i}`, '',
+      materials.map((m) => ({ value: m.id, label: `${m.colour} ${m.name}` })),
+      b.materialId || materials[0]?.id, (v) => setBand(i, { materialId: v })),
+    numberField(`part-band-upto-${part.id}-${i}`, '', b.upTo ?? '',
+      (v) => setBand(i, { upTo: v == null || v === '' ? null : Math.max(0, num(v)) }),
+      { min: 0, step: 1, suffix: 'mm to' }),
+    button('Remove', () => set({ colourBands: bands.filter((_, j) => j !== i) }),
+      { key: `part-band-rm-${part.id}-${i}`, danger: true }),
+  ]));
+
+  return subsection('Multi-colour (by height)', [
+    muted(`Give this part its colours as bands up its height. ${printer.name} loads ${limit} at `
+      + 'once; a colour beyond that is a hand swap at its height — labour, a machine wait, and no '
+      + 'overnight run.'),
+    bands.length ? el('div', {}, bandRows)
+      : muted('No colour bands — this part prints in one colour.'),
+    buttonRow([button('Add a band', () => set({
+      colourBands: [...bands, { materialId: materials[0]?.id, upTo: null }],
+    }), { key: `part-band-add-${part.id}` })]),
+    plan.swapCount > 0
+      ? banner('warn', `${plan.swapCount} hand swap${plan.swapCount === 1 ? '' : 's'} — this part `
+        + `uses ${plan.colours.length} colours but ${printer.name} loads ${limit}. Adds `
+        + `${swap.labourMinutes} min labour and ${swap.waitMinutes} min paused, and it can never `
+        + 'run overnight.')
+      : (bands.length ? muted(`All ${plan.colours.length} colours load in the heads — no hand swaps.`) : null),
+    ...(plan.swapCount > 0
+      ? plan.swaps.map((s) => muted(`at ${Math.round(num(s.atHeight))} mm: ${label(s.from)} → ${label(s.to)}`))
+      : []),
+  ].filter(Boolean), { open: bands.length > 0 });
+}
+
 function partSidebar(ctx, project, part) {
   const { rerender } = ctx;
   const settings = state.settings;
@@ -979,7 +1037,24 @@ function partSidebar(ctx, project, part) {
   const componentsSection = partComponents(part, settings, set);
   const postProcessSection = partPostProcessing(part, settings, set);
 
+  // The model goes at the TOP of the part editor: you load the model first, then
+  // name it, set the quantity and the print intent from what it actually is.
+  const modelSection = subsection('Model', [
+    part.geometry
+      ? el('dl', { class: 'facts' }, [
+        el('dt', { text: 'Size' }), el('dd', { class: 'value', text: fmtSize(part.geometry.size) }),
+        el('dt', { text: 'Volume' }), el('dd', { class: 'value', text: `${mm3ToCm3(part.geometry.volume).toFixed(2)} cm³` }),
+      ])
+      : muted('No model attached. The part is measured from its manual dimensions.'),
+    buttonRow([
+      button(part.geometry ? 'Replace the model' : 'Attach a model',
+        () => fileInput.click(), { key: 'attach-model' }),
+    ]),
+    fileInput,
+  ], { open: true });
+
   return section('part', `Part — ${part.name}`, [
+    modelSection,
     textField('part-name', 'Name', part.name, (v) => set({ name: v })),
     // Part number and revision are shop-drawing bookkeeping, not something a
     // quick estimate needs, so they only appear once past Simple.
@@ -1026,36 +1101,27 @@ function partSidebar(ctx, project, part) {
       onMix: (next) => set({ mix: next }),
       onSlots: (next) => set({ slots: next, materialId: next[0]?.materialId || part.materialId }),
     }),
-    ...mixEditor({
-      slots: liveSlots,
-      materials: settings.materials,
-      mix: part.mix,
-      keyPrefix: `partmix-${part.id}`,
-      partName: part.name,
-      onMix: (next) => set({ mix: next }),
-    }),
+    // No per-colour percentage split here: a project is priced from the slicer's
+    // exact grams per head (below), not an estimate's guessed split. The colours a
+    // part uses are set as bands up its height instead.
+    partColourBands(part, settings, set),
 
     componentsSection,
     postProcessSection,
-
-    subsection('Model', [
-      part.geometry
-        ? el('dl', { class: 'facts' }, [
-          el('dt', { text: 'Size' }), el('dd', { class: 'value', text: fmtSize(part.geometry.size) }),
-          el('dt', { text: 'Volume' }), el('dd', { class: 'value', text: `${mm3ToCm3(part.geometry.volume).toFixed(2)} cm³` }),
-        ])
-        : muted('No model attached. The part is measured from its manual dimensions.'),
-      buttonRow([
-        button(part.geometry ? 'Replace the model' : 'Attach a model',
-          () => fileInput.click(), { key: 'attach-model' }),
-      ]),
-      fileInput,
-    ]),
 
     partAdvanced(part, settings, set),
     slicerFigures(part, liveSlots, settings, set),
 
     buttonRow([
+      // Add another part without leaving the editor — the "Parts" panel in the
+      // main view also has this, but an operator working in the sidebar could not
+      // see it. Opens the new part straight away.
+      button('Add another part', () => {
+        const fresh = makePart({ printerId: settings.defaultPrinterId });
+        commit(addPart(project, fresh));
+        state.activePartId = fresh.id;
+        rerender();
+      }, { key: 'add-another-part' }),
       button('Duplicate this part', () => {
         commit(duplicatePart(project, part.id));
         rerender();

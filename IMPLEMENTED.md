@@ -9,6 +9,37 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Project page: parts, layout, colour-by-height (v1.0.5)
+
+_Rolls up into the `FEATURES.md` operator feature "Project page: parts, layout,
+colour". Same "Project part editor" family as the parity cluster; the nozzle and
+the quote→project colour-split pre-populate stay open in `BACKLOG.md`._
+
+- **Add another part from the part editor** — the part editor's action row gained
+  an "Add another part" button (`js/ui/tools/projects.js`, `partSidebar`) that
+  `addPart`s a fresh `makePart` and opens it (`state.activePartId = fresh.id`).
+  Why: the multi-part capability already existed (the main Parts panel's "Add a
+  part"), but an operator working in the sidebar could not see it and reported
+  "can't add multiple parts" — a discoverability gap, not a missing feature. Both
+  accounts true: the button existed; it just wasn't where they were looking.
+- **Model upload moved to the top of the part editor** — extracted the Model
+  subsection into a `modelSection` var and placed it first in the `section('part')`
+  array (before Name), so the order is model → name → quantity → print intent.
+- **Colour-change-by-height on a project part** — new `partColourBands(part,
+  settings, set)` mirrors the estimate's per-part band editor (material + up-to
+  height rows, add/remove, the hand-swap warning) using `partColourPlan`/`swapCost`
+  (colourplan.js) and `slotLimit` (printers.js); every edit returns a new
+  `colourBands` array via `set`. `colourBands` already flowed through
+  `orderFromProject` into the engine, so it prices immediately.
+- **Removed the %-per-colour mix editor on projects** — dropped the `mixEditor`
+  call (and its import) from `partSidebar`. A project is priced from the slicer's
+  exact grams per head (the Slicer figures subsection), so the estimate-only
+  percentage split added no value; the `mix` data still rides on the part (carried
+  from the estimate / defaulted), just no longer hand-edited here.
+- **Order-type hint corrected** — updated the order-type field hint to say a
+  *company* internal order drops the rejection and general allowances (following
+  the v1.0.4 engine change) while an *employee* order keeps them. (2026-09-10, <commit>)
+
 ## Pricing-model clarity (display + corrections + company-internal)
 
 _Rolls up into the `FEATURES.md` operator feature "Pricing-model clarity". The

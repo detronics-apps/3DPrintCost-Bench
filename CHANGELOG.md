@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.5 — Project page: parts, layout, colour-by-height (2026-09-10)
+
+- **Add another part from the part editor** — the part editor’s action row now has
+  an "Add another part" button (opening the new part), so you can build a
+  multi-part project without hunting for the "Add a part" button in the main Parts
+  panel. (The main-panel button was always there — this makes it findable from
+  where you work.)
+- **Model upload moved to the top of the part editor** — you load the model first,
+  then name it, set the quantity and the print intent from what it actually is.
+- **Colour-change-by-height on a project part** — the estimate tool’s per-layer
+  colour bands are now on project parts too (Advanced/Expert), with the same
+  hand-swap warning when a part needs more colours than the machine loads.
+- **Removed the per-colour percentage split on projects** — a project is priced
+  from the slicer’s exact grams per head, so the estimate-only "10% white / 90%
+  yellow" split added nothing there and is gone; the colours a part uses are set as
+  bands up its height instead.
+
 ## 1.0.4 — Pricing-model clarity (2026-09-10)
 
 - **Commercial-share panel reads honestly** — in "Where the commercial share

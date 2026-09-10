@@ -397,10 +397,11 @@ export function main(ctx) {
             + 'prints) or after it (inserts, a USB light). After-print parts ship loose in the box '
             + 'unless you tick “fit” under post-processing, which assembles them.',
         }),
-        statTile('Colour by height', 'Estimate → Multi-colour', {
-          hint: 'Give a part colours as bands up its Z height. The machine loads its heads (4) '
-            + 'automatically; a colour beyond that is a hand swap at its height — “at 12 mm: red → '
-            + 'blue” — which costs labour, a machine wait, and can never run overnight.',
+        statTile('Colour by height', 'Estimate & Projects', {
+          hint: 'Give a part colours as bands up its Z height — on an estimate and now on a '
+            + 'project part too. The machine loads its heads (4) automatically; a colour beyond '
+            + 'that is a hand swap at its height — “at 12 mm: red → blue” — which costs labour, a '
+            + 'machine wait, and can never run overnight.',
           tone: 'accent',
         }),
         statTile('Open vs Upload project', 'Top bar', {

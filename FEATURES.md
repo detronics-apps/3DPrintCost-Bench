@@ -71,6 +71,16 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Project page: parts, layout, colour-by-height** (2026-09-10) — four changes to
+  building a project. You can now add another part straight from the part editor
+  (an "Add another part" button in its action row — no more hunting for it), and
+  the model upload sits at the top of the part editor, so you load the model first
+  and name/size it from what it actually is. Project parts gained the estimate
+  tool's colour-change-by-height (colour bands up the part, with the hand-swap
+  warning when a part needs more colours than the machine loads). And the
+  estimate-only "10% white / 90% yellow" percentage split is gone from projects —
+  a project is priced from the slicer's exact grams per head, so the split added
+  nothing; colours are set as height bands instead.
 - **Pricing-model clarity** (2026-09-10) — three changes so the numbers read the
   way they work. (1) "Where the commercial share goes" no longer looks like a 152%
   markup: the Weight is a plain score you set, the Share is that weight's slice of

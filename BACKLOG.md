@@ -43,24 +43,14 @@ because it changes the actual price._
 
 ## Project page & project part editor
 
-- **Add multiple parts to a project** — the project page currently cannot add more
-  than one part. Add multi-part support (as the estimate bed and client form
-  already have). Blocks real multi-part jobs. (Raised 2026-09-10.)
-- **Move model upload to the top of the part section** — order the part section
-  *upload model → model name → quantity → print intent*, so the model is loaded
-  before deciding what it consists of. (Raised 2026-09-10.)
-- **Colour-change-by-height on a project part** — the estimate tool's per-layer
-  colour-change (colour bands) is missing from the project part editor. Add it
-  (the `colourBands` field already carries into a project from an estimate; this is
-  its editor). Part of the broader "colour bands in all three surfaces" item below.
-  (Raised 2026-09-10.)
-- **Remove the %-per-colour split input on projects** — a project has the exact
-  sliced grams per head + total print time from the slicer, so the estimate-only
-  "10% white / 90% yellow" percentage split adds no value there. Remove it from the
-  project part editor. When a quote becomes a project, auto-estimate the split into
-  grams as a starting point, then let the operator overwrite with the real sliced
-  figures. Remove all inputs on a project that do not add value over the sliced
-  figures. (Raised 2026-09-10.)
+_Add-parts, model-first layout, colour-by-height and the %-split removal shipped
+in v1.0.5. Remaining:_
+
+- **Auto-estimate the colour split on quote → project** — when a quote becomes a
+  project, pre-populate each head's grams from the estimate's colour percentages as
+  a starting figure, so the sliced-grams fields aren't blank before slicing; the
+  operator then overwrites them with the real slicer totals. (The %-split editor
+  itself is already removed from projects.) (Raised 2026-09-10.)
 - **Nozzle size affects print time + a nozzle-change operation** — only when the
   company says it uses more than one nozzle size (a company setting; off by default
   so nobody who runs one nozzle ever sees it). Two parts: (1) confirm/make the
