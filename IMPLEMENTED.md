@@ -44,7 +44,7 @@ invoice. Rolls up into the `FEATURES.md` operator feature "Project shared bed"._
   layout shows both parts on Bed 1 with the plate SVG. Tests: migration (v2, printer
   lifted, override flagged), shared-bed vs override pricing, per-head slicer/loaded-
   heads moved to project-level. The quote→project colour-split pre-populate stays
-  open in `BACKLOG.md`. (2026-09-10, <commit>)
+  open in `BACKLOG.md`. (2026-09-10, b122c59)
 
 ## General allowance = its named categories (v1.0.6, option A)
 
