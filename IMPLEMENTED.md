@@ -18,7 +18,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   hidden under 640px) between groups. `TOOLS` stays the router/lookup, so only the
   display order changed. Why: the old order didn't read as a workflow. Verified live:
   Estimate|Projects|Schedule|Dashboard|Quotes|Inventory|Catalogues|Settings|How to
-  use with 4 separators. (2026-09-10, <commit>)
+  use with 4 separators. (2026-09-10, 0b518e8)
 
 ## Mixed-part bed layout, shared across estimate/project/portal (v1.0.9)
 
