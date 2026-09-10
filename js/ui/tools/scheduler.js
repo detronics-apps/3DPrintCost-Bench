@@ -46,7 +46,7 @@ function jobFromProject(project, settings) {
   }
   // The job runs on whichever printer does most of its hours.
   const printerId = [...byPrinter.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
-    || project.parts[0]?.printerId || null;
+    || project.printerId || project.parts[0]?.printerId || null;
 
   return {
     id: project.id,

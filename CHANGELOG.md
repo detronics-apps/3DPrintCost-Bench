@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.12 — Fix: project parts used the wrong printer in two places (2026-09-10)
+
+- **The "Multi-colour (by height)" section and a recorded print now use the
+  project's printer** — both were reading the part's own (default Bambu X1E) printer
+  instead of the shared project bed, so on a Snapmaker project the colour section
+  said "Bambu Lab X1E loads 4" and a booked print was logged against the X1E. Both
+  now follow the project bed (or the part's own printer when it's an override).
+
 ## 1.0.11 — Stock movements: the reason sets the sign (2026-09-10)
 
 - **Record a movement by reason, not by remembering a minus** — you now enter a

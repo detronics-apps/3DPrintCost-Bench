@@ -492,7 +492,9 @@ function productionPanel(ctx, project, result) {
       el('h3', { text: `Production — ${part.name}` }),
       button('Record a print', () => {
         const attempt = {
-          printerId: part.printerId,
+          // The effective printer: the project bed unless this part is an override.
+          // (A part's own `printerId` is only meaningful when it overrides.)
+          printerId: part.printerOverride ? part.printerId : project.printerId,
           materialId: part.materialId,
           quantity: Math.min(part.quantity, line?.perPlate || 1),
           accepted: Math.min(part.quantity, line?.perPlate || 1),
@@ -981,8 +983,7 @@ function partAdvanced(part, settings, set) {
  * height (labour, a machine wait, no overnight run). Stored as `part.colourBands`;
  * every edit returns a new array through `set`.
  */
-function partColourBands(part, settings, set) {
-  const printer = settings.printers.find((p) => p.id === part.printerId) || settings.printers[0];
+function partColourBands(part, settings, set, printer) {
   const limit = slotLimit(printer);
   const materials = settings.materials.filter((m) => !m.archived);
   const bands = Array.isArray(part.colourBands) ? part.colourBands : [];
@@ -1155,7 +1156,7 @@ function partSidebar(ctx, project, part) {
     // No per-colour percentage split here: a project is priced from the slicer's
     // exact grams per head (below), not an estimate's guessed split. The colours a
     // part uses are set as bands up its height instead.
-    partColourBands(part, settings, set),
+    partColourBands(part, settings, set, printer),
 
     componentsSection,
     postProcessSection,
