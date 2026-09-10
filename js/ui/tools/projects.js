@@ -13,11 +13,13 @@ import {
   sliderField, moneyField,
 } from '../controls.js';
 import { moneyDiagram } from '../svg/money.js';
+import { plateInBuildVolume } from '../svg/part.js';
+import { splitByColour } from '../../colourplates.js';
 import { explainLine, explainOrder } from '../explain.js';
 import { downloadJson, downloadCsv, orderCsv, copyText } from '../export.js';
 import { readMesh } from '../../mesh.js';
 import { platformInflate } from '../../zip.js';
-import { analyse, fmtSize, mm3ToCm3 } from '../../geometry.js';
+import { analyse, fmtSize, mm3ToCm3, plateLayout } from '../../geometry.js';
 import { calculateOrder } from '../../engine.js';
 import { filamentSlots } from '../filament-slots.js';
 import { reconcileSlots, defaultSlots } from '../../filaments.js';
@@ -628,6 +630,38 @@ function productionPanel(ctx, project, result) {
 
 /* -------------------------------------------------------------- sidebar -- */
 
+/**
+ * The project bed: one printer and one set of loaded filament for the whole job,
+ * the same shared-bed model the estimate uses. Every part prints on this by
+ * default; a part opts onto a different machine from its own editor. Changing the
+ * printer resets the loaded filament, since a different machine holds different
+ * spools.
+ */
+function projectBedSection(project, settings, setProject) {
+  const printer = settings.printers.find((p) => p.id === project.printerId) || settings.printers[0];
+  const liveSlots = reconcileSlots(
+    project.slots || defaultSlots(printer, null), printer, settings.materials,
+  ).slots;
+  return section('project-bed', 'Printer & loaded filament', [
+    muted('One bed for the whole project — the printer and the spools loaded in it. Every part '
+      + 'prints on this; move a single part to a different printer from its own editor if you '
+      + 'must (the outlier).'),
+    selectField('project-printer', 'Printer',
+      settings.printers.filter((p) => !p.archived && (p.active !== false || p.id === project.printerId))
+        .map((p) => ({ value: p.id, label: p.name + (p.active === false ? ' (under maintenance)' : '') })),
+      project.printerId, (v) => setProject({ printerId: v, slots: null })),
+    ...filamentSlots({
+      printer,
+      slots: liveSlots,
+      materials: settings.materials,
+      countryId: settings.countryId,
+      currencyCode: settings.currencyCode,
+      keyPrefix: `project-bed-${project.id}`,
+      onSlots: (next) => setProject({ slots: next }),
+    }),
+  ]);
+}
+
 function projectSidebar(ctx, project, result) {
   const { rerender } = ctx;
   const settings = state.settings;
@@ -663,6 +697,7 @@ function projectSidebar(ctx, project, result) {
       }),
       textField('project-notes', 'Notes', project.notes, (v) => setProject({ notes: v }), { multiline: true }),
     ]),
+    projectBedSection(project, settings, setProject),
   ];
 
   if (part) {
@@ -1006,9 +1041,15 @@ function partSidebar(ctx, project, part) {
     rerender();
   };
 
-  const printer = settings.printers.find((p) => p.id === part.printerId) || settings.printers[0];
+  // The effective printer and loaded filament: the project bed, unless this part
+  // is an override onto its own machine. Colour bands, slicer heads and the model
+  // all read from whichever this part actually prints on.
+  const override = !!part.printerOverride;
+  const effectivePrinterId = override ? part.printerId : project.printerId;
+  const printer = settings.printers.find((p) => p.id === effectivePrinterId) || settings.printers[0];
+  const effectiveSlots = override ? part.slots : project.slots;
   const liveSlots = reconcileSlots(
-    part.slots || defaultSlots(printer, part.materialId), printer, settings.materials,
+    effectiveSlots || defaultSlots(printer, part.materialId), printer, settings.materials,
   ).slots;
 
   const fileInput = el('input', {
@@ -1082,25 +1123,35 @@ function partSidebar(ctx, project, part) {
         + 'dimensioned drawing or a photo marking them. A printed part is only as accurate '
         + 'as the dimensions given.')
       : null,
-    selectField('part-printer', 'Printer',
+    // Which machine this part prints on. By default it shares the project bed
+    // (chosen once at the project level, so an assembly is set up once). Tick to
+    // send this one part to a different printer — the outlier, priced on its own
+    // machine and off the shared bed.
+    checkField('part-printer-override', 'Print on a different printer', override,
+      (v) => set({
+        printerOverride: v,
+        printerId: v ? project.printerId : part.printerId,
+        slots: v ? project.slots : part.slots,
+      }), {
+        hint: override
+          ? 'This part is on its own machine below, not the project bed.'
+          : `Prints on the project bed (${printer.name}). Tick only to move this one part.`,
+      }),
+    override ? selectField('part-printer', 'Printer',
       settings.printers.filter((p) => !p.archived && (p.active !== false || p.id === part.printerId))
         .map((p) => ({ value: p.id, label: p.name + (p.active === false ? ' (under maintenance)' : '') })),
-      part.printerId, (v) => set({ printerId: v })),
-    // The loaded filament, driven by the printer: a single-colour machine asks
-    // for one material and one colour; a multi-material one (a Snapmaker U1, up
-    // to four heads) gives every head its own material and colour — filled in
-    // already when the project came from a customer request.
-    ...filamentSlots({
+      part.printerId, (v) => set({ printerId: v, slots: null })) : null,
+    // The override part's own loaded filament (the shared bed's is set once at the
+    // project level). A project is priced from sliced grams, so no mix editor here.
+    ...(override ? filamentSlots({
       printer,
       slots: liveSlots,
       materials: settings.materials,
       countryId: settings.countryId,
       currencyCode: settings.currencyCode,
       keyPrefix: `part-${part.id}`,
-      mix: part.mix,
-      onMix: (next) => set({ mix: next }),
       onSlots: (next) => set({ slots: next, materialId: next[0]?.materialId || part.materialId }),
-    }),
+    }) : []),
     // No per-colour percentage split here: a project is priced from the slicer's
     // exact grams per head (below), not an estimate's guessed split. The colours a
     // part uses are set as bands up its height instead.
@@ -1142,6 +1193,79 @@ export function sidebar(ctx) {
   if (!project) return [];
   const result = priceProject(project, state.settings);
   return projectSidebar(ctx, project, result);
+}
+
+/**
+ * Beds & layout for the whole project: how the shared-bed parts pack onto plates
+ * (fewest plates for the machine's colour count), which parts sit on each, which
+ * are on their own printer, and a build-volume picture of the selected part on its
+ * plate. Reuses the estimate's bed split and plate renderer against the project's
+ * shared bed.
+ */
+function bedLayoutPanel(ctx, project, result) {
+  const settings = state.settings;
+  const printer = settings.printers.find((p) => p.id === project.printerId) || settings.printers[0];
+  const limit = slotLimit(printer);
+  const label = (id) => {
+    const m = settings.materials.find((x) => x.id === id);
+    return m ? `${m.colour} ${m.name}` : id;
+  };
+  const projectColours = (project.slots || []).map((s) => s.materialId).filter(Boolean);
+  const coloursOf = (part) => {
+    const bands = (part.colourBands || []).map((b) => b.materialId).filter(Boolean);
+    return bands.length ? [...new Set(bands)] : projectColours;
+  };
+
+  const shared = project.parts.filter((p) => !p.printerOverride);
+  const overrides = project.parts.filter((p) => p.printerOverride);
+  const split = splitByColour(shared.map((p) => ({ id: p.id, colours: coloursOf(p) })), limit);
+  const nameOf = (id) => project.parts.find((p) => p.id === id)?.name || 'Part';
+
+  const bedsList = split.plates.map((plate, i) => el('div', { class: 'part-block' }, [
+    el('strong', { text: `Bed ${i + 1}` }),
+    muted(`Colours: ${(plate.colours.length ? plate.colours : projectColours).map(label).join(', ') || '—'}`),
+    muted(`Parts: ${plate.parts.map(nameOf).join(', ') || '—'}`),
+  ]));
+
+  // The selected part, drawn on its plate inside the build volume.
+  const part = activePart();
+  const idx = part ? project.parts.findIndex((p) => p.id === part.id) : -1;
+  const line = idx >= 0 ? result.lines[idx] : null;
+  let stage = null;
+  if (part && line && line.geometry) {
+    const linePrinter = settings.printers.find((p) => p.id === line.printer.id) || printer;
+    const orientedSize = part.orientedSize || line.geometry.size;
+    const towerArea = line.detail?.tower?.needed
+      ? num(line.detail.tower.x) * num(line.detail.tower.y) : 0;
+    const layout = plateLayout(orientedSize, linePrinter?.build || {}, {
+      reservedArea: towerArea,
+      max: Math.min(line.quantity, line.perPlate),
+    });
+    stage = el('div', { class: 'viewport__stage' }, [
+      plateInBuildVolume({
+        build: linePrinter?.build,
+        layout,
+        size: orientedSize,
+        fits: line.fit.fits,
+        printerName: line.printer.name,
+      }),
+    ]);
+  }
+
+  return el('div', { class: 'panel' }, [
+    el('h3', { text: 'Beds & layout' }),
+    muted(`${printer.name} holds ${limit} colour${limit === 1 ? '' : 's'} at once. Parts sharing the `
+      + 'bed are packed onto the fewest plates; a part moved to a different printer prints on its own.'),
+    split.plates.length ? el('div', {}, bedsList) : muted('No parts on the shared bed yet.'),
+    overrides.length
+      ? muted(`On other printers: ${overrides.map((p) => `${p.name} — `
+        + `${settings.printers.find((x) => x.id === p.printerId)?.name || '?'}`).join('; ')}.`)
+      : null,
+    part
+      ? muted(`Layout: ${part.name} on ${line?.printer.name || printer.name}.`)
+      : muted('Open a part to see its plate layout.'),
+    stage,
+  ].filter(Boolean));
 }
 
 export function main(ctx) {
@@ -1192,6 +1316,8 @@ export function main(ctx) {
   }
 
   nodes.push(partsPanel(ctx, project, result));
+
+  if (result.lines.length) nodes.push(bedLayoutPanel(ctx, project, result));
 
   if (result.lines.length) {
     nodes.push(el('div', { class: 'viewport__stage' }, [

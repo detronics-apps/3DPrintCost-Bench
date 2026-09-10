@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.7 — Project shared bed: one printer for the whole job (2026-09-10)
+
+- **The printer and loaded filament are now a project-level choice** — set once
+  under the project (Printer & loaded filament), and every part prints on that one
+  shared bed. Building an assembly of many parts no longer means re-picking the
+  printer and colours for each.
+- **Shared-bed pricing on projects** — parts on the shared bed are now packed onto
+  the fewest plates, share the purge tower and plate changeovers, split by colour
+  for the machine’s head count, and the plate count is worked out — exactly as the
+  estimate bed does. A new **Beds & layout** panel shows which parts sit on which
+  bed and draws the selected part on its plate in the build volume.
+- **Move one part to a different printer** — a per-part "Print on a different
+  printer" tick-box (default off) sends the outlier onto its own machine, priced
+  there and off the shared bed. It’s still one invoice.
+- Existing projects migrate automatically: the first part’s printer becomes the
+  project’s, and any part that was on a different printer is flagged as an override,
+  so nothing silently changes machine.
+
 ## 1.0.6 — General allowance = its named categories (2026-09-10)
 
 - **The general allowance is now the sum of what it covers** — marketing, admin,

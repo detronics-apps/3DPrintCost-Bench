@@ -16,7 +16,7 @@
 import { num } from './money.js';
 import { normalizePostSelection, entryPostOps } from './postprocessing.js';
 
-export const PROJECT_VERSION = 1;
+export const PROJECT_VERSION = 2;
 
 export const PROJECT_STATUSES = [
   { id: 'draft', name: 'Draft', tone: 'info' },
@@ -129,6 +129,11 @@ export function makePart(spec = {}) {
 
     profileId: 'function',
     settingOverrides: {},
+    // The printer and loaded filament are a PROJECT-level fact by default (one bed
+    // for the whole job). A part only carries its own printer when `printerOverride`
+    // is set — the outlier that goes on a different machine. `printerId`/`slots`
+    // below are that per-part override, ignored unless `printerOverride` is true.
+    printerOverride: false,
     printerId: 'bambu-x1e',
     materialId: 'petg-dark-grey',
     // What is loaded to print this part, and how much of the part is each of it.
@@ -188,6 +193,12 @@ export function makeProject(spec = {}) {
     createdAt: at,
     modifiedAt: at,
     notes: '',
+    // The printer and loaded filament for the whole job — one bed, shared by every
+    // part, load once and print everything due together (the same model the
+    // estimate bed uses). A part can opt onto a different printer with its own
+    // `printerOverride`; that is the outlier, not the default.
+    printerId: 'bambu-x1e',
+    slots: null,
     parts: [],
     files: [],
 
@@ -610,6 +621,19 @@ export function migrateProject(stored) {
   });
   project.order = { ...base.order, ...(raw.order || {}) };
 
+  // v1 -> v2: the printer moved from each part up to the project (one shared bed).
+  // An older project stored the printer on every part and had none of its own, so
+  // take the first part's printer + loaded filament as the project's, and flag any
+  // part on a DIFFERENT printer as an override — nothing silently changes machine.
+  if (from < 2 || raw.printerId == null) {
+    const first = project.parts[0];
+    project.printerId = first?.printerId || base.printerId;
+    project.slots = first?.slots || null;
+    for (const part of project.parts) {
+      part.printerOverride = !!part.printerId && part.printerId !== project.printerId;
+    }
+  }
+
   // Workflow phase is the source of truth. An already-migrated project keeps its
   // phase; an older one has only `status`, so its phase is derived from that.
   const PHASE_IDS = [
@@ -631,18 +655,28 @@ export function migrateProject(stored) {
 
 /** A project as a line for the order the engine understands. */
 export function orderFromProject(project, { customer = null } = {}) {
+  const projectPrinter = project.printerId || 'bambu-x1e';
+  const projectSlots = project.slots || null;
   return {
     ...project.order,
+    // The whole project shares one bed by default, so the order carries a plate —
+    // that is what turns on bed packing, colour splitting, the plate count and the
+    // layout, exactly as the estimate bed does. A part with `printerOverride` is
+    // priced on its own machine, off this bed (see the engine).
+    plate: { printerId: projectPrinter, slots: projectSlots },
     lines: project.parts.map((part) => ({
       quantity: part.quantity,
       profileId: part.profileId,
       settingOverrides: part.settingOverrides,
-      printerId: part.printerId,
+      // The effective printer/filament: the project bed, unless this part is an
+      // explicit override onto a different machine.
+      printerOverride: !!part.printerOverride,
+      printerId: part.printerOverride ? part.printerId : projectPrinter,
       materialId: part.materialId,
       // The loaded filament and this part's share of it, so a multi-material
-      // machine prices every head. Absent on older parts, which fall back to a
-      // single slot synthesised from materialId.
-      slots: part.slots || null,
+      // machine prices every head. Shared from the project bed unless this part is
+      // an override; absent falls back to a single slot synthesised from materialId.
+      slots: part.printerOverride ? (part.slots || null) : projectSlots,
       mix: part.mix || null,
       geometry: part.geometry,
       manual: part.manual,

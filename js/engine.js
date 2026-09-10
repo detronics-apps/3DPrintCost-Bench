@@ -635,6 +635,8 @@ export function calculateOrder(order, settings, context = {}) {
       return {
         orientedSize: line.orientedSize || geometry.size,
         mix: normaliseMix(line.mix, bedSlots),
+        // A part sent to a different printer is not on this shared bed at all.
+        override: !!line.printerOverride,
       };
     });
 
@@ -650,7 +652,8 @@ export function calculateOrder(order, settings, context = {}) {
     // final area is recomputed below against a mix known to trigger it, never
     // against whichever part happens to be first in the order.
     let mixThatNeedsTower = null;
-    for (const { orientedSize, mix } of resolved) {
+    for (const { orientedSize, mix, override } of resolved) {
+      if (override) continue;
       const t = purgeTower(bedPrinter, mix, { height: num(orientedSize?.z), footprint });
       if (t.needed) {
         anyTowerNeeded = true;
@@ -663,16 +666,20 @@ export function calculateOrder(order, settings, context = {}) {
       : null;
 
     const packed = packBed(
-      resolved.map((r, i) => ({
-        id: String(i),
-        size: r.orientedSize,
-        quantity: Math.max(1, Math.round(num(rawLines[i].quantity, 1))),
-      })),
+      resolved
+        .map((r, i) => ({
+          id: String(i),
+          size: r.orientedSize,
+          quantity: Math.max(1, Math.round(num(rawLines[i].quantity, 1))),
+          override: r.override,
+        }))
+        .filter((it) => !it.override),
       bedPrinter.build,
       { reservedArea: anyTowerNeeded ? Math.max(0, num(bedTower?.area)) : 0 },
     );
 
-    bedPlacements = resolved.map((_, i) => {
+    bedPlacements = resolved.map((r, i) => {
+      if (r.override) return null;
       const placed = itemPlacement(packed, String(i));
       return placed.jobs > 0 ? placed : null;
     });
@@ -702,9 +709,17 @@ export function calculateOrder(order, settings, context = {}) {
   const packs = !order.noPackaging;
 
   const lines = rawLines
-    .map((line, i) => calculateLine(line, settings, {
-      ...context, demand, plate, bedPlacement: bedPlacements[i], shipped: !collected, packs,
-    }));
+    .map((line, i) => {
+      // A part on a different printer prices on its OWN machine, off the shared
+      // bed: give it its own plate (or none, falling back to its printerId) and no
+      // shared bed placement. Everything else uses the project bed.
+      const linePlate = line.printerOverride
+        ? (line.printerId ? { printerId: line.printerId, slots: line.slots || null } : null)
+        : plate;
+      return calculateLine(line, settings, {
+        ...context, demand, plate: linePlate, bedPlacement: bedPlacements[i], shipped: !collected, packs,
+      });
+    });
   for (const line of lines) notes.push(...line.notes.filter((n) => n.level !== 'info'));
   notes.push(...bedNotes);
 

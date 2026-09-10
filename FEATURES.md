@@ -71,6 +71,17 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Project shared bed: one printer for the whole job** (2026-09-10) — the printer
+  and the loaded filament are now chosen once for the project (Printer & loaded
+  filament), and every part prints on that shared bed — so an assembly of six parts
+  is set up once, not six times. Parts sharing the bed are packed onto the fewest
+  plates, share the purge tower, split by colour for the machine's heads, and the
+  plate count is worked out; a new "Beds & layout" panel shows which parts sit on
+  which bed and draws the selected part on its plate. Need one part on a different
+  machine? Tick "Print on a different printer" in that part's editor — it prints on
+  its own, priced there, still on one invoice. Existing projects migrate on their
+  own: the first part's printer becomes the project's, and any part that was on a
+  different machine is flagged so nothing changes silently.
 - **General allowance = its named categories** (2026-09-10) — the mystery "general
   allowance %" is now the sum of the four commercial costs it actually covers:
   marketing, admin, R&D and storage, each a % of the production cost, set in

@@ -207,9 +207,12 @@ test('an old project file migrates, tested against a literal old blob', () => {
     }],
   };
   const project = migrateProject(ancient);
-  assert.equal(project.version, 1);
+  assert.equal(project.version, 2);
   assert.equal(project.parts[0].materialId, 'pla-dark-grey');
-  assert.equal(project.parts[0].printerId, 'ender-3');
+  // v2: the printer lifted from the part up to the project (one shared bed); the
+  // part matches it, so it is not an override.
+  assert.equal(project.printerId, 'ender-3');
+  assert.equal(project.parts[0].printerOverride, false);
   assert.equal(project.parts[0].material, undefined);
   assert.equal(project.parts[0].attempts.length, 1);
   assert.equal(project.parts[0].attempts[0].minutes, 90);
@@ -283,6 +286,24 @@ test('toolhead travel between objects lengthens a busy plate estimate', () => {
   assert.ok(t1 > t0, 'more travel per object per layer means more machine time on a shared plate');
 });
 
+test('the project printer is the shared bed; a part can override onto another', () => {
+  const project = makeProject({ printerId: 'snapmaker-u1' });
+  const shared = samplePart({ name: 'Shared' });               // uses the project bed
+  const moved = samplePart({ name: 'Moved', printerOverride: true, printerId: 'ender-3' });
+  const withParts = addPart(addPart(project, shared), moved);
+  const order = orderFromProject(withParts);
+
+  assert.equal(order.plate.printerId, 'snapmaker-u1', 'the order carries the project bed as its plate');
+  assert.equal(order.lines[0].printerId, 'snapmaker-u1', 'the shared part prints on the project bed');
+  assert.equal(order.lines[0].printerOverride, false);
+  assert.equal(order.lines[1].printerId, 'ender-3', 'the override part keeps its own machine');
+  assert.equal(order.lines[1].printerOverride, true);
+
+  const result = calculateOrder(order, defaultSettings());
+  assert.equal(result.lines[0].printer.id, 'snapmaker-u1');
+  assert.equal(result.lines[1].printer.id, 'ender-3', 'the override part is priced on its own printer');
+});
+
 test('a project part with no loaded heads still prices as a single filament', () => {
   const project = addPart(makeProject(), samplePart());
   const result = calculateOrder(orderFromProject(project), defaultSettings());
@@ -291,15 +312,19 @@ test('a project part with no loaded heads still prices as a single filament', ()
 
 test('per-head slicer grams are TOTALS: divided across the quantity, and they override the mix', () => {
   const settings = defaultSettings();
-  const part = samplePart({
-    quantity: 4,
+  // The printer and loaded heads are a PROJECT fact (one shared bed); the part
+  // carries only its own mix and slicer figures.
+  const project = makeProject({
     printerId: 'snapmaker-u1',
     slots: [{ id: 's1', materialId: 'petg-dark-grey' }, { id: 's2', materialId: 'pla-dark-grey' }],
+  });
+  const part = samplePart({
+    quantity: 4,
     mix: [{ slotId: 's1', percent: 50 }, { slotId: 's2', percent: 50 }],
     // The slicer's TOTAL for the whole print of four: 280 g PETG + 120 g PLA.
     slicer: { grams: 400, minutes: 800, heads: [{ slotId: 's1', grams: 280 }, { slotId: 's2', grams: 120 }] },
   });
-  const line = calculateOrder(orderFromProject(addPart(makeProject(), part)), settings).lines[0];
+  const line = calculateOrder(orderFromProject(addPart(project, part)), settings).lines[0];
   assert.equal(line.estimate.method, 'slicer', 'the sliced figures are the ones in use');
   const one = line.filaments.find((f) => f.slotId === 's1');
   const two = line.filaments.find((f) => f.slotId === 's2');
@@ -321,17 +346,19 @@ test('a flat slicer total is divided across the quantity, not multiplied by it',
 
 test('a project part carries its loaded heads, and the engine prices every one', () => {
   const settings = defaultSettings();
-  const part = samplePart({
+  const project = makeProject({
     printerId: 'snapmaker-u1',
     slots: [{ id: 's1', materialId: 'petg-dark-grey' }, { id: 's2', materialId: 'pla-dark-grey' }],
+  });
+  const part = samplePart({
     mix: [{ slotId: 's1', percent: 60 }, { slotId: 's2', percent: 40 }],
   });
-  const project = addPart(makeProject(), part);
-  const line = orderFromProject(project).lines[0];
-  assert.equal(line.slots.length, 2, 'both heads travel to the engine');
+  const withPart = addPart(project, part);
+  const line = orderFromProject(withPart).lines[0];
+  assert.equal(line.slots.length, 2, 'both heads travel to the engine from the project bed');
   assert.equal(line.mix.length, 2, 'and this part’s share of each');
 
-  const result = calculateOrder(orderFromProject(project), settings);
+  const result = calculateOrder(orderFromProject(withPart), settings);
   assert.equal(result.lines[0].filaments.length, 2, 'both filaments are priced');
   assert.equal(result.separation.ok, true);
 });

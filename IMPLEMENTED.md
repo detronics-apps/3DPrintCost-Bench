@@ -9,6 +9,43 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Project shared bed: one printer for the whole job (v1.0.7)
+
+_From a live design discussion (pros/cons of per-part vs per-project printer),
+approved by the owner: project-level printer, per-part override, bed layout, one
+invoice. Rolls up into the `FEATURES.md` operator feature "Project shared bed"._
+
+- **Printer + loaded filament moved from part → project** — `makeProject` gained
+  `printerId` + `slots`; `makePart` gained `printerOverride` (default false, its
+  `printerId`/`slots` used only when set). Why: an assembly of many parts should be
+  set up once (one bed), matching the estimate's shared-bed model; a part on a
+  different machine is the outlier. `PROJECT_VERSION` 1→2; migration lifts the first
+  part's printer/slots to the project and flags any part on a different printer as an
+  override, so no price silently changes machine.
+- **orderFromProject builds a shared plate** — sets `order.plate = { printerId,
+  slots }` from the project, and each line's effective printer/slots = the project's
+  unless the part is an override. That single `order.plate` is what turns on the
+  engine's bed packing, colour split, plate count and layout for projects (the
+  estimate already did this; projects never set a plate before).
+- **Engine prices overrides off the shared bed** — `calculateOrder` excludes
+  `printerOverride` lines from `packBed`/the purge-tower loop (they're not on this
+  bed), gives each line its own plate in the per-line map (`line.printerOverride ?
+  {printerId, slots} : plate`), and null bed placement for overrides. Non-override
+  lines pack together as before.
+- **UI**: a project `Printer & loaded filament` section (`projectBedSection`,
+  reusing `filamentSlots`) under the project; the part editor's always-on printer
+  select/slots replaced by a "Print on a different printer" tick-box that reveals a
+  per-part printer + `filamentSlots` only when ticked (seeded from the project bed);
+  the part's colour bands / slicer / model read the EFFECTIVE printer. A `Beds &
+  layout` panel (`bedLayoutPanel`) reuses `splitByColour` for the beds list and the
+  estimate's `plateLayout`/`plateInBuildVolume` for the selected part's plate
+  picture. One invoice throughout (the order sums all lines regardless of machine).
+  Verified live: 1 printer picker by default, 2 when a part is overridden; Beds &
+  layout shows both parts on Bed 1 with the plate SVG. Tests: migration (v2, printer
+  lifted, override flagged), shared-bed vs override pricing, per-head slicer/loaded-
+  heads moved to project-level. The quote→project colour-split pre-populate stays
+  open in `BACKLOG.md`. (2026-09-10, <commit>)
+
 ## General allowance = its named categories (v1.0.6, option A)
 
 - **General allowance is the sum of marketing + admin + R&D + storage** — replaced

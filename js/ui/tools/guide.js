@@ -423,11 +423,13 @@ export function main(ctx) {
             + 'clearing test/demo orders); and a labour operation line can be removed for good in '
             + 'Settings → Labour, not only unticked.',
         }),
-        statTile('Heads on a project part', 'Projects → Part', {
-          hint: 'A multi-material printer (a Snapmaker U1, up to four heads) gives each head its '
-            + 'own material and colour, filled in from the customer’s request. After slicing, '
-            + 'enter the TOTAL grams for each head and one total print time (for the whole '
-            + 'print, not per part) — every head is then costed at its own plastic’s price.',
+        statTile('One shared bed per project', 'Projects → Printer & filament', {
+          hint: 'The printer and its loaded filament are set once for the whole project — one '
+            + 'bed every part prints on — so an assembly of many parts is set up once. Parts pack '
+            + 'onto the fewest plates and “Beds & layout” shows which part is on which bed. A '
+            + 'multi-head machine (a Snapmaker U1, up to four heads) loads each head once here; '
+            + 'after slicing, enter each part’s TOTAL grams per head and its total print time. '
+            + 'Need one part on another machine? Tick “Print on a different printer” on that part.',
           tone: 'ok',
         }),
         statTile('Order workflow phases', 'Projects → Workflow', {
