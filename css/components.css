@@ -137,6 +137,13 @@
 }
 .segmented__btn:hover { background: var(--panel-3); }
 .segmented__btn.is-active { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
+/* A quiet divider between the workflow groups: a hairline, not a wall. It is a
+   flex item that never grows, so it does not steal tab width. */
+.segmented__sep {
+  flex: 0 0 auto; align-self: stretch; width: 1px; margin: 3px 4px;
+  background: var(--border);
+}
+@media (max-width: 640px) { .segmented__sep { display: none; } }
 
 .chipset { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 

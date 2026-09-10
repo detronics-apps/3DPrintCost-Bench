@@ -199,19 +199,6 @@ _Extends the existing filament cluster; the CSV items tie inventory to real usag
   be its **own separate 3D-printing app**, not part of this cost estimator — see
   "Separate apps" below._
 
-## Navigation & information architecture
-
-- **Workflow-ordered top navigation with subtle group separators** — reorder the
-  top nav onto one horizontal line as: **Estimate | Projects | Schedule | Dashboard
-  | Quotes | Inventory | Catalog | Settings | How to Use**, with subtle **vertical
-  separators** between logical groups: `[Estimate | Projects, Schedule]` ·
-  `[Dashboard, Quotes, Inventory]` · `[Catalog, Settings]` · `[How to Use]`. Keep
-  the style clean and restrained — separators only, no new colours, not
-  over-segmented. The order should read the workflow at a glance: Estimate is the
-  entry point; Projects/Schedule are production; Dashboard/Quotes/Inventory manage
-  the work; Catalog/Settings are configuration; How to Use is help. (Raised
-  2026-09-10.)
-
 ## Print-setting model additions
 
 - **Adaptive layer lines** — a print setting that trades finer layers for more time.

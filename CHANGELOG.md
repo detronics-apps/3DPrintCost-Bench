@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.10 — Workflow-ordered navigation (2026-09-10)
+
+- **The top tabs now read the workflow left to right** — Estimate | Projects ·
+  Schedule | Dashboard · Quotes · Inventory | Catalogues · Settings | How to use,
+  with a quiet hairline separator between each group (entry point · production ·
+  managing the work · configuration · help). No new colours, just clearer grouping.
+
 ## 1.0.9 — Mixed-part bed layout in all three places (2026-09-10)
 
 - **See different parts positioned together on one plate** — a new top-down "Beds

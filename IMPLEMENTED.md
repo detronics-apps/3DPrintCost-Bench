@@ -9,6 +9,17 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Workflow-ordered navigation (v1.0.10)
+
+- **Top tabs reordered to the workflow, with group separators** — `buildTabs`
+  (`js/main.js`) now renders from a display-only `NAV_GROUPS` (Estimate · Projects/
+  Schedule · Dashboard/Quotes/Inventory · Catalogues/Settings · How to use) instead
+  of raw `TOOLS` order, inserting a `.segmented__sep` hairline (`components.css`,
+  hidden under 640px) between groups. `TOOLS` stays the router/lookup, so only the
+  display order changed. Why: the old order didn't read as a workflow. Verified live:
+  Estimate|Projects|Schedule|Dashboard|Quotes|Inventory|Catalogues|Settings|How to
+  use with 4 separators. (2026-09-10, <commit>)
+
 ## Mixed-part bed layout, shared across estimate/project/portal (v1.0.9)
 
 - **Different parts positioned together on one plate, drawn** — new pure

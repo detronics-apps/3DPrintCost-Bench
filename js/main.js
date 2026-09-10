@@ -34,7 +34,7 @@ import * as settingsTool from './ui/tools/settings.js';
 
 /** Read this before investigating anything: a stale cache wastes more time
  *  than any bug in this app has. "Reload the app" in the footer clears it. */
-export const APP_VERSION = '1.0.9';
+export const APP_VERSION = '1.0.10';
 
 const TOOLS = [estimate, projects, catalogues, inventory, documents, dashboard, scheduler, guide, settingsTool];
 
@@ -190,25 +190,46 @@ function buildModes() {
     })));
 }
 
+// The tabs read the app's workflow left to right, grouped: the quick entry point,
+// then the production workflow, then the panels that manage the work, then
+// configuration, then help. A subtle separator sits between groups — grouping
+// without colour or clutter. Order is display-only; TOOLS stays as the router.
+const NAV_GROUPS = [
+  ['estimate'],
+  ['projects', 'scheduler'],
+  ['dashboard', 'documents', 'inventory'],
+  ['catalogues', 'settings'],
+  ['guide'],
+];
+
 function buildTabs() {
-  return el('div', { class: 'segmented', role: 'tablist', 'aria-label': 'Workspaces' },
-    TOOLS.map((tool) => el('button', {
-      class: `segmented__btn${state.tool === tool.id ? ' is-active' : ''}`,
-      type: 'button',
-      role: 'tab',
-      'data-field': `tab-${tool.id}`,
-      'aria-selected': String(state.tool === tool.id),
-      on: {
-        click: () => {
-          state.tool = tool.id;
-          saveSoon();
-          render();
+  const byId = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
+  const children = [];
+  NAV_GROUPS.forEach((group, gi) => {
+    if (gi > 0) children.push(el('span', { class: 'segmented__sep', 'aria-hidden': 'true' }));
+    for (const id of group) {
+      const tool = byId[id];
+      if (!tool) continue;
+      children.push(el('button', {
+        class: `segmented__btn${state.tool === tool.id ? ' is-active' : ''}`,
+        type: 'button',
+        role: 'tab',
+        'data-field': `tab-${tool.id}`,
+        'aria-selected': String(state.tool === tool.id),
+        on: {
+          click: () => {
+            state.tool = tool.id;
+            saveSoon();
+            render();
+          },
         },
-      },
-    }, [
-      el('span', { class: 'tab-label tab-label--long', text: tool.name }),
-      el('span', { class: 'tab-label tab-label--short', text: tool.short }),
-    ])));
+      }, [
+        el('span', { class: 'tab-label tab-label--long', text: tool.name }),
+        el('span', { class: 'tab-label tab-label--short', text: tool.short }),
+      ]));
+    }
+  });
+  return el('div', { class: 'segmented', role: 'tablist', 'aria-label': 'Workspaces' }, children);
 }
 
 /**
