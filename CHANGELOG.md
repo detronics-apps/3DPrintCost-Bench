@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.26 — Print-intent profiles reworked, engineering-based scores (2026-09-11)
+
+- **The print-intent radar is now calculated, not hand-set**, and gains a fifth
+  axis, **Aesthetics**. Strength is a real moment-of-inertia calculation (outer
+  walls count for far more than infill, and it is non-linear), Precision rewards
+  shrinkage/calibration and fine layers but is cut hard by fuzzy skin, and each
+  profile is a clear winner on one axis (Extra Strong → strength, Fit → precision,
+  Visual → aesthetics, Display → speed & cost). Every coefficient is company-editable.
+- **Material is now purely a calculation** — wall shell + solid skin + infill,
+  bounded by the part’s solid volume — so a profile can never ask for more plastic
+  than the part holds. The old "the factors ask for more than its solid volume"
+  message is gone for good.
+- **Print intent adjusts time, never material.** Finish work (ironing, fuzzy skin),
+  adaptive layers and an **iterative calibration pass** (which makes **Fit** the
+  slowest, dearest profile) stretch the quoted print time. A new per-profile **time
+  factor** in Settings lets the company nudge that for their own machines.
+- **No-model parts assume 60% of their space claim** (was 35%), adjustable in
+  Settings → Estimator assumptions.
+- **The 3-D bed view** heading is renamed **In 3D**, moved to the top and
+  left-aligned beside the plates.
+- The How-to tab explains the whole print-intent setup (profiles, the radar,
+  material vs. time, and how to tune it).
+
 ## 1.0.25 — Bigger 3-D view, shown solid volume (2026-09-11)
 
 - **The 3-D view is much larger** and fills the space beside the top-down plates

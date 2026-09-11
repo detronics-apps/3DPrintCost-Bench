@@ -9,6 +9,40 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Print-intent profiles reworked, engineering scores (v1.0.26)
+
+- **`js/scores.js`** (new): `scoresFor(settings, model)` computes the five 1–5 scores
+  from a profile's settings. Strength = moment of inertia of the wall stack around a
+  nominal section (`1 - ((D-2t)/D)^4`, t = wallLoops × lineWidth) + infilled core ×
+  pattern × material factor — non-linear, walls dominate. Speed/Cost from plastic +
+  softened finish/thin-layer penalties (cost leans on time + finish extras; a
+  calibration pass is the single dearest term, making Fit the cost loser). Precision =
+  shrinkage + calibrationPass + fine layer/nozzle, MINUS fuzzy skin. Aesthetics = fine
+  layer/nozzle + ironing + fuzzy + material behaviour. All coefficients in
+  `DEFAULT_SCORE_MODEL`. Tests in `tests/scores.test.js`.
+- **Radar** (`js/ui/svg/radar.js`): generalised to an N-axis polygon from `SCORE_AXES`
+  (now 5, adds Aesthetics). Portal ships computed `scores` per profile
+  (`portal-config.js`); Settings shows the computed radar + the five values and drops
+  the manual rating sliders; `calibrationPass`/`adaptiveLayers` toggles added.
+- **Material = geometric only.** Removed `empiricalVolume`/`empiricalTime`, the
+  `empirical` estimate level, the clamp note and `disagreement` from `js/estimate.js`.
+  Retired the 30× behaviour; `js/profiles.js` keeps the factor data inert but adds
+  `timeAdjustFor(settings, model)` (`TIME_ADJUST_FACTORS` — finish flags + pattern,
+  NOT infill/walls/layer which the geometry already counts) × calibration pass ×
+  per-profile `timeFactor`, applied to the quoted time in `estimatePart`. Expert
+  explain card and the Settings profile panel now show the time adjustment + a
+  `timeFactor` slider. Engine test rewritten (`material is the geometric calculation
+  only`, `finish settings adjust the quoted TIME`).
+- **Space-claim fill 35% → 60%**, configurable (`spaceClaimFill` in
+  `DEFAULT_ESTIMATE_ASSUMPTIONS`, wired through `manualGeometry`, editable in Settings).
+- **Bed 3-D** heading renamed "In 3D", moved to the top of a left-packed 2-column
+  layout (`js/ui/svg/bed.js`, `css/components.css`).
+- **How-to** (`js/ui/tools/guide.js`): three FAQs on the profiles/radar, material vs.
+  time, and tuning; search aliases for profile/infill/time-factor. Why: user
+  redesigned print-intent to be engineering-grounded and to kill the recurring
+  "more than solid" message. Verified live (no console errors, estimate prices,
+  Settings shows the time adjustment, radar is the 5-axis computed one).
+
 ## Bigger 3-D view, shown solid volume (v1.0.25)
 
 - **Larger iso** (`js/ui/svg/bed.js`): viewBox bumped 400×300 → 760×560. This is the

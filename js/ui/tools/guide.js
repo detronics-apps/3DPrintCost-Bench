@@ -173,6 +173,32 @@ const FAQS = [
       + 'sums the heads into the run’s total. Prior runs only add to the machine’s lifetime hours and '
       + 'grams — they are not tied to any customer or to stock — so the per-head colour is kept on the '
       + 'record but not costed.' },
+  { q: 'What do the print profiles (Extra Strong, Fit, Visual…) and the radar mean?',
+    a: 'A profile is a ready-made set of print settings that delivers an INTENT — strong, precise, '
+      + 'good-looking — so a customer never has to know which knobs to turn. The radar shows five '
+      + 'scores, each 1–5 where higher is always better for the customer: Speed, Cost (5 = cheapest), '
+      + 'Strength, Precision and Aesthetics. The scores are CALCULATED from the profile’s own settings, '
+      + 'so the picture always matches what the profile actually does. Each shipped profile is a clear '
+      + 'winner on one axis: Display Only is fastest and cheapest, Extra Strong is the strongest '
+      + '(Strength sits just below it), Fit is the most precise, and Visual looks the best. Function is '
+      + 'the balanced all-rounder.' },
+  { q: 'How is the amount of plastic — and the Strength score — worked out?',
+    a: 'The plastic is a physical calculation from the part’s own settings: a wall shell (wall loops × '
+      + 'line width) around the outside, solid top and bottom layers, and the leftover interior filled '
+      + 'to the infill %. It is held to the part’s solid volume, so a profile can NEVER ask for more '
+      + 'plastic than the part could hold — whatever the intent. The Strength score uses the moment of '
+      + 'inertia (the outer walls carry far more load than the middle) plus the material and infill '
+      + 'pattern, so it is honestly non-linear: doubling the infill does not double the strength, and '
+      + 'each extra wall adds a little less than the one before.' },
+  { q: 'Do the print profiles change the price, and how do I tune them for my machines?',
+    a: 'A profile changes TIME, never the amount of plastic. Finish work (ironing, fuzzy skin, adaptive '
+      + 'layers) and an iterative calibration pass (measure-and-reprint, which is why Fit is the dearest '
+      + 'profile) make the print take longer, and that raises the machine cost. In Settings → Print '
+      + 'profiles you can toggle every setting (the radar updates live) and set a per-profile “time '
+      + 'factor” to nudge a profile’s time up or down for your own machines — raise it if, say, ironing '
+      + 'costs you more time than the model assumes. With no model uploaded, a part’s solid volume is '
+      + 'assumed to be a share of its length × width × height box (default 60%, in Settings → Estimator '
+      + 'assumptions).' },
   { q: 'With team sync on, do I still need to press “Save all”?',
     a: 'Not for routine work. When team sync is connected the whole workshop is written to the shared file '
       + 'automatically on every change (and it is conflict-aware), so there is nothing to remember to save. '
@@ -202,6 +228,9 @@ export const SEARCH_ALIASES = {
   invoice: ['bill', 'payment', 'paid', 'receipt'],
   scheduler: ['schedule', 'queue', 'when will it print', 'planning', 'gantt'],
   printer: ['machine', 'which printer', 'snapmaker', 'bambu'],
+  profile: ['print intent', 'print type', 'radar', 'extra strong', 'fit', 'visual', 'display only', 'strength', 'precision', 'aesthetics', 'speed', 'how strong'],
+  infill: ['density', 'fill', 'walls', 'wall loops', 'perimeters', 'how much plastic', 'solid volume', 'space claim'],
+  'time factor': ['calibration pass', 'reprint', 'iterative', 'ironing', 'fuzzy skin', 'adjust time', 'per profile'],
 };
 
 /** Fold an item's text together with the everyday phrases for any app term in it. */
