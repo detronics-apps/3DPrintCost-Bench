@@ -44,10 +44,12 @@ import { fmtMoney, num } from '../money.js';
  */
 export function filamentSlots({
   printer, slots, materials, onSlots, countryId, currencyCode, keyPrefix = 'plate',
-  mix = null, onMix = null, showDetail = true,
+  mix = null, onMix = null, showDetail = true, maxSlots = null,
 }) {
   const mode = colourMode(printer);
-  const limit = slotLimit(printer);
+  // `maxSlots` caps the colours below what the machine could hold — used by the
+  // client form so a "single colour" order only ever loads one.
+  const limit = maxSlots != null ? Math.min(slotLimit(printer), Math.max(1, maxSlots)) : slotLimit(printer);
   const reconciled = reconcileSlots(slots, printer, materials);
   const live = reconciled.slots;
 
@@ -167,7 +169,7 @@ export function filamentSlots({
       // Seed the new spool a real share, or loading it changes nothing.
       if (onMix) onMix(mixWithSlotAdded(mix, live, slot.id));
       onSlots([...live, slot]);
-    }, { key: `${keyPrefix}-add-slot`, disabled: !canAddSlot(live, printer) }),
+    }, { key: `${keyPrefix}-add-slot`, disabled: !canAddSlot(live, printer) || live.length >= limit }),
     el('span', {
       class: 'muted',
       // "Loaded" is wrong for a machine that only ever holds one: those spools

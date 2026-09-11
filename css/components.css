@@ -765,6 +765,35 @@
 
 .portal__title { margin: 0; font-size: 22px; }
 .portal h2 { margin: 0; font-size: 16px; }
+
+/* Progress stepper (client form): a clickable strip of the four steps. */
+.stepper { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0; }
+.stepper__step {
+  display: inline-flex; align-items: center; gap: 8px; flex: 1 1 auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3); font: inherit; color: var(--text-dim); cursor: pointer; text-align: left;
+}
+.stepper__step:hover { border-color: var(--accent); }
+.stepper__num {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; background: var(--panel-2); color: var(--text-dim);
+}
+.stepper__label { font-size: 13px; }
+.stepper__step.is-current { border-color: var(--accent-strong); color: var(--text); }
+.stepper__step.is-current .stepper__num { background: var(--accent); color: #fff; }
+.stepper__step.is-done { color: var(--text); }
+.stepper__step.is-done .stepper__num { background: var(--ok); color: #fff; }
+
+/* Numbered step heading on each section. */
+.stephead { display: flex; align-items: center; gap: var(--space-2); }
+.stephead__title { margin: 0; font-size: 16px; }
+.stephead__num {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; background: var(--accent); color: #fff;
+}
+.panel--steplead { background: var(--panel-2); }
 .portal .panel--price { border-color: var(--accent-strong); }
 .portal .app-footer { border-radius: var(--radius); border: 1px solid var(--border); }
 

@@ -78,7 +78,9 @@ export function portalConfig(settings, { internal = false } = {}) {
       // model, so the customer's radar shows what the profile actually does.
       .map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, scores: scoresFor(p.settings, settings.scoreModel) })),
     printers: allowed(settings.printers, portal.allowedPrinters)
-      .map((p) => ({ id: p.id, name: p.name })),
+      // colourMode lets the form offer single / multi-colour / multi-material by
+      // capability instead of asking the customer to pick a machine.
+      .map((p) => ({ id: p.id, name: p.name, colourMode: p.colourMode || 'single' })),
     // The machine the form opens on: the company default when it is offered,
     // otherwise the first allowed one (filled in by the portal).
     defaultPrinterId: allowed(settings.printers, portal.allowedPrinters)

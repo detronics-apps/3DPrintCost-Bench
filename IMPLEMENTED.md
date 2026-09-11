@@ -9,6 +9,28 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Client form: guided stepper + colour-type chooser (v1.0.35)
+
+- **Progress stepper** (`js/ui/portal.js`): a `stepper` strip of 4 steps (Colours /
+  Your parts / Delivery / Your details) with `is-done`/`is-current`/`is-todo` states,
+  clickable to `scrollIntoView` the matching `id` anchor. Done-states reflect real
+  progress (a chosen `printType`, every part with `geometry`, a shipping choice + no
+  address error, `valid.ok`) — never pre-ticked by defaults. `valid` and the local-only
+  country are hoisted to the top of `render`.
+- **`stepHead(n, title, info)`** numbered headings with an `infoIcon` (imported from
+  `dom.js`) on each of the 4 sections.
+- **Choose by colour type, not machine**: step 1 offers `printType` chips (One colour /
+  Several colours / Several materials) built from the company printers' `colourMode`
+  (now exposed in `portal-config.js`). Selecting a type auto-picks a supporting printer
+  (`printerForType`, prefers the default) and resets slots; the specific machine is a
+  collapsed optional `section`. Colours are hidden until a type is chosen.
+- **`filamentSlots({ maxSlots })`** caps the loaded colours (single colour → 1)
+  regardless of the machine's capacity. Why: user — the client shouldn't pick a printer,
+  only the colour/material type; steps shouldn't pre-tick; each step needs an (i). 501
+  tests pass; verified live (stepper states, info icons, type chooser derived from
+  `colourMode`); the running preview showed only "One colour" from a cached old
+  `portal-config.js` — a fresh config yields all three (confirmed by re-import).
+
 ## One-part-at-a-time accordion across surfaces (v1.0.34)
 
 - **Portal parts accordion** (`js/ui/portal.js`): `partPanel(ctx, part, i, line, open)`

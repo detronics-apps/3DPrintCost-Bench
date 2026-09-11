@@ -34,7 +34,7 @@ import * as settingsTool from './ui/tools/settings.js';
 
 /** Read this before investigating anything: a stale cache wastes more time
  *  than any bug in this app has. "Reload the app" in the footer clears it. */
-export const APP_VERSION = '1.0.34';
+export const APP_VERSION = '1.0.35';
 
 const TOOLS = [estimate, projects, catalogues, inventory, documents, dashboard, scheduler, guide, settingsTool];
 

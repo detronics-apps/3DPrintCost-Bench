@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.35 — Client form: guided stepper, choose by colour type not machine (2026-09-11)
+
+- **The client form is now a guided, numbered flow** — a progress strip (Colours →
+  Your parts → Delivery → Your details) that ticks each step as it's completed,
+  highlights the current one, and jumps to a step when clicked. Every step heading has
+  an (i) explaining its purpose, for customers who know nothing about 3D printing.
+- **Customers choose what they need, not a machine** — "One colour / Several colours /
+  Several materials" (only the types the company's printers can actually do). The right
+  machine is picked automatically; a specific machine is an optional, tucked-away
+  choice. One-colour orders load exactly one colour.
+- Steps are no longer pre-ticked before you've done anything.
+
 ## 1.0.34 — One-part-at-a-time everywhere (2026-09-11)
 
 - **The client request form now collapses parts** the same way the estimate does —

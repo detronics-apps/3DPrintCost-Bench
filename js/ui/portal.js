@@ -21,7 +21,7 @@
  * cannot reach the company by itself. The customer downloads it and sends it.
  */
 
-import { el, clear, toast, download } from './dom.js';
+import { el, clear, toast, download, infoIcon } from './dom.js';
 import { capDiagramScale, captureFocus, restoreFocus } from './patterns.js';
 import {
   numberField, selectField, checkField, textField, chips, button, buttonRow, banner, statTile, table, muted, emptyState, section,
@@ -78,6 +78,9 @@ const state = {
   settings: null,
   printerId: null,
   materialId: null,
+  // What the customer needs: 'single' | 'multicolour' | 'multimaterial'. Null until
+  // they choose, so the first step is not pre-ticked.
+  printType: null,
   slots: null,
   shippingMethodId: 'auto',
   expedite: false,
@@ -787,6 +790,15 @@ function requestText(result) {
   return out.filter((l) => l !== '').join('\n');
 }
 
+/** A numbered step heading: a badge, the title, and an (i) explaining the step. */
+function stepHead(n, title, info) {
+  return el('div', { class: 'stephead' }, [
+    el('span', { class: 'stephead__num', 'aria-hidden': 'true', text: String(n) }),
+    el('h2', { class: 'stephead__title', text: title }),
+    info ? infoIcon(info) : null,
+  ]);
+}
+
 function render() {
   const host = document.getElementById('portal');
   // The portal rebuilds the whole page on every edit — the same one render path
@@ -820,6 +832,31 @@ function render() {
   const validUntil = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
   const partCtx = { config, slots, materials, code, buffer, canRemove: state.parts.length > 1 };
 
+  // Progress stepper: the decisions the customer works through, in order, each
+  // ticked once it has what it needs, the current one highlighted, and clickable to
+  // scroll to that section. Force the country first (local-only shops) so the
+  // validity the stepper reads matches the one the send buttons use.
+  if (!config.shipInternational) state.customer.countryId = config.countryId;
+  const valid = customerValidity(config);
+  const steps = [
+    // Ticks reflect real progress: a chosen colour type, an uploaded model, a
+    // delivery choice, and valid contact details — never pre-ticked by defaults.
+    { n: 1, id: 'step-printer', label: 'Colours', done: !!state.printType },
+    { n: 2, id: 'step-parts', label: 'Your parts', done: state.parts.length > 0 && state.parts.every((p) => p.geometry) },
+    { n: 3, id: 'step-delivery', label: 'Delivery', done: !!state.shippingMethodId && !valid.errors.address },
+    { n: 4, id: 'step-send', label: 'Your details', done: valid.ok },
+  ];
+  const currentStep = steps.find((s) => !s.done) || steps[steps.length - 1];
+  const stepper = el('nav', { class: 'stepper', 'aria-label': 'Steps' },
+    steps.map((s) => el('button', {
+      class: `stepper__step is-${s.done ? 'done' : (s === currentStep ? 'current' : 'todo')}`,
+      type: 'button',
+      on: { click: () => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
+    }, [
+      el('span', { class: 'stepper__num', 'aria-hidden': 'true', text: s.done ? '✓' : String(s.n) }),
+      el('span', { class: 'stepper__label', text: s.label }),
+    ])));
+
   const nodes = [
     el('div', { class: 'panel' }, [
       el('h1', { class: 'portal__title', text: internal
@@ -834,31 +871,83 @@ function render() {
     ]),
   ];
 
-  // The printer and the colours loaded on it belong to the bed, shared by every
-  // part - chosen first, above the parts, the same shape the internal estimator uses.
-  nodes.push(el('div', { class: 'panel' }, [
-    el('h2', { text: 'Printer and colours' }),
-    config.printers.length > 1
-      ? selectField('portal-printer', 'Printer',
-        config.printers.map((p) => ({ value: p.id, label: p.name })),
-        state.printerId, (v) => { state.printerId = v; state.slots = null; render(); })
-      : muted(`Printed on the ${config.printers[0]?.name || printer.name}.`),
-    ...filamentSlots({
-      printer,
-      slots,
-      materials,
-      countryId: config.countryId,
-      currencyCode: code,
-      keyPrefix: 'portal-bed',
-      showDetail: false,
-      onSlots: (next) => {
-        state.slots = next;
-        state.materialId = next[0]?.materialId || state.materialId;
-        render();
-      },
-    }),
-    muted('Load the colours you want. On a part with more than one loaded, say how much of '
-      + 'each it is in that part below.'),
+  nodes.push(stepper);
+
+  // Step 1: the customer picks WHAT THEY NEED — one colour, several colours, or
+  // several materials — not a machine. The app maps that to a capable printer (the
+  // default one where it can); a specific machine is an optional advanced override.
+  const modes = config.printers.map((p) => p.colourMode || 'single');
+  const canMulticolour = modes.some((m) => m === 'multicolour' || m === 'multimaterial');
+  const canMultimaterial = modes.some((m) => m === 'multimaterial');
+  const supportsType = (p, type) => (type === 'multimaterial'
+    ? p.colourMode === 'multimaterial'
+    : (type === 'multicolour'
+      ? (p.colourMode === 'multicolour' || p.colourMode === 'multimaterial')
+      : true));
+  const printerForType = (type) => {
+    const def = config.printers.find((p) => p.id === config.defaultPrinterId);
+    if (def && supportsType(def, type)) return def;
+    return config.printers.find((p) => supportsType(p, type)) || config.printers[0];
+  };
+  const typeOptions = [
+    { value: 'single', label: 'One colour', title: 'The whole part is a single colour.' },
+    canMulticolour ? { value: 'multicolour', label: 'Several colours', title: 'More than one colour on the part, all in the same kind of plastic.' } : null,
+    canMultimaterial ? { value: 'multimaterial', label: 'Several materials', title: 'Different plastics in one part (e.g. rigid + flexible), each its own colour.' } : null,
+  ].filter(Boolean);
+  const chooseType = (type) => {
+    state.printType = type;
+    state.printerId = printerForType(type).id;
+    state.slots = null; // reload the colours for the chosen machine/type
+    render();
+  };
+  const supportingPrinters = state.printType
+    ? config.printers.filter((p) => supportsType(p, state.printType))
+    : config.printers;
+  const maxSlots = state.printType === 'single' ? 1 : null;
+
+  nodes.push(el('div', { class: 'panel', id: 'step-printer' }, [
+    stepHead(1, 'Colours', 'How many colours or materials your part needs. We match it to '
+      + 'the right machine — you do not have to know the printers.'),
+    muted('What does your part need?'),
+    chips('portal-printtype', typeOptions, state.printType, chooseType),
+    // Only once a type is chosen do we show the colours to load and the machine.
+    state.printType
+      ? el('div', {}, [
+        ...filamentSlots({
+          printer,
+          slots,
+          materials,
+          countryId: config.countryId,
+          currencyCode: code,
+          keyPrefix: 'portal-bed',
+          showDetail: false,
+          maxSlots,
+          onSlots: (next) => {
+            state.slots = next;
+            state.materialId = next[0]?.materialId || state.materialId;
+            render();
+          },
+        }),
+        muted(state.printType === 'single'
+          ? 'Pick the colour you want.'
+          : 'Load the colours you want. On a part with more than one, say how much of each it is in that part below.'),
+        // The machine is chosen for you; expand only if you want a specific one.
+        supportingPrinters.length > 1
+          ? section('portal-printer-advanced', 'Choose a specific machine (optional)', [
+            selectField('portal-printer', 'Printer',
+              supportingPrinters.map((p) => ({ value: p.id, label: p.name })),
+              state.printerId, (v) => { state.printerId = v; state.slots = null; render(); }),
+          ], { open: false })
+          : muted(`Printed on the ${printer?.name || config.printers[0]?.name}.`),
+      ])
+      : muted('Choose above to see the colours to load.'),
+  ]));
+
+  nodes.push(el('div', { class: 'panel panel--steplead', id: 'step-parts' }, [
+    stepHead(2, 'Your parts', 'Upload a 3-D model for each thing you want printed, then say '
+      + 'what it is for and how many. One part is open at a time — click a part to open it.'),
+    muted('Each part has its own model, finish, colours and quantity. Only one is open at '
+      + 'a time — click a part to open it.'),
   ]));
 
   // One part open at a time; `null` means all collapsed, `undefined` opens the first.
@@ -933,8 +1022,9 @@ function render() {
   const shipOptions = config.shipping.filter((m) => countryOk(m)
     && (shipFits(m.id) || m.id === state.shippingMethodId));
 
-  nodes.push(el('div', { class: 'panel' }, [
-    el('h2', { text: 'Delivery' }),
+  nodes.push(el('div', { class: 'panel', id: 'step-delivery' }, [
+    stepHead(3, 'Delivery', 'How you would like to receive the parts — a courier to your '
+      + 'address, or collect them yourself.'),
     selectField('portal-shipping', 'How should it reach you?',
       [{ value: 'auto', label: 'Cheapest that fits' },
         ...shipOptions.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` })),
@@ -1073,10 +1163,9 @@ function render() {
   // When the company only ships locally, the customer is in the company's own
   // country — the country is fixed, not chosen — and no international courier is
   // offered. With international shipping on, the client picks their country.
+  // `valid` and the country forcing are set once at the top of render (the stepper
+  // reads the same validity).
   const localOnly = !config.shipInternational;
-  if (localOnly) state.customer.countryId = config.countryId;
-
-  const valid = customerValidity(config);
   const phoneCountry = state.customer.countryId || config.countryId;
   const dial = dialInfoFor(phoneCountry);
   const countryOptions = (config.pricing?.countries || [])
@@ -1102,8 +1191,9 @@ function render() {
     toast('Please check the highlighted fields');
   };
 
-  nodes.push(el('div', { class: 'panel' }, [
-    el('h2', { text: 'Send it over' }),
+  nodes.push(el('div', { class: 'panel', id: 'step-send' }, [
+    stepHead(4, 'Send it over', 'Your contact details, then send us the request with your '
+      + 'model file attached. Nothing is uploaded until you send it.'),
     muted('This page has no server, so it cannot send the request for you. On a phone the '
       + 'easiest way is the request link — copy it and send it to us in an email or a message. '
       + 'Either way, attach your model file so we can print it.'),
