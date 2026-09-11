@@ -1246,11 +1246,13 @@ function bedLayoutPanel(ctx, project, result) {
   });
 
   return el('div', { class: 'panel' }, [
-    el('h3', { text: 'Beds & layout' }),
+    // bedPlan renders the "Beds & layout" heading itself; show a plain one only when
+    // there is nothing to lay out yet.
+    plan || el('h3', { text: 'Beds & layout' }),
+    plan || muted('Add parts with a size or a model to see the bed layout.'),
     muted(`${printer.name} holds ${limit} colour${limit === 1 ? '' : 's'} at once. Parts sharing the `
       + 'bed are laid out onto the fewest plates; a part moved to a different printer prints on its own. '
       + 'Click a bed to see it in 3-D.'),
-    plan || muted('Add parts with a size or a model to see the bed layout.'),
     overrides.length
       ? muted(`On other printers: ${overrides.map((p) => `${p.name} — `
         + `${settings.printers.find((x) => x.id === p.printerId)?.name || '?'}`).join('; ')}.`)

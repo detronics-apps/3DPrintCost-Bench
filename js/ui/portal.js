@@ -874,9 +874,10 @@ function render() {
     printerName: printer?.name || '',
     selectedIndex: state.ui?.selectedBed || 0,
     onSelectBed: (i) => { state.ui = { ...(state.ui || {}), selectedBed: i }; render(); },
+    title: 'On the bed',
   });
   if (bedNode) {
-    nodes.push(el('div', { class: 'panel' }, [el('h2', { text: 'On the bed' }), bedNode]));
+    nodes.push(el('div', { class: 'panel' }, [bedNode]));
   }
 
   // Only couriers that can actually carry the parcel (by size) are offered; the

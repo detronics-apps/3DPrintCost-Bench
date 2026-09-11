@@ -9,6 +9,21 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Beds & layout: In 3D heading right, plates left (v1.0.29)
+
+- **`bedPlan` owns its title** (new `title` option, default 'Beds & layout'): renders a
+  `.bedplan__head` row with the title left and the "In 3D" heading right (both `h3`), so
+  they share one line. `.bedplan__cols` is `justify-content: space-between` and
+  `.bedplan__isowrap` is right-aligned, so plates sit left and the iso right. The three
+  call sites (`estimate.js`, `projects.js` `bedLayoutPanel`, `portal.js`) no longer
+  render their own heading (portal passes `title: 'On the bed'`; projects keeps a plain
+  h3 only when there are no parts to lay out).
+- **Legend drops the file name** — `Part N ×count` only. The full model name moves to
+  the **Part breakdown** table (`partsTable`), which gains a leading `#` column
+  (`Part ${index+1}`) before a renamed **Model** column. Why: user's before/after images.
+  Verified live: both headings on top=174, In 3D right-aligned, plates left / iso right,
+  legend "Part 1 ×1", breakdown "# | Model | …".
+
 ## Commercial categories — edit in Settings, add/delete any (v1.0.28)
 
 - **Mode is structural** (`commercialAdjustment` in `js/pricing.js`): a category with a

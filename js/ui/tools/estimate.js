@@ -791,7 +791,8 @@ function partsTable(result) {
   return el('div', { class: 'panel' }, [
     el('h3', { text: 'Part breakdown' }),
     table([
-      { label: 'Part', key: 'name' },
+      { label: '#', mono: true, get: (l) => `Part ${result.lines.indexOf(l) + 1}` },
+      { label: 'Model', key: 'name' },
       { label: 'Qty', align: 'right', mono: true, get: (l) => String(l.quantity) },
       { label: 'Per plate', align: 'right', mono: true, get: (l) => String(l.perPlate) },
       { label: 'Plates', align: 'right', mono: true, get: (l) => String(l.jobs) },
@@ -1482,7 +1483,7 @@ export function main(ctx) {
     onSelectBed: (i) => { state.ui.selectedBed = i; saveSoon(); rerender(); },
   });
   if (bedNode) {
-    nodes.push(el('div', { class: 'panel' }, [el('h3', { text: 'Beds & layout' }), bedNode]));
+    nodes.push(el('div', { class: 'panel' }, [bedNode]));
   }
 
   nodes.push(el('div', { class: 'summary-grid' }, [

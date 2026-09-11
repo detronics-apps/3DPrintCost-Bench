@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.29 — Beds & layout: In 3D heading right, plates left, cleaner labels (2026-09-11)
+
+- **"In 3D" now sits on the same line as "Beds & layout"**, right-aligned, with the
+  3-D view right-aligned beneath it and the top-down plates on the left.
+- **The legend drops the file name** — it reads "Part 1 ×1", "Part 2 ×4". The full
+  model name moves to the **Part breakdown** table, which now leads with a part-number
+  column (Part 1, Part 2, …) followed by the Model name.
+
 ## 1.0.28 — Commercial categories: edit in Settings, add/delete any (2026-09-11)
 
 - **The category inputs now live in Settings → Pricing** (Commercial categories); the

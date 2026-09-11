@@ -615,9 +615,11 @@
 .cell-input { width: 64px; text-align: right; padding: 2px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font: inherit; }
 .cell-input--text { width: 160px; text-align: left; }
 .bedplan__swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
-/* Two columns packed to the left: the plates take only what they need, the 3-D
-   view sits beside them, both top-aligned and left-aligned (no wasted centre gap). */
-.bedplan__cols { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; justify-content: flex-start; }
+/* A heading row: the panel title on the left, "In 3D" on the right (over the iso). */
+.bedplan__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); flex-wrap: wrap; }
+.bedplan__title { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; }
+/* Plates on the left, the 3-D view pushed to the right. */
+.bedplan__cols { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; justify-content: space-between; }
 .bedplan__left { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 @media (max-width: 720px) { .bedplan__cols { flex-direction: column; } }
 .bedplan__grid { display: flex; flex-wrap: wrap; gap: var(--space-3); min-width: 0; max-width: 640px; }
@@ -627,11 +629,11 @@
 .bedplan__plate.is-selected { border-color: var(--accent); background: var(--panel-2); }
 .bedplan__svg { width: 100%; max-width: 300px; height: auto; display: block; }
 .bedplan__cap { font-size: 12px; color: var(--text-dim); text-align: center; }
-/* Sized to the 3-D view (~760px viewBox), packed left beside the plates; it can
-   shrink on a narrow panel but does not grow into a wide empty gap. */
-.bedplan__isowrap { flex: 0 1 760px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-/* Same size and format as the panel's own "Beds & layout" heading, left-aligned. */
-.bedplan__isohead { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; text-align: left; }
+/* Sized to the 3-D view (~760px viewBox) and right-aligned; it can shrink on a
+   narrow panel. */
+.bedplan__isowrap { flex: 0 1 760px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+/* Same size and format as the panel's own "Beds & layout" heading, right-aligned. */
+.bedplan__isohead { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; text-align: right; }
 /* The on-screen size is pinned by capDiagramScale to the SVG's viewBox width; this
    just lets it shrink to fit narrower panels. Left-aligned, no auto-centring. */
 .bedplan__iso { width: 100%; height: auto; display: block; margin: 0; }

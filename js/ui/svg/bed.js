@@ -219,7 +219,9 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName, showTowe
  *   - `selectedIndex` / `onSelectBed(i)`: click-to-select a plate for the iso view
  * @returns {HTMLElement|null}
  */
-export function bedPlan(items, build, { gap = 8, margin = 10, tower = null, printerName = '', selectedIndex = 0, onSelectBed = null } = {}) {
+export function bedPlan(items, build, {
+  gap = 8, margin = 10, tower = null, printerName = '', selectedIndex = 0, onSelectBed = null, title = 'Beds & layout',
+} = {}) {
   const live = (items || []).filter((it) => Math.max(0, Math.round(it.count || 0)) > 0);
   if (!live.length || !build || !build.x) return null;
 
@@ -245,16 +247,15 @@ export function bedPlan(items, build, { gap = 8, margin = 10, tower = null, prin
 
   const legend = el('div', { class: 'bedplan__legend' }, live.map((it) => {
     const reason = unfitReason(it);
-    // The legend carries the full name, led by the box's short label so the two link.
-    const short = shortLabelFor(it.id);
-    const name = it.label && it.label !== short ? `${short} — ${it.label}` : short;
+    // The legend is labelled by position only ("Part 1"); the full file name lives
+    // in the Part breakdown table, not here where it would overflow.
     return el('span', { class: `bedplan__key${reason ? ' bedplan__key--over' : ''}` }, [
       el('span', {
         class: 'bedplan__swatch',
         style: `background:${reason ? 'var(--danger)' : (it.colour || colourById(it.id))}`,
         'aria-hidden': 'true',
       }),
-      el('span', { text: `${name} ×${Math.round(it.count)}${reason ? ` — ${reason}` : ''}` }),
+      el('span', { text: `${shortLabelFor(it.id)} ×${Math.round(it.count)}${reason ? ` — ${reason}` : ''}` }),
     ]);
   }));
 
@@ -275,22 +276,29 @@ export function bedPlan(items, build, { gap = 8, margin = 10, tower = null, prin
     return fig;
   });
 
+  const isoTitle = plan.plates.length > 1 ? `Bed ${sel + 1}, in 3D` : 'In 3D';
+
+  // A top row carrying both headings on one line: the panel's own title on the
+  // left, "In 3D" on the right (over the isometric view).
+  const head = el('div', { class: 'bedplan__head' }, [
+    el('h3', { class: 'bedplan__title', text: title }),
+    el('h3', { class: 'bedplan__isohead', text: isoTitle }),
+  ]);
+
   const isoWrap = el('div', { class: 'bedplan__isowrap' }, [
-    el('h3', { class: 'bedplan__isohead', text: plan.plates.length > 1 ? `Bed ${sel + 1}, in 3D` : 'In 3D' }),
     isoSvg(plan.plates[sel], plan.area, plan.reserve, build, {
       colourById, printerName, showTower: towerOn(plan.plates[sel]),
     }),
   ]);
 
-  // Two columns, packed left: the legend and top-down plates on the left, the "In
-  // 3D" heading and isometric view on the right, both top-aligned so the heading
-  // sits level with the panel's own heading.
+  // Two columns: the legend and top-down plates on the LEFT, the isometric view on
+  // the RIGHT (right-aligned under its heading).
   const body = el('div', { class: 'bedplan__cols' }, [
     el('div', { class: 'bedplan__left' }, [legend, el('div', { class: 'bedplan__grid' }, plates)]),
     isoWrap,
   ]);
 
-  const nodes = [body];
+  const nodes = [head, body];
   if (plan.overflow.length) {
     const names = plan.overflow.map((id) => live.find((it) => it.id === id)?.label || id);
     nodes.push(el('p', { class: 'muted', text: `Too big for this bed in this orientation: ${names.join(', ')}.` }));
