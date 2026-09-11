@@ -21,7 +21,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   included — into a wall of banners) and the project main, both storing dismissals in
   `state.ui.dismissedNotices`. Why: the owner's screenshot showed ~8 stacked banners;
   they wanted one expandable line with closes. Verified live: 1 danger banner + a "3
-  notes" collapsed line with 3 × buttons. (2026-09-11, <commit>)
+  notes" collapsed line with 3 × buttons. (2026-09-11, 3f40d15)
 
 ## Estimate parts accordion (v1.0.14)
 
