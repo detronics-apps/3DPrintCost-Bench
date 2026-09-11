@@ -9,6 +9,22 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Print-intent: collapsible radar, self-contained blurbs, Display default (v1.0.37)
+
+- **Collapsible radar** (`js/ui/portal.js`): the per-part score radar is wrapped in a
+  `section('portal-radar-<id>', 'See how it scores', […], { open: false })`, collapsed
+  by default; the blurb stays visible above it.
+- **Display Only default**: `defaultProfileId(config)` prefers `'display'` (the most
+  common request) when the shop offers it, used at portal init and add-a-part.
+- **Self-contained blurbs** (`js/profiles.js`): reworded Extra Strong / Strength /
+  Function / Display Only so each describes only its own purpose + settings, with no
+  cross-references to other intents (a shop may hide some). `migrateSettings`
+  (`js/settings.js`) refreshes built-in profiles' `blurb` from `DEFAULT_PROFILES` (the
+  blurb is display-only, so no user edits are lost), so existing installs get the new
+  wording. Why: user — radar should fold away, blurbs shouldn't mention unshown intents,
+  Display Only is the common default. Verified live: default = Display Only, radar
+  collapsed; blurb rewording confirmed in code (shows after a full module reload).
+
 ## Client form: load-first colours, machine inferred (v1.0.36)
 
 - **Step 1 inverted** (`js/ui/portal.js`): removed the print-type chips. The customer

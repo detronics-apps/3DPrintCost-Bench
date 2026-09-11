@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.37 — Print-intent: collapsible radar, clearer blurbs, Display default (2026-09-11)
+
+- **The score radar is tucked into a "See how it scores" fold** (collapsed by default)
+  on the client form — the plain-language description under the buttons is what you read
+  first; the radar is there if you want it.
+- **Each print intent's description now stands on its own** — it explains that intent's
+  purpose and settings without comparing it to other intents (which a shop may not
+  offer). Existing setups pick up the reworded text automatically.
+- **"Display Only" is the default intent** — it's the most common request.
+
 ## 1.0.36 — Client form: load colours, machine worked out for you (2026-09-11)
 
 - **No "what type?" question** — the customer just loads the colour(s) or material(s)

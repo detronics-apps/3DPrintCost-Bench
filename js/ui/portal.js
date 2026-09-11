@@ -585,10 +585,14 @@ function partPanel(ctx, part, index, line, open = true) {
       // Picking Fit auto-ticks "must fit" (can still be unticked); leaving Fit clears it.
       part.profileId, (v) => { part.profileId = v; part.mustFit = v === 'fit'; render(); }),
     muted(config.profiles.find((p) => p.id === part.profileId)?.blurb || ''),
+    // The score radar is tucked away, collapsed by default — the blurb above explains
+    // the choice; the radar is there for anyone who wants the fuller picture.
     (() => {
       const chosen = config.profiles.find((p) => p.id === part.profileId);
       return chosen?.scores
-        ? el('div', { class: 'radar' }, [radarChart(chosen.scores, { size: 210 })])
+        ? section(`portal-radar-${part.id}`, 'See how it scores',
+          [el('div', { class: 'radar' }, [radarChart(chosen.scores, { size: 210 })])],
+          { open: false })
         : null;
     })(),
 
@@ -791,6 +795,13 @@ function requestText(result) {
   return out.filter((l) => l !== '').join('\n');
 }
 
+/** The intent a new part starts on: Display Only where the shop offers it (it is the
+ *  most common request), otherwise the first offered intent. */
+function defaultProfileId(config) {
+  const offered = config.profiles || [];
+  return (offered.some((p) => p.id === 'display') ? 'display' : offered[0]?.id) || null;
+}
+
 /** A numbered step heading: a badge, the title, and an (i) explaining the step. */
 function stepHead(n, title, info) {
   return el('div', { class: 'stephead' }, [
@@ -965,7 +976,7 @@ function render() {
 
   nodes.push(el('div', { class: 'panel' }, [
     buttonRow([button('Add another part', () => {
-      const next = makePortalPart({ profileId: config.profiles[0]?.id });
+      const next = makePortalPart({ profileId: defaultProfileId(config) });
       state.parts.push(next);
       state.ui = { ...(state.ui || {}), openPart: next.id }; // open the new one, collapse the rest
       render();
@@ -1343,7 +1354,7 @@ function init() {
       || config.printers[0]?.id || state.settings.printers[0].id;
     state.materialId = config.materials[0]?.id || state.settings.materials[0].id;
     state.slots = null;
-    state.parts = [makePortalPart({ profileId: config.profiles[0]?.id || state.settings.profiles[0].id })];
+    state.parts = [makePortalPart({ profileId: defaultProfileId(config) })];
     state.customer.countryId = config.countryId || null;
     state.shippingMethodId = 'auto';
     // In expedite-only mode there is no quote path, so the order is expedited

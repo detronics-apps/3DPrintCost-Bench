@@ -463,6 +463,9 @@ export function migrateSettings(stored) {
         for (const [k, v] of Object.entries(def.settings)) {
           if (p.settings[k] === undefined) p.settings[k] = v;
         }
+        // The blurb is display-only (not editable), so refresh the shipped one so
+        // reworded, self-contained descriptions reach existing installs.
+        if (def.builtIn) p.blurb = def.blurb;
       }
     }
   }

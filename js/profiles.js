@@ -153,8 +153,8 @@ export const DEFAULT_RATINGS = { speed: 3, cost: 3, strength: 3, precision: 3 };
 /** The six shipped profiles, with the values the specification gives. */
 export const DEFAULT_PROFILES = [
   profile('extra-strong', 'Extra Strong',
-    'Maximum load capacity. Slow and material-hungry: use it when the part has '
-    + 'to survive, not when it has to look good.', {
+    'Maximum load capacity — dense infill and thick walls for a part that has to '
+    + 'take real force. Slow to print and uses the most plastic.', {
       infill: 95,
       infillPattern: 'gyroid',
       wallLoops: 7,
@@ -168,8 +168,8 @@ export const DEFAULT_PROFILES = [
       layerHeight: 0.2,
     }, { speed: 2, cost: 2, strength: 5, precision: 3 }),
   profile('strength', 'Strength',
-    'Structural parts in ordinary PLA. Most of the strength of Extra Strong for '
-    + 'a little over half the machine time.', {
+    'Strong, structural parts in PLA — high infill and extra walls make a tough '
+    + 'part at a sensible print time.', {
       infill: 80,
       infillPattern: 'gyroid',
       wallLoops: 5,
@@ -200,8 +200,8 @@ export const DEFAULT_PROFILES = [
       layerHeight: 0.2,
     }, { speed: 4, cost: 3, strength: 2, precision: 5 }),
   profile('function', 'Function',
-    'The everyday working part: PETG, moderate infill, three walls. Tougher and '
-    + 'more heat-tolerant than PLA without the Strength profile cost.', {
+    'The everyday working part — PETG at moderate infill with three walls: tough '
+    + 'and heat-tolerant, for parts that do a job.', {
       infill: 30,
       infillPattern: 'rectilinear',
       wallLoops: 3,
@@ -230,8 +230,8 @@ export const DEFAULT_PROFILES = [
       layerHeight: 0.15,
     }, { speed: 2, cost: 4, strength: 2, precision: 4 }),
   profile('display', 'Display Only',
-    'The baseline every factor is measured against. Nothing enabled, nothing '
-    + 'optimised: a shape to look at.', {
+    'A shape to look at — light infill, two walls, standard layers. The quickest '
+    + 'and cheapest way to get the form.', {
       infill: 15,
       infillPattern: 'rectilinear',
       wallLoops: 2,
