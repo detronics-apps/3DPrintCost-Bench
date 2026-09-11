@@ -610,6 +610,10 @@
 .bedplan__legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: 13px; }
 .bedplan__key { display: inline-flex; align-items: center; gap: 6px; }
 .bedplan__key--over { color: var(--danger); font-weight: 600; }
+
+/* Compact inline inputs inside a table cell (e.g. the commercial-category weights). */
+.cell-input { width: 64px; text-align: right; padding: 2px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font: inherit; }
+.cell-input--text { width: 160px; text-align: left; }
 .bedplan__swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
 /* Two columns packed to the left: the plates take only what they need, the 3-D
    view sits beside them, both top-aligned and left-aligned (no wasted centre gap). */

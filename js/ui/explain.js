@@ -369,26 +369,26 @@ export function explainOrder(result, settings) {
 
   const alloc = result.allocation;
   cards.push(explainCard({
-    title: 'Where the commercial share goes',
-    source: `${money(alloc.total)} to divide`,
-    plain: 'These percentages divide up the two commercial thirds you have already '
-      + 'charged. They are proportions of each other, so they are normalised — the '
-      + 'shipped weights add to 152% and that is fine, because they are not percentages '
-      + 'of the invoice.',
-    formula: 'each bucket = commercial share × (its weight ÷ total weight)',
+    title: 'Where the money in this order goes',
+    source: `${money(alloc.adjustedTotal)} across the categories`,
+    plain: 'Each category shows the amount already worked out for it in this order. The '
+      + 'weight dials it: 10 leaves it as calculated, 11 adds 10% of that category to the '
+      + 'price, 9 takes 10% off. So at weight 10 across the board the price is exactly the '
+      + 'calculated total — the categories only move it when a weight leaves 10.',
+    formula: 'adjusted = calculated × (weight ÷ 10)\n'
+      + 'added to the price = (built-in) calculated × (weight − 10) ÷ 10;  (custom) the whole adjusted amount',
     worked: [
       ...alloc.lines.map((line) => [
-        `${line.name}${line.overlapsDirect ? ' (already charged directly)' : ''}`,
-        money(line.amount),
+        `${line.name} · weight ${line.weight}${line.custom ? ' (custom)' : ''}`,
+        money(line.adjusted),
       ]),
-      ['Total allocated', money(alloc.allocated)],
+      ['Added to the client price', money(alloc.addToPrice)],
     ],
-    mistake: 'Reading a bucket that names a direct cost — machine, labour, packaging — '
-      + 'as a second charge. Those are internal shares of money the customer has already '
-      + 'paid once. The app marks each one.',
-    correction: 'A bucket tagged “already charged directly” (machine, labour, packaging, …) '
-      + 'is only showing where money the customer already paid is notionally allocated — '
-      + 'never a second charge, and the app labels each one.',
+    mistake: 'Treating a built-in category’s whole amount as extra on top. Machine, labour, '
+      + 'profit and the rest are already in the price — only the change from weight 10 is '
+      + 'added or removed. A custom category is the exception: it is new money.',
+    correction: 'Leave a category at weight 10 to charge it exactly as calculated. Move it to '
+      + 'add or shave a percentage, and add a custom category for anything new you want set aside.',
   }));
 
   return cards;

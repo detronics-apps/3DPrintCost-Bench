@@ -378,20 +378,27 @@ test('VAT is added once, at the end, over everything', () => {
   close(r.tax.tax, r.totals.net * 0.15, 1e-6, 'tax');
 });
 
-test('handling charged on the order switches off its allocation bucket', () => {
+test('commercial categories at the baseline weight do not change the price', () => {
   const s = settings();
   const order = { lines: [{ ...bracket(), quantity: 3 }], shippingMethodId: 'collect' };
+  const r = calculateOrder(order, s);
+  // Every default category ships at weight 10, so nothing is added or removed.
+  close(r.allocation.addToPrice, 0, 1e-6, 'no adjustment at the baseline weight');
+  close(r.totals.net, r.parts.total + r.orderExtras.total, 1e-6, 'invoice is just parts + extras');
+  assert.ok(r.allocation.lines.some((l) => l.id === 'profit'), 'profit is a category');
+});
 
-  const allocated = calculateOrder(order, s);
-  assert.equal(allocated.orderExtras.handling, 0);
-  assert.ok(allocated.allocation.lines.some((l) => l.id === 'handling'));
+test('raising a category weight adds that share of it to the price', () => {
+  const s = settings();
+  const order = { lines: [{ ...bracket(), quantity: 3 }] };
+  const base = calculateOrder(order, s);
+  const profitBase = base.allocation.lines.find((l) => l.id === 'profit').base;
 
-  const chargedSettings = clone(s);
-  chargedSettings.handling = { mode: 'charge', rate: 0.02 };
-  const charged = calculateOrder(order, chargedSettings);
-  assert.ok(charged.orderExtras.handling > 0);
-  assert.ok(!charged.allocation.lines.some((l) => l.id === 'handling'),
-    'the bucket must be gone once the money is charged directly');
+  const bumped = clone(s);
+  bumped.allocations = bumped.allocations.map((c) => (c.id === 'profit' ? { ...c, weight: 11 } : c));
+  const r = calculateOrder(order, bumped);
+  // Weight 11 on profit = +10% of the profit category, and nothing else moves.
+  close(r.totals.net - base.totals.net, profitBase * 0.1, 1e-6, 'exactly 10% of profit added');
 });
 
 test('an order with no lines does not produce NaN anywhere', () => {

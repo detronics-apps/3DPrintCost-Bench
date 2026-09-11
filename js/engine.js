@@ -41,7 +41,7 @@ import { hardwareCost, choosePackaging } from './packaging.js';
 import { findShipping, shippingCost, freeShipping, autoSelectShipping, packageFits } from './shipping.js';
 import { electricityCost } from './electricity.js';
 import { demandMultiplier } from './demand.js';
-import { thirdsPrice, allocate, applyDiscount, doubleCountWarnings } from './pricing.js';
+import { thirdsPrice, applyDiscount, commercialAdjustment, DEFAULT_COMMERCIAL_CATEGORIES } from './pricing.js';
 import { estimatePart, machineMinutesPerPart } from './estimate.js';
 import { partsPerPlate as gridPartsPerPlate, analyse } from './geometry.js';
 import { findCountry, electricityTariff } from './countries.js';
@@ -821,32 +821,44 @@ export function calculateOrder(order, settings, context = {}) {
   /* -- invoice ----------------------------------------------------------- */
 
   const orderExtras = packaging.cost + shippingCharged + handlingCharge + storageCharge + extrasTotal;
-  const netTotal = partValue + orderExtras;
+
+  /* -- commercial categories: a per-category weight ± on the price --------- */
+
+  // Every category's calculated amount, so the panel can show where the money in
+  // an order goes and the company can dial each one. Weight 10 changes nothing;
+  // 11 adds 10% of that category, 9 removes 10%. Custom categories add new money.
+  const sumLine = (pick) => lines.reduce((t, l) => t + num(pick(l)) * l.quantity, 0);
+  const genAllowanceTotal = sumLine((l) => l.production.generalAllowance);
+  const ac = settings.ctc?.allowanceComponents || {};
+  const acKeys = ['marketing', 'admin', 'rnd', 'storage'];
+  const acSum = acKeys.reduce((t, k) => t + Math.max(0, num(ac[k])), 0);
+  const acShare = (k) => (acSum > 0 ? Math.max(0, num(ac[k])) / acSum : 0);
+  const categoryBases = {
+    productionCost: ctcTotal,
+    material: sumLine((l) => l.production.material),
+    machine: sumLine((l) => l.production.machine),
+    electricity: sumLine((l) => l.production.electricity),
+    labour: sumLine((l) => l.production.labour),
+    hardware: sumLine((l) => l.production.hardware),
+    scrap: sumLine((l) => l.production.scrapAllowance),
+    marketing: genAllowanceTotal * acShare('marketing'),
+    admin: genAllowanceTotal * acShare('admin'),
+    rnd: genAllowanceTotal * acShare('rnd'),
+    profit: sumLine((l) => l.price.profit),
+    growth: sumLine((l) => l.price.commercial),
+    packaging: packaging.cost,
+    shipping: shippingCharged,
+    handling: handlingCharge,
+    storage: storageCharge + genAllowanceTotal * acShare('storage'),
+  };
+  const allocation = commercialAdjustment(settings.allocations || DEFAULT_COMMERCIAL_CATEGORIES, categoryBases);
+
+  const netTotal = partValue + orderExtras + allocation.addToPrice;
 
   const taxEnabled = settings.tax?.enabled !== false && num(settings.tax?.rate, 0) > 0;
   const taxResult = applyTax(netTotal, taxEnabled ? num(settings.tax.rate) : 0, {
     inclusive: Boolean(settings.tax?.inclusive),
   });
-
-  /* -- internal allocation ---------------------------------------------- */
-
-  const commercialTotal = lines.reduce((t, l) => t + (l.price.commercial + l.price.profit) * l.quantity, 0);
-  const buckets = (settings.allocations || []).map((b) => {
-    // A bucket whose cost is being charged on the order is switched off here,
-    // or the same money is counted in two places.
-    if (b.duplicates === 'handling' && handlingMode === 'charge') return { ...b, enabled: false };
-    if (b.duplicates === 'storage' && storageMode === 'charge') return { ...b, enabled: false };
-    return b;
-  });
-  const directPerPart = unitCount > 0 ? {
-    machine: lines.reduce((t, l) => t + l.production.machine * l.quantity, 0) / unitCount,
-    labour: lines.reduce((t, l) => t + l.production.labour * l.quantity, 0) / unitCount,
-    scrap: lines.reduce((t, l) => t + l.production.scrapAllowance * l.quantity, 0) / unitCount,
-    packaging: packaging.cost / unitCount,
-    handling: handlingCharge / unitCount,
-    storage: storageCharge / unitCount,
-  } : {};
-  const allocation = allocate(commercialTotal, buckets, directPerPart);
 
   /* -- lead time --------------------------------------------------------- */
 
@@ -908,7 +920,7 @@ export function calculateOrder(order, settings, context = {}) {
       finalInvoice: taxResult.inclusive ? netTotal : taxResult.gross,
     },
     allocation,
-    allocationWarnings: doubleCountWarnings(allocation, ''),
+    allocationWarnings: [],
     capacity: { machineHours, labourHours, leadDays },
     notes,
   };

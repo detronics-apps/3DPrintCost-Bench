@@ -1223,31 +1223,75 @@ function comparison(ctx, part, result) {
   ]);
 }
 
-function allocationPanel(result) {
+function allocationPanel(ctx, result) {
+  const { state, rerender } = ctx;
   const code = result.currencyCode;
+  const cats = state.settings.allocations || [];
+  const lines = result.allocation.lines;
+
+  const setCat = (id, patch) => {
+    state.settings.allocations = cats.map((c) => (c.id === id ? { ...c, ...patch } : c));
+    saveSoon();
+    rerender();
+  };
+  const weightInput = (line) => el('input', {
+    type: 'number', min: '0', step: '1', value: String(line.weight),
+    class: 'cell-input',
+    on: { change: (e) => setCat(line.id, { weight: Math.max(0, num(e.target.value, 10)) }) },
+  });
+  const nameInput = (line) => el('input', {
+    type: 'text', value: line.name, class: 'cell-input cell-input--text',
+    on: { change: (e) => setCat(line.id, { name: e.target.value || 'Category' }) },
+  });
+  const removeBtn = (line) => button('Remove', () => {
+    state.settings.allocations = cats.filter((c) => c.id !== line.id);
+    saveSoon();
+    rerender();
+  }, { key: `rm-cat-${line.id}` });
+
+  const rows = table([
+    { label: 'Category', get: (r) => (r.custom ? nameInput(r) : r.name) },
+    { label: 'Calculated', align: 'right', mono: true, get: (r) => fmtMoney(r.base, code) },
+    { label: 'Weight', align: 'right', get: (r) => weightInput(r) },
+    { label: 'Adjusted', align: 'right', mono: true, get: (r) => fmtMoney(r.adjusted, code) },
+    {
+      label: 'To the invoice',
+      align: 'right',
+      mono: true,
+      get: (r) => (Math.abs(r.addToPrice) < 0.005 ? '—'
+        : `${r.addToPrice > 0 ? '+' : '−'}${fmtMoney(Math.abs(r.addToPrice), code)}`),
+    },
+    { label: '', get: (r) => (r.custom ? removeBtn(r) : '') },
+  ], lines);
+
+  const added = result.allocation.addToPrice;
   return el('div', { class: 'panel' }, [
-    el('h3', { text: 'Where the commercial share goes' }),
-    muted('The Weight is a relative score you set — not a percentage. The Share is that '
-      + 'weight as its portion of 100%, so the Shares add up to 100%. These divide up money '
-      + 'already in the price (the commercial thirds); nothing here is added on top. A line '
-      + 'marked “already charged” names a cost the customer already pays — its “Already '
-      + 'charged” column shows that real direct cost, so you can see it against the notional '
-      + 'share.'),
-    table([
-      { label: 'Bucket', key: 'name' },
-      { label: 'Weight', align: 'right', mono: true, get: (r) => (r.weight * 100).toFixed(0) },
-      { label: 'Share', align: 'right', mono: true, get: (r) => fmtRate(r.share) },
-      { label: 'Amount', align: 'right', mono: true, get: (r) => fmtMoney(r.amount, code) },
-      {
-        label: 'Already charged',
-        align: 'right',
-        mono: true,
-        get: (r) => (r.overlapsDirect ? fmtMoney(r.alreadyCharged, code) : '—'),
-      },
-    ], result.allocation.lines),
-    muted(`Weights add up to a score of ${(result.allocation.weightSum * 100).toFixed(0)}, `
-      + 'not 100 — that is fine, because a weight is only a proportion of the others. The '
-      + 'Share column is what turns them into percentages of the whole.'),
+    el('h3', { text: 'Where the money in this order goes' }),
+    muted('Every category shows the amount already worked out for it in this order. The '
+      + 'Weight is how you dial it: 10 leaves it exactly as calculated, 11 adds 10% of that '
+      + 'category to the client’s price, 9 takes 10% off. Profit is just another category — '
+      + 'its weight moves profit up or down and nothing else. Add your own categories for '
+      + 'anything else you want money set aside for.'),
+    rows,
+    buttonRow([button('Add a category', () => {
+      state.settings.allocations = [...cats, {
+        id: `cat-${Date.now().toString(36)}`,
+        name: 'New category',
+        source: 'custom',
+        baseKind: 'percent',
+        baseRate: 0.05,
+        weight: 10,
+      }];
+      saveSoon();
+      rerender();
+    }, { key: 'add-cat' })]),
+    muted(added > 0.005
+      ? `These weights add ${fmtMoney(added, code)} to the client’s price for this order.`
+      : (added < -0.005
+        ? `These weights take ${fmtMoney(-added, code)} off the client’s price for this order.`
+        : 'At the current weights the price is exactly the calculated total — nothing added or removed. '
+          + 'A custom category is charged as new money (its own amount); a built-in one only changes the '
+          + 'price by how far its weight is from 10.')),
   ]);
 }
 
@@ -1514,7 +1558,7 @@ export function main(ctx) {
     nodes.push(breakdown(line, result, settings));
     nodes.push(labourPanel(line, code, settings));
     nodes.push(comparison(ctx, detailPart, result));
-    nodes.push(allocationPanel(result));
+    nodes.push(allocationPanel(ctx, result));
   }
 
   return nodes.filter(Boolean);

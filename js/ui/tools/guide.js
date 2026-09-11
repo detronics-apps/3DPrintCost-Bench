@@ -199,6 +199,17 @@ const FAQS = [
       + 'costs you more time than the model assumes. With no model uploaded, a part’s solid volume is '
       + 'assumed to be a share of its length × width × height box (default 60%, in Settings → Estimator '
       + 'assumptions).' },
+  { q: 'What is “Where the money in this order goes”, and how do the weights work?',
+    a: 'It is the single place to see how much of an order goes to each category — material, '
+      + 'machine, labour, profit, marketing, and so on — and to dial each one. Every category '
+      + 'shows the amount already worked out for it, next to a WEIGHT. A weight of 10 is the '
+      + 'baseline: charge that category exactly as calculated. Set it to 11 to add 10% of that '
+      + 'category to the client’s price, 9 to take 10% off. Profit is just another category, so '
+      + 'its weight raises or lowers profit and touches nothing else. At weight 10 across the '
+      + 'board the price is exactly the calculated total. Use “Add a category” for anything new '
+      + 'you want money set aside for (charged as a percentage of the production cost) — a custom '
+      + 'category is new money, so its whole amount is added. You can also manage the list in '
+      + 'Settings → Pricing → Commercial categories.' },
   { q: 'With team sync on, do I still need to press “Save all”?',
     a: 'Not for routine work. When team sync is connected the whole workshop is written to the shared file '
       + 'automatically on every change (and it is conflict-aware), so there is nothing to remember to save. '
@@ -231,6 +242,7 @@ export const SEARCH_ALIASES = {
   profile: ['print intent', 'print type', 'radar', 'extra strong', 'fit', 'visual', 'display only', 'strength', 'precision', 'aesthetics', 'speed', 'how strong'],
   infill: ['density', 'fill', 'walls', 'wall loops', 'perimeters', 'how much plastic', 'solid volume', 'space claim'],
   'time factor': ['calibration pass', 'reprint', 'iterative', 'ironing', 'fuzzy skin', 'adjust time', 'per profile'],
+  'commercial categories': ['where the money goes', 'commercial share', 'allocation', 'markup', 'weights', 'marketing', 'profit share', 'add a category', 'adjust profit'],
 };
 
 /** Fold an item's text together with the everyday phrases for any app term in it. */

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.27 — Commercial categories: see and dial where the money goes (2026-09-11)
+
+- **"Where the money in this order goes" replaces the old commercial-share panel.**
+  It now lists every category (material, machine, labour, profit, marketing, …) with
+  the amount already worked out for it and a **weight you can dial**: 10 charges it
+  as calculated, 11 adds 10% of that category to the client’s price, 9 takes 10% off.
+  Profit is just another category, so its weight only moves profit. The confusing
+  "Already charged" and "share of 100%" columns are gone.
+- **Add your own categories** for anything you want money set aside for (charged as a
+  % of production cost) — on the estimate panel or in Settings → Commercial categories.
+- At the shipped weights (all 10) the price is exactly what it was before — the
+  weights only move it when you change one.
+
 ## 1.0.26 — Print-intent profiles reworked, engineering-based scores (2026-09-11)
 
 - **The print-intent radar is now calculated, not hand-set**, and gains a fifth

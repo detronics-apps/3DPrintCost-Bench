@@ -9,6 +9,34 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Commercial categories — dial where the money goes (v1.0.27)
+
+- **New model** (`js/pricing.js`): `DEFAULT_COMMERCIAL_CATEGORIES` (each `{id, name,
+  source, weight:10}`) + `commercialAdjustment(categories, bases)`. Weight 10 =
+  baseline; `adjusted = base × weight/10`; a built-in category adds only `base ×
+  (weight-10)/10` to the price (it is already in the total), a `custom` one adds its
+  whole `adjusted` (new money; base = `baseRate × productionCost`). Returns `lines`,
+  `addToPrice`, `baseTotal`, `adjustedTotal`. `allocate`/`doubleCountWarnings` kept
+  as legacy exports for old tests but no longer used by the engine.
+- **Engine** (`js/engine.js`): builds `categoryBases` from the order (material,
+  machine, electricity, labour, hardware, scrap, packaging, shipping, handling,
+  storage, profit, growth, and marketing/admin/rnd/storage split from the general
+  allowance by `ctc.allowanceComponents`), calls `commercialAdjustment`, and adds
+  `allocation.addToPrice` into `netTotal` before tax. `result.allocation` is now the
+  new shape; `allocationWarnings` = []. Invariant: all weights 10 ⇒ price unchanged.
+- **Settings** (`js/settings.js`): default `allocations` = `DEFAULT_COMMERCIAL_CATEGORIES`;
+  migration resets any old-shaped allocations (fractional weights / `duplicates` / no
+  `source`) to the weight-10 defaults so stored prices don’t move.
+- **UI**: estimate panel `allocationPanel(ctx, result)` rewritten — Category /
+  Calculated / editable Weight / Adjusted / To the invoice, add + remove custom
+  categories, live total; Settings "Commercial categories" editor (name + weight +
+  custom % + add/remove); `explain.js` and `export.js` updated to the new fields;
+  `.cell-input` CSS. Guide FAQ + search aliases. Why: user redesigned the commercial
+  shares to show where each order’s money goes and let the company dial each category
+  (weight 10 baseline, 11 = +10%), dropping the confusing "already charged" column.
+  Verified live: editing Profit 10→13 raised the invoice by 30% of profit, reset to
+  10 restored it; no console errors. Engine tests for the invariant + the +10% rule.
+
 ## Print-intent profiles reworked, engineering scores (v1.0.26)
 
 - **`js/scores.js`** (new): `scoresFor(settings, model)` computes the five 1–5 scores

@@ -22,7 +22,7 @@ import {
   LABOUR_SCOPES, SCOPE_IDS, labourCost, groupLabour, resolveLabourRate,
 } from '../../labour.js';
 import {
-  DEMAND_TARGETS, CHARGE_MODES, DEFAULT_ALLOCATIONS, LABOUR_PLACEMENTS, thirdsPrice,
+  DEMAND_TARGETS, CHARGE_MODES, DEFAULT_COMMERCIAL_CATEGORIES, LABOUR_PLACEMENTS, thirdsPrice,
 } from '../../pricing.js';
 import {
   INFILL_PATTERNS, FACTOR_LABELS, timeAdjustFor,
@@ -434,37 +434,55 @@ function pricingPanel(ctx) {
     ]),
 
     el('div', { class: 'panel' }, [
-      el('h3', { text: 'Internal allocation' }),
-      banner('info', 'These weights divide up the commercial thirds you have already '
-        + 'charged. They are never added to a price — the shipped set adds to 152%, and '
-        + 'adding it would be a markup nobody decided on.'),
+      el('h3', { text: 'Commercial categories' }),
+      banner('info', 'Each category is charged at its calculated amount when its weight is 10. '
+        + 'Raise the weight to add that percentage on top (11 = +10%), lower it to take money '
+        + 'off; profit is a category too, and its weight only moves profit. Add your own for '
+        + 'anything else you want money set aside for. The amounts per order are shown on the '
+        + 'estimate under “Where the money in this order goes”.'),
       table([
-        { label: 'Bucket', get: (b) => b.name },
+        {
+          label: 'Category',
+          get: (b) => (b.source === 'custom'
+            ? textField(`alloc-name-${b.id}`, '', b.name, (v) => { b.name = v || 'Category'; touch(rerender); })
+            : b.name),
+        },
         {
           label: 'Weight',
           align: 'right',
-          get: (b) => numberField(`alloc-${b.id}`, '', Math.round(b.weight * 100),
-            (v) => { b.weight = Math.max(0, num(v)) / 100; touch(rerender); },
-            { min: 0, step: 1, suffix: '%' }),
+          get: (b) => numberField(`alloc-${b.id}`, '', num(b.weight, 10),
+            (v) => { b.weight = Math.max(0, num(v)); touch(rerender); }, { min: 0, step: 1 }),
         },
         {
-          label: 'Share of the commercial thirds',
+          label: 'Custom base (% of cost)',
           align: 'right',
-          mono: true,
-          get: (b) => {
-            const total = settings.allocations.reduce((t, x) => t + num(x.weight), 0) || 1;
-            return fmtRate(num(b.weight) / total);
-          },
+          get: (b) => (b.source === 'custom'
+            ? numberField(`alloc-rate-${b.id}`, '', Math.round(num(b.baseRate) * 100),
+              (v) => { b.baseRate = Math.max(0, num(v)) / 100; touch(rerender); }, { min: 0, step: 1, suffix: '%' })
+            : '—'),
         },
         {
           label: '',
-          get: (b) => (b.duplicates ? pill(`also charged as ${b.duplicates}`, 'warn') : ''),
+          get: (b) => (b.source === 'custom'
+            ? button('Remove', () => {
+              settings.allocations = settings.allocations.filter((x) => x.id !== b.id);
+              touch(rerender);
+            }, { key: `rm-alloc-${b.id}` })
+            : ''),
         },
       ], settings.allocations),
-      buttonRow([button('Back to the shipped weights', () => {
-        settings.allocations = DEFAULT_ALLOCATIONS.map((b) => ({ ...b }));
-        touch(rerender);
-      }, { key: 'reset-allocations' })]),
+      buttonRow([
+        button('Add a category', () => {
+          settings.allocations = [...settings.allocations, {
+            id: `cat-${Date.now().toString(36)}`, name: 'New category', source: 'custom', baseKind: 'percent', baseRate: 0.05, weight: 10,
+          }];
+          touch(rerender);
+        }, { key: 'add-alloc' }),
+        button('Back to the shipped categories', () => {
+          settings.allocations = DEFAULT_COMMERCIAL_CATEGORIES.map((b) => ({ ...b }));
+          touch(rerender);
+        }, { key: 'reset-allocations' }),
+      ]),
     ]),
 
     el('div', { class: 'panel' }, [

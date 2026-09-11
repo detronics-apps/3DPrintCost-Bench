@@ -21,7 +21,7 @@ import { DEFAULT_PACKAGING, DEFAULT_HARDWARE } from './packaging.js';
 import { DEFAULT_POST_OPS, migratePostProcessing } from './postprocessing.js';
 import { DEFAULT_DEMAND } from './demand.js';
 import {
-  DEFAULT_THIRDS, DEFAULT_ALLOCATIONS, DEFAULT_VOLUME_TIERS, DEFAULT_PRESETS,
+  DEFAULT_THIRDS, DEFAULT_COMMERCIAL_CATEGORIES, DEFAULT_VOLUME_TIERS, DEFAULT_PRESETS,
 } from './pricing.js';
 import { DEFAULT_ESTIMATE_ASSUMPTIONS } from './estimate.js';
 
@@ -146,7 +146,7 @@ export function defaultSettings() {
     },
 
     thirds: clone(DEFAULT_THIRDS),
-    allocations: clone(DEFAULT_ALLOCATIONS),
+    allocations: clone(DEFAULT_COMMERCIAL_CATEGORIES),
     demand: clone(DEFAULT_DEMAND),
     volumeTiers: clone(DEFAULT_VOLUME_TIERS),
     discount: { kind: 'none' },
@@ -347,7 +347,7 @@ export function migrateSettings(stored) {
     shipping: DEFAULT_SHIPPING,
     packaging: DEFAULT_PACKAGING,
     hardware: DEFAULT_HARDWARE,
-    allocations: DEFAULT_ALLOCATIONS,
+    allocations: DEFAULT_COMMERCIAL_CATEGORIES,
     volumeTiers: DEFAULT_VOLUME_TIERS,
     presets: DEFAULT_PRESETS,
   };
@@ -432,6 +432,18 @@ export function migrateSettings(stored) {
     'customerPortal', 'ui']) {
     if (!merged[key] || typeof merged[key] !== 'object') merged[key] = clone(defaults[key]);
   }
+
+  // Commercial categories were redesigned: the old `allocations` were fractional
+  // weights (0.2, 0.5) that only SPLIT the markup for display. The new model uses a
+  // weight of 10 as the baseline (10 = charge as calculated) and the weights change
+  // the price. An old blob's 0.2 would read as ÷10 = ×0.02 and gut every category,
+  // so a set that still looks old (fractional weights, or the old `duplicates` key,
+  // or no `source`) is reset to the new weight-10 defaults — which leaves the price
+  // exactly where it was.
+  const alloc = merged.allocations;
+  const looksOld = !Array.isArray(alloc) || alloc.length === 0
+    || alloc.some((b) => b && (b.duplicates !== undefined || b.source === undefined || num(b.weight) < 5));
+  if (looksOld) merged.allocations = clone(DEFAULT_COMMERCIAL_CATEGORIES);
 
   // The growth split is newer than the thirds block, so a settings blob from
   // before it exists needs the default filled in rather than left undefined.

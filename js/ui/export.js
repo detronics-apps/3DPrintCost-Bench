@@ -128,8 +128,8 @@ export function orderCsv(result, { includeInternal = true } = {}) {
     rows.push(['Gross profit on parts', money(result.parts.total - result.totals.costToCompany)]);
     rows.push(['Demand multiplier', result.demand.multiplier]);
     for (const line of result.allocation.lines) {
-      rows.push([`Allocation: ${line.name}`, money(line.amount),
-        line.overlapsDirect ? 'Already charged directly' : '']);
+      rows.push([`Category: ${line.name}`, money(line.adjusted),
+        `weight ${line.weight}`, money(line.addToPrice)]);
     }
   }
   return rows;

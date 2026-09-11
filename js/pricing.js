@@ -285,6 +285,70 @@ export function doubleCountWarnings(allocationResult, currency = '') {
     }));
 }
 
+/* ------------------------------------------------ commercial categories -- */
+
+/**
+ * The money categories in an order, each shown with the amount already calculated
+ * for it and a WEIGHT the company can dial. Weight 10 is the baseline (charge the
+ * category exactly as calculated); weight 11 adds 10% of that category to the
+ * client total, weight 9 removes 10%. So the weights are a per-category ± lever on
+ * the final price — at weight 10 across the board nothing changes.
+ *
+ * `source` names where the category's calculated amount comes from (a key in the
+ * `bases` map the engine builds). A `custom` category is money the company invents
+ * on top: its whole weighted amount is added (not just the change from baseline).
+ */
+export const DEFAULT_COMMERCIAL_CATEGORIES = [
+  { id: 'material', name: 'Material', source: 'material', weight: 10 },
+  { id: 'machine', name: 'Machine', source: 'machine', weight: 10 },
+  { id: 'electricity', name: 'Electricity', source: 'electricity', weight: 10 },
+  { id: 'labour', name: 'Labour', source: 'labour', weight: 10 },
+  { id: 'hardware', name: 'Hardware', source: 'hardware', weight: 10 },
+  { id: 'rejections', name: 'Rejections and scrap', source: 'scrap', weight: 10 },
+  { id: 'marketing', name: 'Marketing', source: 'marketing', weight: 10 },
+  { id: 'rnd', name: 'R&D and prototyping', source: 'rnd', weight: 10 },
+  { id: 'admin', name: 'Admin', source: 'admin', weight: 10 },
+  { id: 'storage', name: 'Storage', source: 'storage', weight: 10 },
+  { id: 'packaging', name: 'Packaging', source: 'packaging', weight: 10 },
+  { id: 'handling', name: 'Handling', source: 'handling', weight: 10 },
+  { id: 'profit', name: 'Profit', source: 'profit', weight: 10 },
+];
+
+export const CATEGORY_BASELINE_WEIGHT = 10;
+
+/**
+ * Apply the per-category weights to the calculated bases.
+ * @param {Array} categories  the company's category list (weights, sources)
+ * @param {object} bases  calculated amount for each source key (+ productionCost)
+ * @returns {{lines, addToPrice, baseTotal, adjustedTotal}}
+ */
+export function commercialAdjustment(categories = DEFAULT_COMMERCIAL_CATEGORIES, bases = {}) {
+  const lines = (categories || []).filter((c) => c.enabled !== false).map((c) => {
+    const custom = c.source === 'custom' || Boolean(c.custom);
+    const base = custom
+      ? (c.baseKind === 'percent'
+        ? Math.max(0, num(c.baseRate)) * Math.max(0, num(bases.productionCost))
+        : Math.max(0, num(c.baseAmount)))
+      : Math.max(0, num(bases[c.source ?? c.id]));
+    const weight = Math.max(0, num(c.weight, CATEGORY_BASELINE_WEIGHT));
+    const factor = weight / CATEGORY_BASELINE_WEIGHT;
+    const adjusted = base * factor;
+    // A built-in category already sits in the price, so only the CHANGE from the
+    // baseline is added. A custom category is new money, so all of it is added.
+    const addToPrice = custom ? adjusted : base * (factor - 1);
+    return {
+      id: c.id, name: c.name, custom, weight, base, adjusted,
+      delta: adjusted - base, addToPrice,
+    };
+  });
+  return {
+    lines,
+    addToPrice: lines.reduce((t, l) => t + l.addToPrice, 0),
+    baseTotal: lines.reduce((t, l) => t + l.base, 0),
+    adjustedTotal: lines.reduce((t, l) => t + l.adjusted, 0),
+  };
+}
+
 /* ------------------------------------------------------------ discounts -- */
 
 export const DISCOUNT_KINDS = [
