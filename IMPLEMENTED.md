@@ -17,7 +17,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   Rendered as a "Hardware used most" panel in `js/ui/tools/dashboard.js`. Most-used
   filament (`byMaterial`) and overall profit/margin already existed. Why: the owner
   wanted to see what to buy more of. Test in `records.test.js` (2 per part × 3
-  accepted = 6). 487 green. (2026-09-11, <commit>)
+  accepted = 6). 487 green. (2026-09-11, bda6125)
 
 ## Semantic How-to search (v1.0.19)
 
