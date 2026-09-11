@@ -9,6 +9,26 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Client form: load-first colours, machine inferred (v1.0.36)
+
+- **Step 1 inverted** (`js/ui/portal.js`): removed the print-type chips. The customer
+  loads heads directly (Head 1 + "Load another head"); the type is INFERRED — distinct
+  material TYPES > 1 → multimaterial, else > 1 slot → multicolour, else single (compares
+  `material.type`, not the spool id, so different colours of one plastic = multicolour).
+  Derivation runs at the top of `render()` before `price()`; `state.printerId` is set to
+  the cheapest/default machine that supports the load (a manual pick is kept if it still
+  fits). The colours UI uses the most-capable machine so loading isn't blocked
+  (`capablePrinter`), with `filamentSlots({ showMode: false })` hiding the machine's own
+  mode line in favour of a derived plain-language line.
+- **Machine filter**: "Choose a specific machine (optional)" lists only
+  `shopPrinters.filter(printerSupports(type, count))` — `printerSupports` checks
+  colourMode AND `slotLimit >= count`, so a single-colour machine drops out once a
+  second colour is loaded. Verified live: 1→One colour, 2 PLA→Several colours, +TPU→
+  Several materials; machine options for a 2-colour load = Bambu + Snapmaker (Ender
+  excluded). `filamentSlots` gained `showMode`; `slotLimit` imported into portal.
+  Why: user — don't ask the type, just load filament and infer; hide machines that
+  can't do it.
+
 ## Client form: guided stepper + colour-type chooser (v1.0.35)
 
 - **Progress stepper** (`js/ui/portal.js`): a `stepper` strip of 4 steps (Colours /

@@ -44,7 +44,7 @@ import { fmtMoney, num } from '../money.js';
  */
 export function filamentSlots({
   printer, slots, materials, onSlots, countryId, currencyCode, keyPrefix = 'plate',
-  mix = null, onMix = null, showDetail = true, maxSlots = null,
+  mix = null, onMix = null, showDetail = true, maxSlots = null, showMode = true,
 }) {
   const mode = colourMode(printer);
   // `maxSlots` caps the colours below what the machine could hold — used by the
@@ -53,12 +53,14 @@ export function filamentSlots({
   const reconciled = reconcileSlots(slots, printer, materials);
   const live = reconciled.slots;
 
-  const nodes = [
+  // `showMode` off hides the machine's colour-mode line — the client form derives and
+  // shows the mode from what is actually loaded instead.
+  const nodes = showMode ? [
     el('div', { class: 'mode-line' }, [
       pill(mode.name, mode.materialsVary ? 'ok' : (mode.coloursVary ? 'info' : 'warn')),
       el('span', { class: 'mode-line__hint', text: mode.hint }),
     ]),
-  ];
+  ] : [];
 
   for (const note of reconciled.notes) nodes.push(banner(note.level, note.text));
 

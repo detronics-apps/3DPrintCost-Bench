@@ -32,6 +32,7 @@ import { analyse, fmtSize, mm3ToCm3 } from '../geometry.js';
 import { calculateOrder } from '../engine.js';
 import { migrateSettings } from '../settings.js';
 import { defaultSlots, reconcileSlots, normaliseMix } from '../filaments.js';
+import { slotLimit } from '../printers.js';
 import { fmtMoney, num } from '../money.js';
 import { portalConfig, settingsFromConfig } from '../portal-config.js';
 import { gateMatches, entryPostOps } from '../postprocessing.js';
@@ -818,11 +819,44 @@ function render() {
   }
 
   const config = state.config;
+  const materials = allowedMaterials();
+
+  // The machine is worked out from what the customer loads, not chosen by them. The
+  // most capable machine sets how many heads they can load; the print type is inferred
+  // from the loaded spools; then the cheapest/default machine that can actually do
+  // that load is used for pricing (a manual choice is kept if it still fits).
+  const allowedIds = new Set(config.printers.map((p) => p.id));
+  const shopPrinters = state.settings.printers.filter((p) => allowedIds.has(p.id) && !p.archived);
+  const printerSupports = (p, type, count) => (slotLimit(p) >= count) && (type === 'multimaterial'
+    ? p.colourMode === 'multimaterial'
+    : (type === 'multicolour' ? (p.colourMode === 'multicolour' || p.colourMode === 'multimaterial') : true));
+  const capablePrinter = [...shopPrinters].sort((a, b) => {
+    const d = slotLimit(b) - slotLimit(a);
+    if (d) return d;
+    const rank = (p) => (p.colourMode === 'multimaterial' ? 2 : (p.colourMode === 'multicolour' ? 1 : 0));
+    return rank(b) - rank(a);
+  })[0] || state.settings.printers[0];
+  const loadedSlots = reconcileSlots(
+    state.slots || defaultSlots(capablePrinter, state.materialId), capablePrinter, materials,
+  ).slots;
+  // Multi-MATERIAL means different plastic TYPES (PLA vs TPU); different colours of the
+  // same type is multi-COLOUR. So compare the material type, not the spool (type+colour).
+  const typeOfSlot = (s) => materials.find((m) => m.id === s.materialId)?.type;
+  const distinctTypes = new Set(loadedSlots.map(typeOfSlot).filter(Boolean)).size;
+  const printType = distinctTypes > 1 ? 'multimaterial' : (loadedSlots.length > 1 ? 'multicolour' : 'single');
+  state.printType = printType;
+  const currentPrinter = shopPrinters.find((p) => p.id === state.printerId);
+  const chosenPrinter = (currentPrinter && printerSupports(currentPrinter, printType, loadedSlots.length))
+    ? currentPrinter
+    : (shopPrinters.find((p) => p.id === config.defaultPrinterId && printerSupports(p, printType, loadedSlots.length))
+      || shopPrinters.find((p) => printerSupports(p, printType, loadedSlots.length))
+      || capablePrinter);
+  state.printerId = chosenPrinter.id;
+
   const result = price();
   const code = result.currencyCode;
   const quoted = quotedTotal(result);
   const belowMinimum = quoted < num(config.minimumOrder);
-  const materials = allowedMaterials();
   const slots = liveSlots();
   const printer = printerOf();
   const deliveryTotal = result.orderExtras.shipping + result.orderExtras.packaging;
@@ -873,74 +907,45 @@ function render() {
 
   nodes.push(stepper);
 
-  // Step 1: the customer picks WHAT THEY NEED — one colour, several colours, or
-  // several materials — not a machine. The app maps that to a capable printer (the
-  // default one where it can); a specific machine is an optional advanced override.
-  const modes = config.printers.map((p) => p.colourMode || 'single');
-  const canMulticolour = modes.some((m) => m === 'multicolour' || m === 'multimaterial');
-  const canMultimaterial = modes.some((m) => m === 'multimaterial');
-  const supportsType = (p, type) => (type === 'multimaterial'
-    ? p.colourMode === 'multimaterial'
-    : (type === 'multicolour'
-      ? (p.colourMode === 'multicolour' || p.colourMode === 'multimaterial')
-      : true));
-  const printerForType = (type) => {
-    const def = config.printers.find((p) => p.id === config.defaultPrinterId);
-    if (def && supportsType(def, type)) return def;
-    return config.printers.find((p) => supportsType(p, type)) || config.printers[0];
-  };
-  const typeOptions = [
-    { value: 'single', label: 'One colour', title: 'The whole part is a single colour.' },
-    canMulticolour ? { value: 'multicolour', label: 'Several colours', title: 'More than one colour on the part, all in the same kind of plastic.' } : null,
-    canMultimaterial ? { value: 'multimaterial', label: 'Several materials', title: 'Different plastics in one part (e.g. rigid + flexible), each its own colour.' } : null,
-  ].filter(Boolean);
-  const chooseType = (type) => {
-    state.printType = type;
-    state.printerId = printerForType(type).id;
-    state.slots = null; // reload the colours for the chosen machine/type
-    render();
-  };
-  const supportingPrinters = state.printType
-    ? config.printers.filter((p) => supportsType(p, state.printType))
-    : config.printers;
-  const maxSlots = state.printType === 'single' ? 1 : null;
+  // Step 1: the customer just loads the colour(s) or material(s) they want, starting
+  // with Head 1. The app reads whether that is single / several colours / several
+  // materials from what is loaded, and offers only the machines that can do it.
+  const typeLine = printType === 'multimaterial'
+    ? 'Several materials — this prints on a multi-material machine.'
+    : (printType === 'multicolour'
+      ? 'Several colours — this prints on a multi-colour machine.'
+      : 'One colour.');
+  const machineOptions = shopPrinters.filter((p) => printerSupports(p, printType, loadedSlots.length));
 
   nodes.push(el('div', { class: 'panel', id: 'step-printer' }, [
-    stepHead(1, 'Colours', 'How many colours or materials your part needs. We match it to '
-      + 'the right machine — you do not have to know the printers.'),
-    muted('What does your part need?'),
-    chips('portal-printtype', typeOptions, state.printType, chooseType),
-    // Only once a type is chosen do we show the colours to load and the machine.
-    state.printType
-      ? el('div', {}, [
-        ...filamentSlots({
-          printer,
-          slots,
-          materials,
-          countryId: config.countryId,
-          currencyCode: code,
-          keyPrefix: 'portal-bed',
-          showDetail: false,
-          maxSlots,
-          onSlots: (next) => {
-            state.slots = next;
-            state.materialId = next[0]?.materialId || state.materialId;
-            render();
-          },
-        }),
-        muted(state.printType === 'single'
-          ? 'Pick the colour you want.'
-          : 'Load the colours you want. On a part with more than one, say how much of each it is in that part below.'),
-        // The machine is chosen for you; expand only if you want a specific one.
-        supportingPrinters.length > 1
-          ? section('portal-printer-advanced', 'Choose a specific machine (optional)', [
-            selectField('portal-printer', 'Printer',
-              supportingPrinters.map((p) => ({ value: p.id, label: p.name })),
-              state.printerId, (v) => { state.printerId = v; state.slots = null; render(); }),
-          ], { open: false })
-          : muted(`Printed on the ${printer?.name || config.printers[0]?.name}.`),
-      ])
-      : muted('Choose above to see the colours to load.'),
+    stepHead(1, 'Colours', 'Load the colour or colours your part needs, starting with the '
+      + 'first. Add another for a multi-colour or multi-material part — we work out the right '
+      + 'machine from what you load, so you never have to know the printers.'),
+    ...filamentSlots({
+      printer: capablePrinter,
+      slots: loadedSlots,
+      materials,
+      countryId: config.countryId,
+      currencyCode: code,
+      keyPrefix: 'portal-bed',
+      showDetail: false,
+      showMode: false,
+      onSlots: (next) => {
+        state.slots = next;
+        state.materialId = next[0]?.materialId || state.materialId;
+        render();
+      },
+    }),
+    el('p', { class: 'muted', text: typeLine }),
+    // The machine is chosen automatically; expand only to pick a specific one, and
+    // only machines that can do this load are offered.
+    machineOptions.length > 1
+      ? section('portal-printer-advanced', 'Choose a specific machine (optional)', [
+        selectField('portal-printer', 'Printer',
+          machineOptions.map((p) => ({ value: p.id, label: p.name })),
+          state.printerId, (v) => { state.printerId = v; render(); }),
+      ], { open: false })
+      : muted(`Printed on the ${chosenPrinter.name}.`),
   ]));
 
   nodes.push(el('div', { class: 'panel panel--steplead', id: 'step-parts' }, [

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.36 — Client form: load colours, machine worked out for you (2026-09-11)
+
+- **No "what type?" question** — the customer just loads the colour(s) or material(s)
+  they want, starting with the first head. The form reads whether that is one colour,
+  several colours (same plastic) or several materials (different plastics) from what's
+  loaded, and shows it in plain language.
+- **The machine is chosen automatically** from what's loaded; the optional "Choose a
+  specific machine" list now only offers machines that can actually do it (a single-
+  colour machine drops out the moment a second colour is loaded).
+
 ## 1.0.35 — Client form: guided stepper, choose by colour type not machine (2026-09-11)
 
 - **The client form is now a guided, numbered flow** — a progress strip (Colours →
