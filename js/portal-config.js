@@ -60,6 +60,8 @@ export function portalConfig(settings, { internal = false } = {}) {
       name: settings.company.name,
       email: settings.company.email,
       phone: settings.company.phone,
+      // Shown on the client form when a customer chooses to expedite (pay up front).
+      bankingDetails: settings.company.bankingDetails || '',
     },
     countryId: settings.countryId,
     currencyCode: settings.currencyCode,

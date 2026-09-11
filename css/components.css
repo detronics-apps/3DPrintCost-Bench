@@ -794,6 +794,9 @@
   font-size: 13px; font-weight: 700; background: var(--accent); color: #fff;
 }
 .panel--steplead { background: var(--panel-2); }
+
+/* Banking details on the client form (expedite): keep the typed line breaks. */
+.banking { white-space: pre-line; font-family: var(--mono, monospace); margin: var(--space-1) 0; }
 .portal .panel--price { border-color: var(--accent-strong); }
 .portal .app-footer { border-radius: var(--radius); border: 1px solid var(--border); }
 

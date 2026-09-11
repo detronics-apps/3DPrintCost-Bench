@@ -83,7 +83,8 @@ const state = {
   // they choose, so the first step is not pre-ticked.
   printType: null,
   slots: null,
-  shippingMethodId: 'auto',
+  // Pickup is the default — no delivery address needed unless the customer chooses a courier.
+  shippingMethodId: 'collect',
   expedite: false,
   // Set true the first time the client presses a send button while the form is
   // invalid, so empty required fields go red (they stay neutral before that).
@@ -1053,9 +1054,8 @@ function render() {
     stepHead(3, 'Delivery', 'How you would like to receive the parts — a courier to your '
       + 'address, or collect them yourself.'),
     selectField('portal-shipping', 'How should it reach you?',
-      [{ value: 'auto', label: 'Cheapest that fits' },
-        ...shipOptions.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` })),
-        { value: 'collect', label: 'I’ll collect it myself (no delivery)' }],
+      [{ value: 'collect', label: 'I’ll collect it myself (no delivery)' },
+        ...shipOptions.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` }))],
       state.shippingMethodId, (v) => { state.shippingMethodId = v; render(); }),
     state.shippingMethodId === 'collect'
       ? muted('No delivery address needed — you will collect it from us.')
@@ -1132,6 +1132,16 @@ function render() {
               + 'the quote and go straight to production. The estimate is set at or above the final '
               + 'cost, so you will never be asked for more.',
           }),
+      // Once expediting, show where to pay.
+      (expediteMode === 'only' || state.expedite)
+        ? (config.company.bankingDetails
+          ? el('div', { class: 'panel--steplead' }, [
+            el('strong', { text: 'Where to pay' }),
+            el('p', { class: 'banking', text: config.company.bankingDetails }),
+            muted('Pay the amount above and attach your proof of payment when you send the request.'),
+          ])
+          : muted('We will send you the banking details to pay by.'))
+        : null,
     ]));
   }
 
@@ -1369,7 +1379,7 @@ function init() {
     state.slots = null;
     state.parts = [makePortalPart({ profileId: defaultProfileId(config) })];
     state.customer.countryId = config.countryId || null;
-    state.shippingMethodId = 'auto';
+    state.shippingMethodId = 'collect';
     // In expedite-only mode there is no quote path, so the order is expedited
     // from the start; in optional mode the client turns it on themselves.
     state.expedite = config.expediteMode === 'only';

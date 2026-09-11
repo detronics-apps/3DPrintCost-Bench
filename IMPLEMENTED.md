@@ -9,6 +9,18 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Client form: pickup default, banking on expedite (v1.0.41)
+
+- **Pickup default**: `state.shippingMethodId` defaults to `'collect'` (state def + config
+  load); the delivery `selectField` lists collect first then named couriers, and the
+  `{ value: 'auto', label: 'Cheapest that fits' }` option is removed (`js/ui/portal.js`).
+- **Banking on expedite**: `portalConfig` now carries `company.bankingDetails`
+  (`js/portal-config.js`); the expedite panel shows a "Where to pay" block with the
+  banking details (`.banking`, `white-space: pre-line`) whenever expedite is on
+  (ticked or 'only' mode), else a note that details will be sent. Verified live: default
+  = collect, no "Cheapest that fits", ticking expedite reveals the banking block. Why:
+  user requests. See [[client-form-minimal]].
+
 ## Client form: bed picture collapsed by default (v1.0.40)
 
 - `js/ui/portal.js`: the bed layout panel wraps `bedNode` in

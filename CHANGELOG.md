@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.41 — Client form: pickup default, banking on expedite (2026-09-11)
+
+- **Pickup (collect) is the default** delivery choice, and the opaque "Cheapest that
+  fits" option is gone — the customer either collects or picks a named courier.
+- **Ticking "Expedite" now shows the banking details** so the customer knows where to
+  pay, with a reminder to attach proof of payment.
+
 ## 1.0.40 — Client form: bed picture hidden until asked for (2026-09-11)
 
 - The bed layout (top-down + 3-D) on the client form is now **collapsed by default**
