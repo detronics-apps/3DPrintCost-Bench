@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.16 — Delivery names the calculated box and courier (2026-09-11)
+
+- **The box the parts fit in is named, not "cheapest that fits"** — the packaging
+  option now reads "Automatic — {the box} (the parts fit in this)" and a line states
+  the calculated box and its dimensions, so you can see which box was chosen. The
+  delivery option likewise names the cheapest courier that carries that parcel. You
+  can still override either.
+
 ## 1.0.15 — Notes fold into one dismissible line (2026-09-11)
 
 - **The stack of notes at the top is now one expandable line** — instead of a wall

@@ -534,9 +534,15 @@ function orderSection(ctx) {
   const fittingMethods = methods.filter((m) => packageFits(m, parcelDims, 0).fits
     || m.id === order.shippingMethodId);
 
+  // The app calculates the box the parts fit in and the cheapest courier that
+  // carries it, and NAMES them, rather than offering an opaque "cheapest that
+  // fits" — so the operator can see what was chosen and override only if they want.
+  const autoMethod = [...fittingMethods].sort((a, b) => num(a.basePrice) - num(b.basePrice))[0];
   const body = [
     selectField('shipping', 'Delivery',
-      [{ value: 'auto', label: 'Cheapest that fits (recommended)' },
+      [{ value: 'auto', label: autoMethod
+        ? `Automatic — ${autoMethod.name} (cheapest that carries this parcel)`
+        : 'Automatic — no courier carries this parcel' },
         ...fittingMethods.map((m) => ({ value: m.id, label: `${m.name} — ${fmtMoney(m.basePrice, settings.currencyCode)}` }))],
       order.shippingMethodId, set('shippingMethodId')),
     checkField('collected', 'Customer collects (pickup — no courier)',
@@ -553,10 +559,17 @@ function orderSection(ctx) {
     // kept in the list even if the parts changed, so it is never lost silently.
     const fittingBoxes = settings.packaging.filter((p) => p.kind === 'container'
       && (containerFits(p, biggest, unitCount) || p.id === order.packagingContainerId));
-    body.push(selectField('packaging-container', 'Packaging',
-      [{ value: '', label: 'Choose automatically (cheapest that fits)' },
+    body.push(selectField('packaging-container', 'Packaging box',
+      [{ value: '', label: parcel.container
+        ? `Automatic — ${parcel.container.name} (the parts fit in this)`
+        : 'Automatic — no box in the catalogue fits' },
         ...fittingBoxes.map((p) => ({ value: p.id, label: p.name }))],
       order.packagingContainerId || '', (value) => set('packagingContainerId')(value || null)));
+    if (parcel.container && !order.packagingContainerId) {
+      body.push(muted(`Calculated: these parts fit in the ${parcel.container.name}`
+        + `${parcel.outerDims ? ` (${Math.round(num(parcel.outerDims.x))}×${Math.round(num(parcel.outerDims.y))}`
+          + `×${Math.round(num(parcel.outerDims.z))} mm)` : ''}.`));
+    }
     if (!fittingBoxes.some((p) => containerFits(p, biggest, unitCount))) {
       body.push(muted('No box in the catalogue holds this order — add one in Catalogues → Packaging.'));
     }

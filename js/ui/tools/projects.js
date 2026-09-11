@@ -707,7 +707,7 @@ function projectSidebar(ctx, project, result) {
 
   sections.push(section('project-order', 'Order', [
     selectField('project-shipping', 'Delivery',
-      [{ value: 'auto', label: 'Cheapest that fits' },
+      [{ value: 'auto', label: 'Automatic — cheapest courier that carries the parcel' },
         ...settings.shipping.filter((s) => s.country === '*' || s.country === settings.countryId)
           .map((s) => ({ value: s.id, label: s.name }))],
       project.order.shippingMethodId,

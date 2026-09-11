@@ -9,6 +9,18 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Delivery names the calculated box and courier (v1.0.16)
+
+- **Show the calculated box/courier instead of "cheapest that fits"** — the estimate
+  order section (`js/ui/tools/estimate.js`) already auto-picks a box (`choosePackaging`
+  → `parcel.container`) and courier; now the auto options NAME the result: the
+  Packaging option reads "Automatic — {parcel.container.name} (the parts fit in this)"
+  with a muted line giving the box + `parcel.outerDims`, and the Delivery auto option
+  names the cheapest fitting courier (`fittingMethods` sorted by basePrice). The
+  project delivery select's auto label was reworded to match. Why: the owner wanted to
+  *see which box the parts fit in*, not an opaque "cheapest that fits"; the override
+  lists stay. Served source verified (labels present); 481 tests green. (2026-09-11, <commit>)
+
 ## Notes fold into one dismissible line (v1.0.15)
 
 - **`noticeStack` — collapse the banner pile, keep danger visible** — new
