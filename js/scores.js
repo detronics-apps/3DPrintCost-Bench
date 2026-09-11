@@ -63,6 +63,9 @@ export const DEFAULT_SCORE_MODEL = {
   speed: {
     base: 0.3, layerRef: 0.2,
     ironing: 0.1, fuzzySkin: 0.35, adaptiveLayers: 0.15,
+    // An iterative calibration pass (print, measure, adjust, reprint) roughly
+    // doubles the time. It buys precision, so it costs speed and money, not plastic.
+    calibrationPass: 1.0,
     lo: 1.0, hi: 2.0,
   },
   cost: { fillWeight: 0.6, timeWeight: 0.4, lo: 0.15, hi: 0.78 },
@@ -116,7 +119,12 @@ export function scoresFor(settings = {}, model = DEFAULT_SCORE_MODEL) {
   const timeMult = layerTime
     * (1 + on(settings.ironing) * num(sp.ironing, 0.1))
     * (1 + on(settings.fuzzySkin) * num(sp.fuzzySkin, 0.35))
-    * (1 + on(settings.adaptiveLayers) * num(sp.adaptiveLayers, 0.15));
+    * (1 + on(settings.adaptiveLayers) * num(sp.adaptiveLayers, 0.15))
+    * (1 + on(settings.calibrationPass) * num(sp.calibrationPass, 1.0))
+    // A per-profile time nudge the company tunes (Fit's iterative work, ironing
+    // that costs them more than the model assumes). Applies to TIME only — never
+    // to the amount of plastic, which is the geometry's alone.
+    * Math.max(0.1, num(settings.timeFactor, 1));
   const timeIndex = (num(sp.base, 0.3) + (1 - num(sp.base, 0.3)) * structural) * timeMult;
   const speed = band(1 / Math.max(1e-6, timeIndex), sp.lo, sp.hi);
 
