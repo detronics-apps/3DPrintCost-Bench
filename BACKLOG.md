@@ -164,10 +164,12 @@ _Extends the existing filament cluster; the CSV items tie inventory to real usag
 
 ## Company analytics & economics
 
-- **Company stats, trends and ROI** — extra Dashboard stats: which hardware and
-  filament are used most often (so the company knows what to buy more of), and an
-  overall company **ROI / profitability** view (is the company profitable, and by
-  how much). (Raised 2026-09-10.)
+- **Company stats, trends and ROI** — most-used filament (`byMaterial`), most-used
+  hardware (`byHardware`, v1.0.20) and overall profit/margin already show on the
+  Dashboard. Remaining: an explicit **ROI vs investment** view (profit against
+  machines/tooling bought), and trend lines over time (the pieces exist —
+  `revenueByMonth` — but no what-to-buy trend yet). (Raised 2026-09-10; most-used +
+  profit shipped.)
 - **Inflation on stock and labour** — apply a yearly inflation rate (South Africa
   especially) to both bought-in stock cost and the salary behind the labour rate,
   so older figures don't understate today's cost. (Tool depreciation is already

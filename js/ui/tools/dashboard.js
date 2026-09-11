@@ -184,6 +184,17 @@ export function main(ctx) {
     ]));
   }
 
+  if (d.byHardware && d.byHardware.length) {
+    nodes.push(el('div', { class: 'panel' }, [
+      el('h3', { text: 'Hardware used most' }),
+      table([
+        { label: 'Component', key: 'name' },
+        { label: 'Fitted', align: 'right', mono: true, get: (r) => String(r.count) },
+      ], d.byHardware),
+      muted('Across accepted parts — what to keep stocked.'),
+    ]));
+  }
+
   if (d.mostProfitable.length) {
     nodes.push(el('div', { class: 'panel' }, [
       el('h3', { text: 'Most profitable parts' }),

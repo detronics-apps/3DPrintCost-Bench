@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.20 — Dashboard: hardware used most (2026-09-11)
+
+- **"Hardware used most" on the Dashboard** — a new panel counts every component
+  fitted into accepted parts, so you can see what to keep stocked. (Most-used
+  filament and overall profit/margin were already there.)
+
 ## 1.0.19 — How-to search understands everyday words (2026-09-11)
 
 - **Search the How-to in your own words** — the guide search now maps everyday

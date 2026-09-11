@@ -9,6 +9,16 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Dashboard: hardware used most (v1.0.20)
+
+- **`byHardware` on the dashboard** — `dashboard()` (`js/analytics.js`) now
+  aggregates every `part.hardware` entry across accepted parts (qty × accepted),
+  resolves names from `settings.hardware`, and returns `byHardware` sorted desc.
+  Rendered as a "Hardware used most" panel in `js/ui/tools/dashboard.js`. Most-used
+  filament (`byMaterial`) and overall profit/margin already existed. Why: the owner
+  wanted to see what to buy more of. Test in `records.test.js` (2 per part × 3
+  accepted = 6). 487 green. (2026-09-11, <commit>)
+
 ## Semantic How-to search (v1.0.19)
 
 - **User language → app terms** — `js/ui/tools/guide.js` gained `SEARCH_ALIASES`

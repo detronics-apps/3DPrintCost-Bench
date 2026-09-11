@@ -697,6 +697,19 @@ test('the dashboard reports null rather than a confident zero on no data', () =>
   assert.equal(d.counts.projects, 0);
 });
 
+test('the dashboard counts hardware fitted into accepted parts', () => {
+  const settings = defaultSettings();
+  const hw = settings.hardware[0];
+  let project = makeProject({ name: 'HW' });
+  project = addPart(project, makePart({ name: 'P', quantity: 4, hardware: [{ hardwareId: hw.id, qty: 2 }] }));
+  project = recordAttempt(project, project.parts[0].id,
+    { accepted: 3, rejected: 0, quantity: 3, minutes: 10, grams: 10 });
+  const d = dashboard({ projects: [project], settings });
+  const row = d.byHardware.find((r) => r.key === hw.id);
+  assert.ok(row, 'the fitted hardware appears in the usage list');
+  assert.equal(row.count, 6, '2 per part × 3 accepted');
+});
+
 test('the dashboard adds up revenue, cost and profit from real invoices', () => {
   const { quote, project } = pricedQuote();
   const invoice = recordPayment(invoiceFromQuote(quote, { number: 'INV1' }), quote.total);

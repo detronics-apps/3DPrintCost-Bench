@@ -100,6 +100,23 @@ export function dashboard({ projects = [], settings, filter = {} }, now = new Da
       };
     });
 
+  // What hardware the workshop gets through — every embedded/after-print component
+  // across accepted parts, so the owner sees what to keep in stock. Keyed on the
+  // component, counted by how many were actually fitted into good parts.
+  const hwUsage = new Map();
+  for (const r of partRows) {
+    const made = Math.max(0, num(r.stats.accepted));
+    if (!made) continue;
+    for (const h of (r.part.hardware || [])) {
+      if (!h.hardwareId) continue;
+      const qty = Math.max(0, num(h.qty, 1)) * made;
+      if (qty > 0) hwUsage.set(h.hardwareId, (hwUsage.get(h.hardwareId) || 0) + qty);
+    }
+  }
+  const byHardware = [...hwUsage.entries()]
+    .map(([id, count]) => ({ key: id, name: settings.hardware.find((x) => x.id === id)?.name || id, count }))
+    .sort((a, b) => b.count - a.count);
+
   const mostProfitable = [...scored]
     .filter((r) => r.profitPerAccepted != null)
     .sort((a, b) => b.profitPerAccepted - a.profitPerAccepted)
@@ -139,6 +156,7 @@ export function dashboard({ projects = [], settings, filter = {} }, now = new Da
     },
     byPrinter: byPrinter.sort((a, b) => b.minutes - a.minutes),
     byMaterial: byMaterial.sort((a, b) => b.grams - a.grams),
+    byHardware,
     mostProfitable,
     mostRejected,
     quotes,
