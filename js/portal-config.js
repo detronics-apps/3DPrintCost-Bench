@@ -14,6 +14,7 @@
 import { methodsForCountry } from './shipping.js';
 import { migrateSettings } from './settings.js';
 import { num } from './money.js';
+import { scoresFor } from './scores.js';
 
 /** Only the slices the engine reads. Everything else is left behind. */
 const PRICING_KEYS = [
@@ -73,7 +74,9 @@ export function portalConfig(settings, { internal = false } = {}) {
     quoteValidityDays: Math.max(1, Math.round(num(settings.company.quoteValidityDays, 30))),
     profiles: settings.profiles
       .filter((p) => portal.allowedProfiles.includes(p.id))
-      .map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, ratings: p.ratings })),
+      // Scores are computed from the profile's settings with the company's score
+      // model, so the customer's radar shows what the profile actually does.
+      .map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, scores: scoresFor(p.settings, settings.scoreModel) })),
     printers: allowed(settings.printers, portal.allowedPrinters)
       .map((p) => ({ id: p.id, name: p.name })),
     // The machine the form opens on: the company default when it is offered,

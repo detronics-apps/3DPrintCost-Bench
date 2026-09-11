@@ -26,8 +26,8 @@ import {
 } from '../../pricing.js';
 import {
   INFILL_PATTERNS, FACTOR_LABELS, FACTOR_ORDER, PUBLISHED_FACTORS, factorsFor,
-  RATING_AXES, DEFAULT_RATINGS,
 } from '../../profiles.js';
+import { scoresFor, SCORE_AXES } from '../../scores.js';
 import { radarChart } from '../svg/radar.js';
 import { DEFAULT_ESTIMATE_ASSUMPTIONS } from '../../estimate.js';
 import {
@@ -585,13 +585,7 @@ function profilesPanel(ctx) {
     selected.version = num(selected.version, 1) + 1;
     touch(rerender);
   };
-  const setRating = (key) => (value) => {
-    selected.ratings = {
-      ...(selected.ratings || DEFAULT_RATINGS),
-      [key]: Math.max(1, Math.min(5, Math.round(num(value, 3)))),
-    };
-    touch(rerender);
-  };
+  const scores = scoresFor(selected.settings, settings.scoreModel);
 
   return [
     el('div', { class: 'panel' }, [
@@ -602,12 +596,12 @@ function profilesPanel(ctx) {
 
       subsection('How it scores for the client (radar)', [
         muted('1–5, where higher is always better for the customer — so a Cost of 5 is the '
-          + 'cheapest. This is the picture the client sees against each print type on the quote form.'),
-        el('div', { class: 'radar' }, [radarChart(selected.ratings || DEFAULT_RATINGS, { size: 200 })]),
-        el('div', { class: 'field-grid' }, RATING_AXES.map((a) => sliderField(
-          `p-rating-${a.id}`, a.name, (selected.ratings || DEFAULT_RATINGS)[a.id], setRating(a.id),
-          { min: 1, max: 5, step: 1, format: (v) => String(v) },
-        ))),
+          + 'cheapest. These scores are CALCULATED from the settings below (strength from the '
+          + 'walls and infill, precision from shrinkage and fine layers, and so on), so the '
+          + 'picture the client sees always matches what the profile actually does. Change a '
+          + 'setting and the radar moves.'),
+        el('div', { class: 'radar' }, [radarChart(scores, { size: 220 })]),
+        el('div', { class: 'field-grid' }, SCORE_AXES.map((a) => statTile(a.name, String(scores[a.id])))),
       ]),
       el('div', { class: 'field-grid' }, [
         sliderField('p-infill', FACTOR_LABELS.infill, selected.settings.infill, set('infill'),
@@ -628,6 +622,12 @@ function profilesPanel(ctx) {
       checkField('p-angle', FACTOR_LABELS.angleOptimisation, selected.settings.angleOptimisation, set('angleOptimisation')),
       checkField('p-ironing', FACTOR_LABELS.ironing, selected.settings.ironing, set('ironing')),
       checkField('p-fuzzy', FACTOR_LABELS.fuzzySkin, selected.settings.fuzzySkin, set('fuzzySkin')),
+      checkField('p-adaptive', FACTOR_LABELS.adaptiveLayers, selected.settings.adaptiveLayers, set('adaptiveLayers')),
+      checkField('p-calibration', 'Calibration pass (measure and reprint for a precise fit)',
+        selected.settings.calibrationPass, set('calibrationPass'), {
+          hint: 'An iterative pass that reprints the part to dial in the fit. It buys precision and '
+            + 'costs time and money — never extra plastic.',
+        }),
       muted(`Version ${selected.version}. Quotes record the version they were priced with, `
         + 'so editing a profile never changes a quote that has already gone out.'),
     ]),

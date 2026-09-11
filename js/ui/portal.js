@@ -563,8 +563,8 @@ function partPanel(ctx, part, index, line) {
     muted(config.profiles.find((p) => p.id === part.profileId)?.blurb || ''),
     (() => {
       const chosen = config.profiles.find((p) => p.id === part.profileId);
-      return chosen?.ratings
-        ? el('div', { class: 'radar' }, [radarChart(chosen.ratings, { size: 190 })])
+      return chosen?.scores
+        ? el('div', { class: 'radar' }, [radarChart(chosen.scores, { size: 210 })])
         : null;
     })(),
 
