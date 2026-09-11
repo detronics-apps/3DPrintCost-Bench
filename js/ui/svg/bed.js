@@ -278,27 +278,27 @@ export function bedPlan(items, build, {
 
   const isoTitle = plan.plates.length > 1 ? `Bed ${sel + 1}, in 3D` : 'In 3D';
 
-  // A top row carrying both headings on one line: the panel's own title on the
-  // left, "In 3D" on the right (over the isometric view).
-  const head = el('div', { class: 'bedplan__head' }, [
-    el('h3', { class: 'bedplan__title', text: title }),
-    el('h3', { class: 'bedplan__isohead', text: isoTitle }),
-  ]);
-
+  // The 3-D view is a block pushed to the right, with its "In 3D" heading at its own
+  // top-left edge (not the far right). Its heading lines up with the panel title.
   const isoWrap = el('div', { class: 'bedplan__isowrap' }, [
+    el('h3', { class: 'bedplan__isohead', text: isoTitle }),
     isoSvg(plan.plates[sel], plan.area, plan.reserve, build, {
       colourById, printerName, showTower: towerOn(plan.plates[sel]),
     }),
   ]);
 
-  // Two columns: the legend and top-down plates on the LEFT, the isometric view on
-  // the RIGHT (right-aligned under its heading).
+  // Two columns: the title, legend and top-down plates on the LEFT; the 3-D block on
+  // the RIGHT. Both top-aligned so the two headings share the top line.
   const body = el('div', { class: 'bedplan__cols' }, [
-    el('div', { class: 'bedplan__left' }, [legend, el('div', { class: 'bedplan__grid' }, plates)]),
+    el('div', { class: 'bedplan__left' }, [
+      el('h3', { class: 'bedplan__title', text: title }),
+      legend,
+      el('div', { class: 'bedplan__grid' }, plates),
+    ]),
     isoWrap,
   ]);
 
-  const nodes = [head, body];
+  const nodes = [body];
   if (plan.overflow.length) {
     const names = plan.overflow.map((id) => live.find((it) => it.id === id)?.label || id);
     nodes.push(el('p', { class: 'muted', text: `Too big for this bed in this orientation: ${names.join(', ')}.` }));

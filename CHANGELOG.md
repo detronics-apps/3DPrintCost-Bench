@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.30 — Beds & layout: 3-D block pushed right, heading at its left edge (2026-09-11)
+
+- The 3-D view now sits as a block on the right of the panel, with the **"In 3D"
+  heading at the block's own top-left edge** (over the left of the isometric view),
+  still on the same line as "Beds & layout".
+
 ## 1.0.29 — Beds & layout: In 3D heading right, plates left, cleaner labels (2026-09-11)
 
 - **"In 3D" now sits on the same line as "Beds & layout"**, right-aligned, with the
