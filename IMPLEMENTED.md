@@ -28,7 +28,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   wanted the iso to show the same models as the top-down (they diverged), the tower
   visible on the bed, and to click a bed to view it. Locked with a bedplan test
   (height rides through; tower strip stays clear). Verified live: top-down + iso show
-  Bracket/Cover/Clip with correct heights and the tower. (2026-09-11, <commit>)
+  Bracket/Cover/Clip with correct heights and the tower. (2026-09-11, b665eab)
 
 ## Fix: project parts read the wrong printer (v1.0.12)
 
