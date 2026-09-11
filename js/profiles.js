@@ -384,6 +384,51 @@ export function factorsFor(settings, model = DEFAULT_FACTOR_MODEL) {
   };
 }
 
+/* ------------------------------------------------------ time adjustment -- */
+
+/**
+ * The factors that adjust TIME only — the real, sane multipliers (finish work,
+ * an iterative pass), never the runaway infill×wall material multipliers, which
+ * are already fully counted in the geometry. Infill, wall loops and layer height
+ * are deliberately EXCLUDED here because the geometric estimate already accounts
+ * for them (more plastic and more layers is more time), so re-applying them would
+ * double-count.
+ */
+export const TIME_ADJUST_FACTORS = [
+  'infillPattern', 'materialType', 'colour', 'shrinkage', 'angleOptimisation',
+  'ironing', 'fuzzySkin', 'adaptiveLayers',
+];
+
+/** How long a calibration (measure-and-reprint) pass takes, as a time multiplier. */
+export const CALIBRATION_PASS_TIME = 2.0;
+
+/**
+ * The time multiplier a profile applies on TOP of the geometric print time:
+ * the finish/quality flags, an iterative calibration pass, and a per-profile
+ * `timeFactor` nudge the company can tune from experience. Material is never
+ * touched — the amount of plastic is the geometry's alone.
+ */
+export function timeAdjustFor(settings = {}, model = DEFAULT_FACTOR_MODEL) {
+  const parts = [];
+  let total = 1;
+  for (const name of TIME_ADJUST_FACTORS) {
+    const f = factorFor(name, settings, model);
+    if (f.time !== 1) parts.push({ name, label: FACTOR_LABELS[name] || name, time: f.time, basis: f.basis });
+    total *= f.time;
+  }
+  if (settings.calibrationPass) {
+    const t = num(model?.calibrationPass?.on?.time, CALIBRATION_PASS_TIME);
+    parts.push({ name: 'calibrationPass', label: 'Calibration pass', time: t, basis: 'assumed' });
+    total *= t;
+  }
+  const nudge = Math.max(0.1, Math.min(5, num(settings.timeFactor, 1)));
+  if (nudge !== 1) {
+    parts.push({ name: 'timeFactor', label: 'Company time factor', time: nudge, basis: 'assumed' });
+    total *= nudge;
+  }
+  return { total, parts };
+}
+
 /** Look a profile up by id. Named fallback, never a positional one. */
 export function findProfile(profiles, id) {
   return profiles.find((p) => p.id === id)

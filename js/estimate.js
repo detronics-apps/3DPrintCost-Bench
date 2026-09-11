@@ -35,7 +35,7 @@
  */
 
 import { num } from './money.js';
-import { factorsFor, DEFAULT_FACTOR_MODEL, findProfile, BASELINE_PROFILE_ID } from './profiles.js';
+import { DEFAULT_FACTOR_MODEL, timeAdjustFor } from './profiles.js';
 import { gramsFor, materialType } from './materials.js';
 
 /** The evidence hierarchy of section 6, best first. */
@@ -63,20 +63,13 @@ export const ESTIMATE_LEVELS = [
       + 'compared with what the machines actually did.',
   },
   {
-    id: 'empirical',
-    rank: 4,
-    name: 'Empirical factor estimate',
-    short: 'Factors',
-    blurb: 'The published print-intent factors applied to a Display Only '
-      + 'baseline. Kept for comparison; clamped at the solid volume of the part.',
-  },
-  {
     id: 'geometric',
-    rank: 5,
+    rank: 4,
     name: 'Geometric approximation',
     short: 'Geometry',
-    blurb: 'Shell and infill worked out from the model and the print settings. '
-      + 'No production data behind it.',
+    blurb: 'Shell and infill worked out from the model and the print settings, '
+      + 'with a time adjustment for the finish and any calibration pass. No '
+      + 'production data behind it.',
   },
 ];
 
@@ -197,38 +190,6 @@ export function timeFor(volumeMm3, geometry, settings, printer, assumptions = DE
   };
 }
 
-/**
- * The empirical estimator: the published factors, exactly as specified.
- *
- * Clamped at the solid volume of the part, because a part cannot contain more
- * plastic than its own volume however the factors multiply out. `clamped` says
- * whether the clamp bit and by how much, so the number is never quietly wrong.
- */
-export function empiricalVolume(geometry, profile, profiles, {
-  model = DEFAULT_FACTOR_MODEL,
-  assumptions = DEFAULT_ESTIMATE_ASSUMPTIONS,
-} = {}) {
-  const a = { ...DEFAULT_ESTIMATE_ASSUMPTIONS, ...assumptions };
-  const baselineProfile = findProfile(profiles, BASELINE_PROFILE_ID);
-  const baseline = geometricVolume(geometry, baselineProfile.settings, a);
-  const factors = factorsFor(profile.settings, model);
-
-  const raw = baseline.total * factors.material;
-  const ceiling = Math.max(0, num(geometry?.volume)) * num(a.solidAllowance, 1.02);
-  const total = Math.min(raw, ceiling);
-
-  return {
-    baseline: baseline.total,
-    factor: factors.material,
-    factors,
-    raw,
-    ceiling,
-    total,
-    clamped: raw > ceiling + 1e-9,
-    overBy: raw > ceiling ? raw / Math.max(1e-9, ceiling) : 1,
-  };
-}
-
 /* --------------------------------------------------------------- estimate -- */
 
 const gramsOf = (volume, material) => gramsFor(volume, material);
@@ -271,39 +232,21 @@ export function estimatePart({
 
   const geo = geometricVolume(geometry, settings, a);
   const rawTime = timeFor(geo.total, geometry, settings, printer, a);
+  // The finish and quality settings adjust TIME, not material: ironing, fuzzy
+  // skin, an iterative calibration pass, and the company's per-profile time nudge.
+  // The plastic is the geometry's alone; a profile never invents extra material.
+  const adjust = timeAdjustFor(settings, model);
   // Every filament change stops the machine for a moment. It is machine time,
   // so it belongs in the print duration and therefore in the machine cost and
   // the electricity - and nowhere near labour.
   const changeM = Math.max(0, num(changeMinutes));
-  const geoTime = { ...rawTime, changeMinutes: changeM, minutes: rawTime.minutes + changeM };
-  const empirical = empiricalVolume(geometry, profile, profiles, { model, assumptions: a });
-  const empiricalTime = (() => {
-    const baselineProfile = findProfile(profiles, BASELINE_PROFILE_ID);
-    const base = geometricVolume(geometry, baselineProfile.settings, a);
-    const baseTime = timeFor(base.total, geometry, baselineProfile.settings, printer, a);
-    const factors = factorsFor(settings, model);
-    const raw = baseTime.minutes * factors.time;
-    // Time cannot be less than the plastic takes to come out of the nozzle.
-    const floor = timeFor(empirical.total, geometry, settings, printer, a).minutes;
-    return { raw, minutes: Math.max(raw, floor), factor: factors.time, floored: raw < floor };
-  })();
-
-  if (empirical.clamped) {
-    // Info, not a warning: the quote does NOT use this figure. The published
-    // factors are a ratio measured on one calibration part, so on some parts they
-    // ask for more than the part could hold — a known limitation of reading them
-    // as multipliers, not a problem with this quote. The geometric estimate (the
-    // default) is built from this part's own settings and can never exceed solid,
-    // so the price is sound; this note is kept only for the Expert "how it works".
-    notes.push({
-      level: 'info',
-      text: `The published ${profile.name} factors (${empirical.factor.toFixed(2)}× material) are a `
-        + 'ratio measured on one calibration part, so on this part they work out to '
-        + `${(empirical.raw / 1000).toFixed(1)} cm³ — more than its ${(geo.solid / 1000).toFixed(1)} cm³ `
-        + 'of solid, which is not possible. The quote uses the geometric estimate instead (built from '
-        + 'this part’s own settings, so it can never exceed solid); the factor figure is reference only.',
-    });
-  }
+  const adjustedMinutes = rawTime.minutes * adjust.total;
+  const geoTime = {
+    ...rawTime,
+    changeMinutes: changeM,
+    timeAdjust: adjust,
+    minutes: adjustedMinutes + changeM,
+  };
 
   /* ---- support, purge and waste apply to whichever body volume is chosen -- */
 
@@ -363,7 +306,6 @@ export function estimatePart({
 
   const levels = {
     geometric: buildLevels(geo.total, geoTime.minutes, 'geometric'),
-    empirical: buildLevels(empirical.total, empiricalTime.minutes, 'empirical'),
   };
 
   if (calibration && (calibration.materialCorrection || calibration.timeCorrection)) {
@@ -413,7 +355,7 @@ export function estimatePart({
 
   /* --------------------------------------------------------- which level -- */
 
-  const order = ['actual', 'slicer', 'calibrated', 'geometric', 'empirical'];
+  const order = ['actual', 'slicer', 'calibrated', 'geometric'];
   const chosenId = method !== 'auto' && levels[method]
     ? method
     : order.find((id) => levels[id]) || 'geometric';
@@ -427,12 +369,6 @@ export function estimatePart({
     });
   }
 
-  /* -------------------------------------------- how the levels compare ---- */
-
-  const disagreement = levels.empirical && levels.geometric
-    ? levels.empirical.totalG / Math.max(1e-9, levels.geometric.totalG)
-    : 1;
-
   const perPlateCount = Math.max(1, Math.round(num(perPlate, 1)));
   const jobs = jobsOverride != null
     ? Math.max(1, Math.round(num(jobsOverride, 1)))
@@ -444,9 +380,7 @@ export function estimatePart({
     levels,
     notes,
     geometryVolume: geo,
-    empiricalVolume: empirical,
     timeParts: geoTime,
-    disagreement,
     perPlate: perPlateCount,
     jobs,
     /** Per part. */

@@ -94,35 +94,27 @@ export function explainLine(line, result, settings) {
       + 'the slicer’s grams and minutes in and that, marked Slicer, is what the price uses.',
   }));
 
-  if (e.levels.empirical && e.levels.geometric) {
-    const ratio = e.disagreement;
+  if (e.timeParts?.timeAdjust && e.timeParts.timeAdjust.parts.length) {
+    const adj = e.timeParts.timeAdjust;
     cards.push(explainCard({
-      title: 'The empirical print-intent factors, and why they are not used directly',
-      source: `${line.profile.name} · ${e.empiricalVolume.factor.toFixed(2)}× material`,
-      plain: 'Your measured factors say this profile uses '
-        + `${e.empiricalVolume.factor.toFixed(2)}× the material of Display Only. `
-        + 'Those factors multiply the wall effect by the infill effect, and walls and '
-        + 'infill fill the same interior — so multiplied together they count that '
-        + 'interior twice. On this part they ask for '
-        + `${(e.empiricalVolume.raw / 1000).toFixed(1)} cm³ in a part whose solid volume `
-        + `is ${(line.geometry.volume / 1000).toFixed(1)} cm³.`,
-      formula: 'empirical = Display Only baseline × published factor  (held at solid volume)\n'
-        + 'geometric = shell + top/bottom skin + infill, from the settings themselves',
+      title: 'The print-intent time adjustment',
+      source: `${line.profile.name} · ${adj.total.toFixed(2)}× time`,
+      plain: 'The amount of plastic is worked out from the part’s own walls and infill, '
+        + 'so it can never exceed the solid — the print intent does NOT multiply the '
+        + 'material. What a profile does change is TIME: ironing, fuzzy skin, an '
+        + 'iterative calibration pass and the company’s own time nudge each make the '
+        + 'print take longer, and only that is applied here.',
+      formula: 'quoted time = geometric print time × (finish factors × calibration × company nudge)',
       worked: [
-        ['Display Only baseline', `${(e.empiricalVolume.baseline / 1000).toFixed(2)} cm³`],
-        ['Published factor', `${e.empiricalVolume.factor.toFixed(2)}×`],
-        ['Empirical asks for', `${(e.empiricalVolume.raw / 1000).toFixed(2)} cm³`],
-        ['Solid volume of the part', `${(line.geometry.volume / 1000).toFixed(2)} cm³`],
-        ['Held at', `${(e.empiricalVolume.total / 1000).toFixed(2)} cm³`],
-        ['Geometric estimate', `${(e.geometryVolume.total / 1000).toFixed(2)} cm³`],
-        ['They disagree by', `${ratio.toFixed(2)}×`],
+        ...adj.parts.map((p) => [p.label, `${p.time.toFixed(2)}×`]),
+        ['Combined time adjustment', `${adj.total.toFixed(2)}×`],
       ],
-      mistake: 'Reading the factor table as physics. It is calibration data from one '
-        + 'part. Record a few real prints and the app will learn a correction from your '
-        + 'own machines, which is what the factors were reaching for.',
-      correction: 'The factors are a starting calibration, not a law. Log a few real prints '
-        + 'and the app learns a per-machine correction from your own results, replacing the '
-        + 'published guess with your data.',
+      mistake: 'Multiplying material by a print-intent factor. Walls and infill already '
+        + 'set the plastic; multiplying again double-counts and can ask for more than the '
+        + 'part can hold. Intent changes time, not material.',
+      correction: 'Material comes from the geometry alone. The profile only stretches the '
+        + 'time — for finish work and any calibration reprint — which the company can tune '
+        + 'per profile with the time factor.',
     }));
   }
 

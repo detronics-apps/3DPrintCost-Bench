@@ -25,7 +25,7 @@ import {
   DEMAND_TARGETS, CHARGE_MODES, DEFAULT_ALLOCATIONS, LABOUR_PLACEMENTS, thirdsPrice,
 } from '../../pricing.js';
 import {
-  INFILL_PATTERNS, FACTOR_LABELS, FACTOR_ORDER, PUBLISHED_FACTORS, factorsFor,
+  INFILL_PATTERNS, FACTOR_LABELS, timeAdjustFor,
 } from '../../profiles.js';
 import { scoresFor, SCORE_AXES } from '../../scores.js';
 import { radarChart } from '../svg/radar.js';
@@ -577,8 +577,7 @@ function profilesPanel(ctx) {
   const settings = state.settings;
   const selected = settings.profiles.find((p) => p.id === state.ui.selectedProfile)
     || settings.profiles[0];
-  const factors = factorsFor(selected.settings, settings.factorModel);
-  const published = PUBLISHED_FACTORS;
+  const adjust = timeAdjustFor(selected.settings, settings.factorModel);
 
   const set = (key) => (value) => {
     selected.settings = { ...selected.settings, [key]: value };
@@ -633,40 +632,26 @@ function profilesPanel(ctx) {
     ]),
 
     el('div', { class: 'panel' }, [
-      el('h3', { text: 'Factors for this profile' }),
-      banner('info', 'These are your measurements, expressed against Display Only. The '
-        + 'app reproduces them from an editable model, so changing a setting moves the '
-        + 'factor instead of leaving it frozen.'),
-      table([
-        { label: 'Factor', get: (r) => r.label },
-        { label: 'Time', align: 'right', mono: true, get: (r) => `${r.time.toFixed(3)}×` },
-        { label: 'Material', align: 'right', mono: true, get: (r) => `${r.material.toFixed(3)}×` },
-        {
-          label: 'Published',
-          align: 'right',
-          mono: true,
-          get: (r) => {
-            const t = published.time[selected.id]?.[r.name];
-            return t == null ? '—' : `${t.toFixed(2)}×`;
-          },
-        },
-        {
-          label: '',
-          get: (r) => (r.basis === 'calibrated' ? pill('measured', 'ok')
-            : (r.basis === 'extrapolated' ? pill('extrapolated', 'warn') : pill('assumed', 'info'))),
-        },
-      ], factors.parts, { compact: true }),
-      el('div', { class: 'summary-grid' }, [
-        statTile('Time factor', `${factors.time.toFixed(2)}×`,
-          { hint: published.time[selected.id] ? `published ${published.time[selected.id].total}×` : null }),
-        statTile('Material factor', `${factors.material.toFixed(2)}×`,
-          { hint: published.material[selected.id] ? `published ${published.material[selected.id].total}×` : null }),
-      ]),
-      banner('warn', 'The published material factors multiply the wall effect by the '
-        + 'infill effect, and both fill the same interior. On a real part their product '
-        + 'exceeds solid, so the app holds the estimate at the part’s own solid volume '
-        + 'and quotes from the geometry instead. Record real prints and it will learn a '
-        + 'correction from your own machines.'),
+      el('h3', { text: 'Time adjustment for this profile' }),
+      banner('info', 'The material a profile uses is calculated from its walls and infill '
+        + '(see the geometry), so a print intent never invents extra plastic. What it does '
+        + 'change is TIME — the finish work and any calibration reprint. Those multipliers, '
+        + 'and a per-profile nudge you can set from experience, are shown here.'),
+      adjust.parts.length
+        ? table([
+          { label: 'Adds time for', get: (r) => r.label },
+          { label: 'Time', align: 'right', mono: true, get: (r) => `${r.time.toFixed(2)}×` },
+        ], adjust.parts, { compact: true })
+        : muted('Nothing on this profile adds time beyond the print itself.'),
+      sliderField('p-timefactor', 'Company time factor', num(selected.settings.timeFactor, 1),
+        set('timeFactor'), {
+          min: 0.5, max: 3, step: 0.05, format: (v) => `${Number(v).toFixed(2)}×`,
+          info: 'Your own nudge on this profile’s time — raise it if this intent costs you '
+            + 'more machine time than the model assumes (say ironing on your machines), lower '
+            + 'it if it costs less. It never changes the amount of plastic.',
+        }),
+      statTile('Combined time adjustment', `${adjust.total.toFixed(2)}×`),
+      muted(`Version ${selected.version}.`),
     ]),
   ];
 }

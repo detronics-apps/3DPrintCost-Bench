@@ -226,24 +226,28 @@ test('a real line produces finite, ordered numbers all the way down', () => {
     `a 50x50x20 PETG bracket at 30% infill weighed ${line.estimate.grams} g`);
 });
 
-test('the empirical factors are shown but cannot produce an impossible part', () => {
+test('material is the geometric calculation only — never an impossible factor blow-up', () => {
   const s = settings();
   const line = calculateLine({ ...bracket(), profileId: 'extra-strong' }, s);
-
   const solidVolume = line.geometry.volume;
-  assert.ok(line.estimate.empiricalVolume.clamped,
-    'on a real part the published factors exceed solid, and that must be detected');
-  assert.ok(line.estimate.levels.empirical.bodyVolume <= solidVolume * 1.021,
-    'the clamp must hold at the solid volume');
-  // The clamp is still reported, but as a calm INFO note (not an alarming warning),
-  // because the quote does not use the clamped figure — the geometric estimate does.
-  const clampNote = line.notes.find((n) => /not possible|reference only/.test(n.text));
-  assert.ok(clampNote, 'the clamp must be reported, not silent');
-  assert.equal(clampNote.level, 'info', 'and it is informational, not a warning');
 
-  // The geometric estimate is the one used for quoting, and it is physical.
-  assert.ok(line.estimate.levels.geometric.bodyVolume <= solidVolume * 1.021);
+  // The quote is geometric, built from the part's own settings, so it can never
+  // exceed the solid volume — whatever the profile.
   assert.equal(line.estimate.method, 'geometric');
+  assert.ok(line.estimate.levels.geometric.bodyVolume <= solidVolume * 1.021,
+    'the printed volume never exceeds the solid');
+  // The retired empirical factor model is gone, and so is its "more than solid" note.
+  assert.equal(line.estimate.levels.empirical, undefined, 'no empirical level any more');
+  const scary = line.notes.find((n) => /not possible|more than its|reference only/.test(n.text || ''));
+  assert.equal(scary, undefined, 'the alarming clamp note is gone');
+});
+
+test('finish settings adjust the quoted TIME, never the material', () => {
+  const s = settings();
+  const plain = calculateLine({ ...bracket(), profileId: 'display' }, s);
+  const fuzzy = calculateLine({ ...bracket(), profileId: 'display', settingOverrides: { fuzzySkin: true } }, s);
+  assert.ok(fuzzy.estimate.minutes > plain.estimate.minutes, 'fuzzy skin makes the print take longer');
+  close(fuzzy.estimate.grams, plain.estimate.grams, 1e-6, 'but uses the same plastic');
 });
 
 test('a slicer estimate outranks the app’s own geometry', () => {
