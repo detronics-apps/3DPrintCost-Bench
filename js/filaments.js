@@ -123,15 +123,20 @@ export function rebalanceMix(mix, slots, changedSlotId, percent) {
   if (index < 0) return entries;
 
   entries[index].percent = Math.min(100, Math.max(0, num(percent)));
-  let remaining = 100 - entries[index].percent;
 
-  // The others in order, starting with the one after the edited slot.
+  // The FIRST slot is the balancer: it holds whatever is left after the others, so
+  // editing slot 2 or 3 adjusts slot 1 and leaves the other slots where they are.
+  // (Editing slot 1 itself has nothing above it to balance against, so it falls back
+  // to taking the shortfall from the slots after it.)
+  if (index > 0) {
+    const others = entries.reduce((t, e, i) => (i === 0 ? t : t + e.percent), 0);
+    entries[0].percent = Math.max(0, 100 - others);
+    return entries;
+  }
+
+  let remaining = 100 - entries[index].percent;
   const order = [];
   for (let k = 1; k < entries.length; k += 1) order.push((index + k) % entries.length);
-
-  // Each keeps as much of its current share as still fits; the shortfall flows
-  // on to the next. Anything left over at the end lands on the spool nearest
-  // the edit, which is the one the reader is looking at.
   for (const j of order) {
     const give = Math.min(entries[j].percent, remaining);
     entries[j].percent = give;

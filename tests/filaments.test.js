@@ -11,8 +11,21 @@ import assert from 'node:assert/strict';
 import {
   makeSlot, defaultSlots, reconcileSlots, canAddSlot, normaliseMix, mixWarnings,
   materialBreakdown, materialBreakdownFromGrams, mixForEstimate, primarySlot, slotsUsed,
-  changeModel, mixWithSlotAdded,
+  changeModel, mixWithSlotAdded, rebalanceMix,
 } from '../js/filaments.js';
+
+test('the first slot is the balancer: editing a later slot adjusts slot 1, not the others', () => {
+  const slots = [{ id: 's1' }, { id: 's2' }, { id: 's3' }];
+  const start = [{ slotId: 's1', percent: 100 }, { slotId: 's2', percent: 0 }, { slotId: 's3', percent: 0 }];
+  const after2 = rebalanceMix(start, slots, 's2', 20);
+  const pct = (m, id) => m.find((e) => e.slotId === id).percent;
+  assert.equal(pct(after2, 's2'), 20);
+  assert.equal(pct(after2, 's1'), 80, 'slot 1 absorbs the change');
+  const after3 = rebalanceMix(after2, slots, 's3', 10);
+  assert.equal(pct(after3, 's2'), 20, 'slot 2 is left where it was');
+  assert.equal(pct(after3, 's3'), 10);
+  assert.equal(pct(after3, 's1'), 70, 'slot 1 takes it, not slot 2');
+});
 import {
   DEFAULT_PRINTERS, COLOUR_MODES, colourMode, slotLimit, findPrinter,
 } from '../js/printers.js';

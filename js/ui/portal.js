@@ -559,7 +559,8 @@ function partPanel(ctx, part, index, line) {
     el('h3', { text: 'What is it for?' }),
     chips(`portal-profile-${part.id}`,
       config.profiles.map((p) => ({ value: p.id, label: p.name, title: p.blurb })),
-      part.profileId, (v) => { part.profileId = v; render(); }),
+      // Picking Fit auto-ticks "must fit" (can still be unticked); leaving Fit clears it.
+      part.profileId, (v) => { part.profileId = v; part.mustFit = v === 'fit'; render(); }),
     muted(config.profiles.find((p) => p.id === part.profileId)?.blurb || ''),
     (() => {
       const chosen = config.profiles.find((p) => p.id === part.profileId);
@@ -568,11 +569,13 @@ function partPanel(ctx, part, index, line) {
         : null;
     })(),
 
-    checkField(`portal-mustfit-${part.id}`, 'This part must fit or mate with another part',
-      part.mustFit, (v) => { part.mustFit = v; render(); }, {
-        hint: 'Tick if it has to fit into or onto something at set dimensions.',
-      }),
-    part.mustFit
+    part.profileId === 'fit'
+      ? checkField(`portal-mustfit-${part.id}`, 'This part must fit or mate with another part',
+        part.mustFit, (v) => { part.mustFit = v; render(); }, {
+          hint: 'On by default for a Fit part. Untick if it does not have to meet set dimensions.',
+        })
+      : null,
+    (part.profileId === 'fit' && part.mustFit)
       ? banner('info', 'Please attach a technical drawing or a photo marking the critical '
         + 'dimensions to match (with a ruler or figures), so we can hold those tolerances. '
         + 'A printed part is only as accurate as the dimensions we are given.')
@@ -812,19 +815,8 @@ function render() {
     ]),
   ];
 
-  state.parts.forEach((part, i) => {
-    nodes.push(partPanel(partCtx, part, i, result.lines[i]));
-  });
-
-  nodes.push(el('div', { class: 'panel' }, [
-    buttonRow([button('Add another part', () => {
-      state.parts.push(makePortalPart({ profileId: config.profiles[0]?.id }));
-      render();
-    }, { key: 'portal-add-part' })]),
-  ]));
-
   // The printer and the colours loaded on it belong to the bed, shared by every
-  // part above - the same shape the internal estimator uses.
+  // part - chosen first, above the parts, the same shape the internal estimator uses.
   nodes.push(el('div', { class: 'panel' }, [
     el('h2', { text: 'Printer and colours' }),
     config.printers.length > 1
@@ -847,7 +839,18 @@ function render() {
       },
     }),
     muted('Load the colours you want. On a part with more than one loaded, say how much of '
-      + 'each it is in that part above.'),
+      + 'each it is in that part below.'),
+  ]));
+
+  state.parts.forEach((part, i) => {
+    nodes.push(partPanel(partCtx, part, i, result.lines[i]));
+  });
+
+  nodes.push(el('div', { class: 'panel' }, [
+    buttonRow([button('Add another part', () => {
+      state.parts.push(makePortalPart({ profileId: config.profiles[0]?.id }));
+      render();
+    }, { key: 'portal-add-part' })]),
   ]));
 
   // The bed picture: every part positioned together on the plate(s), so the

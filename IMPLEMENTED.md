@@ -9,6 +9,27 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Tighter packing, mix balancing, fit-intent tidy-ups (v1.0.33)
+
+- **Guillotine bed packer** (`js/bedplan.js`): replaced the shelf packer with a
+  free-rectangle guillotine packer (each plate keeps a `free` rect list; place in the
+  smallest fitting rect, split into right strip + below strip). Fills the space beside
+  a tall part, so 40 small + 1 tall pack in ~3–4 beds instead of 5. Test added
+  (`tests/bedplan.test.js`, `plateCount <= 4`, no overlap).
+- **Mix first-slot balancer** (`rebalanceMix` in `js/filaments.js`): editing a non-first
+  slot sets it and puts the remainder on slot 1, leaving the other slots untouched;
+  editing slot 1 keeps the old cascade. Test in `tests/filaments.test.js`.
+- **Estimate accordion collapse-all** (`js/ui/tools/estimate.js`): `openEstimatePart`
+  `null` now means all closed (was forced back to the first part); `undefined` still
+  opens the first on first render.
+- **Fit-only "must fit"** (`js/ui/tools/projects.js`, `js/ui/portal.js`): the mustFit
+  checkbox + banner render only when `profileId === 'fit'`; selecting Fit sets
+  `mustFit = true` (untickable), leaving Fit clears it.
+- **Portal order** (`js/ui/portal.js`): "Printer and colours" panel moved above the
+  part panels; wording "in that part below". Why: user requests. All 501 tests pass;
+  live verification limited by the preview repeatedly loading quote.html and the
+  portal's lack of the app cache-buster.
+
 ## Measured resin rate; shrinkage cost (v1.0.32)
 
 - **Resin coat `materialGrams` 2 → 0.088 g/cm²** (`js/postprocessing.js`), from the

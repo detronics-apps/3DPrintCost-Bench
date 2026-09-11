@@ -1115,16 +1115,18 @@ function partSidebar(ctx, project, part) {
       (v) => set({ quantity: Math.max(1, Math.round(num(v, 1))) }), { min: 1, step: 1 }),
     selectField('part-profile', 'Print intent',
       settings.profiles.map((p) => ({ value: p.id, label: p.name })),
-      part.profileId, (v) => set({ profileId: v, settingOverrides: {} })),
+      // Choosing the Fit intent auto-ticks "must fit" (it can still be unticked);
+      // leaving Fit clears it, since fit-critical only belongs with that intent.
+      part.profileId, (v) => set({ profileId: v, settingOverrides: {}, mustFit: v === 'fit' })),
     partSettingOverrides(part, settings, set),
-    // Fit-critical flag, same as the client form. A client can set it on a
-    // request (it rides in as a FIT-CRITICAL note); this lets the operator set or
-    // clear it on a project part directly.
-    checkField('part-mustfit', 'This part must fit or mate with another part',
-      !!part.mustFit, (v) => set({ mustFit: v }), {
-        hint: 'Tick if it has to fit into or onto something at set dimensions.',
-      }),
-    part.mustFit
+    // Fit-critical flag — only offered on the Fit intent, where it is on by default.
+    part.profileId === 'fit'
+      ? checkField('part-mustfit', 'This part must fit or mate with another part',
+        !!part.mustFit, (v) => set({ mustFit: v }), {
+          hint: 'On by default for the Fit intent. Untick if it does not have to meet set dimensions.',
+        })
+      : null,
+    (part.profileId === 'fit' && part.mustFit)
       ? banner('info', 'Fit-critical: hold the critical dimensions and check there is a '
         + 'dimensioned drawing or a photo marking them. A printed part is only as accurate '
         + 'as the dimensions given.')

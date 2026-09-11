@@ -67,6 +67,30 @@ test('each placement carries the part materials, so a plate can decide its own t
   assert.deepEqual(byId('b')[0].materials, ['petg', 'pla'], 'a multi-colour part carries both');
 });
 
+test('a tall part does not waste the space beside it (no unnecessary extra bed)', () => {
+  // 40 small parts plus one tall part. A shelf packer strands a couple of small
+  // parts on an extra plate; the guillotine packer fills the space beside the tall
+  // one, so they fit in far fewer beds.
+  const plan = arrangeBed([
+    { id: 'small', label: 'Small', size: { x: 60, y: 40, z: 23 }, count: 40 },
+    { id: 'tall', label: 'Tall', size: { x: 130, y: 170, z: 200 }, count: 1 },
+  ], build);
+  const placed = plan.plates.flatMap((p) => p.placements).length;
+  assert.equal(placed, 41, 'everything is placed');
+  assert.ok(plan.plateCount <= 4, `should pack tightly, used ${plan.plateCount} beds`);
+  // No plate overlaps (the guillotine split must never overlap).
+  for (const plate of plan.plates) {
+    for (let i = 0; i < plate.placements.length; i += 1) {
+      for (let j = i + 1; j < plate.placements.length; j += 1) {
+        const a = plate.placements[i];
+        const b = plate.placements[j];
+        const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+        assert.ok(!overlap, 'no two parts overlap');
+      }
+    }
+  }
+});
+
 test('a full bed spills onto a second plate', () => {
   // 100x100 footprints on a 220x220 usable-ish bed: at most 4 per plate.
   const plan = arrangeBed([{ id: 'big', label: 'Big', size: { x: 100, y: 100 }, count: 6 }], build);

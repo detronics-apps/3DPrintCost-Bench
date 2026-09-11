@@ -450,9 +450,12 @@ function partsSection(ctx) {
   const { state, rerender } = ctx;
   const quick = state.quick;
 
-  // One part is open at a time; default to the first if the remembered one is gone.
-  const openId = quick.parts.some((p) => p.id === state.ui.openEstimatePart)
-    ? state.ui.openEstimatePart : quick.parts[0]?.id;
+  // At most one part is open at a time, and ALL can be collapsed. `null` means the
+  // user has closed the open one (keep them all closed); `undefined` is the first
+  // render, which opens the first part; a stale id falls back to the first part.
+  const remembered = state.ui.openEstimatePart;
+  const openId = remembered === null ? null
+    : (quick.parts.some((p) => p.id === remembered) ? remembered : quick.parts[0]?.id);
   const blocks = quick.parts.map((part, i) => partBlock(ctx, part, i, quick.parts.length > 1, part.id === openId));
 
   return section('parts', quick.parts.length > 1 ? `Parts (${quick.parts.length})` : 'Model', [

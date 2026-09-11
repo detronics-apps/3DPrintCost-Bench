@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.33 — Tighter bed packing, mix balancing, fit-intent tidy-ups (2026-09-11)
+
+- **Bed layout packs tighter** — a tall part no longer wastes the space beside it, so
+  parts fill the beds they're on instead of spilling onto an extra, near-empty bed.
+- **Material mix: the first colour is the balancer** — set the 2nd or 3rd colour and
+  the first adjusts to keep 100%, leaving the others where you put them.
+- **Estimate parts can all be collapsed** — click the open part's header to close it;
+  only one opens at a time, but none has to be open.
+- **"Must fit / mate" is now tied to the Fit intent** — it only appears when Fit is
+  chosen, ticks on automatically, and can still be unticked (estimate portal + project).
+- **Client portal: "Printer and colours" now sits above the parts** (pick colours,
+  then the parts) — matching the internal estimator.
+
 ## 1.0.32 — Measured resin rate; shrinkage adds a little cost (2026-09-11)
 
 - **Resin coat now uses a measured rate** — 0.088 g/cm² (from 0.81 g over a 27 × 34 mm
