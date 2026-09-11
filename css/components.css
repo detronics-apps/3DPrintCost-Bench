@@ -94,6 +94,22 @@
 
 .btn-danger { color: var(--danger); border-color: var(--danger); }
 
+/* In-app confirmation dialog (replaces window.confirm, which sandboxes block). */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.45); padding: var(--space-4);
+}
+.modal-card {
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  padding: var(--space-4); max-width: 26rem; width: 100%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.modal-card__title { margin: 0 0 var(--space-2); font-size: 1.05rem; }
+.modal-card__body { margin: 0 0 var(--space-4); color: var(--text-2); }
+.modal-card__actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+
 /* A round, single-glyph button. Used for the theme switch, which reports its
    state through the glyph and its accessible name, not a word. */
 .btn-icon {
@@ -385,6 +401,17 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--space-3);
+}
+
+/* Revenue and profit trend charts, side by side. */
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+.trend__label {
+  font-size: 0.8rem; color: var(--text-2); font-weight: 600;
+  margin-bottom: var(--space-1);
 }
 
 .stat {
@@ -684,6 +711,16 @@
 .gantt { width: 100%; height: auto; }
 .gantt text { font-family: inherit; }
 
+/* "What to start now": one row per machine, the live recommendation. */
+.startnow {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); margin-bottom: var(--space-2);
+}
+.startnow--go { border-color: var(--ok); background: var(--ok-soft, var(--panel-2)); }
+.startnow__machine { font-weight: 700; min-width: 6rem; }
+.startnow__note { flex: 1 1 12rem; color: var(--text); }
+
 /* --------------------------------------------------------------- guide -- */
 /* Two lanes side by side - the company and the client - with numbered steps,
    so the flow reads as a chart rather than a wall of paragraphs. */
@@ -793,6 +830,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 700; background: var(--accent); color: #fff;
 }
+.stephead__num--done { background: var(--ok); }
 .panel--steplead { background: var(--panel-2); }
 
 /* Banking details on the client form (expedite): keep the typed line breaks. */

@@ -165,11 +165,13 @@ _Extends the existing filament cluster; the CSV items tie inventory to real usag
 ## Company analytics & economics
 
 - **Company stats, trends and ROI** — most-used filament (`byMaterial`), most-used
-  hardware (`byHardware`, v1.0.20) and overall profit/margin already show on the
-  Dashboard. Remaining: an explicit **ROI vs investment** view (profit against
-  machines/tooling bought), and trend lines over time (the pieces exist —
-  `revenueByMonth` — but no what-to-buy trend yet). (Raised 2026-09-10; most-used +
-  profit shipped.)
+  hardware (`byHardware`, v1.0.20), overall profit/margin, the ROI-vs-investment
+  "has the machine paid for itself" view and a **profit-by-month trend** beside
+  revenue (v1.0.42) already show on the Dashboard. Remaining: a what-to-buy /
+  reinvestment trend, and longer-horizon trend lines. (Raised 2026-09-10; most-used
+  + profit + ROI + profit trend shipped.)
+- **Where the time goes** — average time an order spends in each phase, from the
+  history trail, slowest first (`js/phasetime.js`, Dashboard, v1.0.42). Done.
 - **Inflation on stock and labour** — apply a yearly inflation rate (South Africa
   especially) to both bought-in stock cost and the salary behind the labour rate,
   so older figures don't understate today's cost. (Tool depreciation is already
@@ -235,9 +237,9 @@ _Extends the existing filament cluster; the CSV items tie inventory to real usag
 
 ## How-to / guide additions
 
-- **"What to do when you've fallen behind" guide** — document the CSV-import backfill
-  story (someone was out, prints piled up un-logged) so operators know how to catch
-  the app up. (Raised 2026-09-10.)
+- ~~**"What to do when you've fallen behind" guide**~~ — SHIPPED v1.0.42: a
+  "Catch up when prints went un-logged" how-to (record each missed print; CSV
+  printer-history import for a whole machine's history) in the How-to tab.
 - **Order-flow flowchart in How-to (decision-driven, by section)** — a detailed
   flowchart of the whole process, estimate → quoting → payment → production →
   post-processing → packaging → delivery → aftercare/feedback, laid out in **columns

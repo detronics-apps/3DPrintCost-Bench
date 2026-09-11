@@ -6,7 +6,7 @@
  * the revision history is real rather than implied.
  */
 
-import { el, toast } from '../dom.js';
+import { el, toast, confirmModal } from '../dom.js';
 import {
   section, subsection, numberField, textField, selectField, checkField, button,
   buttonRow, banner, statTile, table, muted, emptyState, pill, costRow, noticeStack,
@@ -166,8 +166,8 @@ function projectList(ctx) {
       { label: 'Invoice', align: 'right', mono: true, get: (r) => fmtMoney(r.result.totals.finalInvoice, code) },
       {
         label: '',
-        get: (r) => button('Delete', () => {
-          if (!window.confirm(`Delete “${r.project.name}” for good? This cannot be undone.`)) return;
+        get: (r) => button('Delete', async () => {
+          if (!(await confirmModal(`Delete “${r.project.name}” for good? This cannot be undone.`))) return;
           removeProject(r.project.id);
           toast('Project deleted');
           rerender();
@@ -302,7 +302,7 @@ function workflowPanel(ctx, project, result) {
 
   // Dispatch an action. A couple also touch documents; the rest are pure
   // transitions, with notes collected where the decision needs a reason.
-  const run = (id) => {
+  const run = async (id) => {
     if (id === 'send-quote') {
       const withQuote = project.quotes.length ? project : createQuote(project, result);
       commit(advance(withQuote, 'send-quote'));
@@ -338,7 +338,8 @@ function workflowPanel(ctx, project, result) {
       return;
     }
     if (id === 'cancel') {
-      if (!window.confirm('Cancel this order? It can be reopened later.')) return;
+      if (!(await confirmModal('Cancel this order? It can be reopened later.',
+        { confirmLabel: 'Cancel order', cancelLabel: 'Keep open' }))) return;
       const note = window.prompt('Reason for cancelling (optional)') || '';
       commit(advance(project, 'cancel', { note }));
       rerender();
@@ -463,8 +464,8 @@ function partsPanel(ctx, project, result) {
       },
       {
         label: '',
-        get: (r) => button('Remove', () => {
-          if (!window.confirm(`Remove ${r.part.name} from this project?`)) return;
+        get: (r) => button('Remove', async () => {
+          if (!(await confirmModal(`Remove ${r.part.name} from this project?`, { confirmLabel: 'Remove' }))) return;
           commit(removePart(project, r.part.id));
           if (state.activePartId === r.part.id) state.activePartId = null;
           rerender();
@@ -613,9 +614,9 @@ function productionPanel(ctx, project, result) {
       },
       {
         label: '',
-        get: (r) => button('Delete', () => {
-          if (!window.confirm('Delete this recorded print? The stock it used is put '
-            + 'back.')) return;
+        get: (r) => button('Delete', async () => {
+          if (!(await confirmModal('Delete this recorded print? The stock it used is put '
+            + 'back.'))) return;
           commit(logEvent(removeAttempt(project, part.id, r.attempt.id),
             'print-deleted', `Recorded print deleted from ${part.name}`));
           // This print did not happen, so its stock movements come back out

@@ -188,6 +188,56 @@ export function toast(message) {
   setTimeout(() => node.remove(), 2600);
 }
 
+/**
+ * Ask the user to confirm a destructive action, in-page.
+ *
+ * The native `window.confirm` is silently ignored in a sandboxed context (an
+ * embedded webview, an iframe without `allow-modals`), so it returns false and
+ * the action never runs — which is exactly why Delete looked broken. This is a
+ * real overlay we control, so it works everywhere and matches the app's styling.
+ *
+ * Returns a Promise that resolves true (confirmed) or false (cancelled).
+ *
+ * @param {string} message
+ * @param {{ confirmLabel?: string, cancelLabel?: string, danger?: boolean, title?: string }} [opts]
+ */
+export function confirmModal(message, opts = {}) {
+  const {
+    confirmLabel = 'Delete', cancelLabel = 'Cancel', danger = true, title = 'Please confirm',
+  } = opts;
+  return new Promise((resolve) => {
+    const done = (result) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(result); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') done(false);
+      if (e.key === 'Enter') done(true);
+    };
+    const confirmBtn = el('button', {
+      type: 'button',
+      class: `btn ${danger ? 'btn-danger' : 'btn-primary'}`,
+      text: confirmLabel,
+      on: { click: () => done(true) },
+    });
+    const overlay = el('div', {
+      class: 'modal-overlay',
+      role: 'dialog',
+      'aria-modal': 'true',
+      on: { click: (e) => { if (e.target === overlay) done(false); } },
+    }, [
+      el('div', { class: 'modal-card' }, [
+        el('h3', { class: 'modal-card__title', text: title }),
+        el('p', { class: 'modal-card__body', text: message }),
+        el('div', { class: 'modal-card__actions' }, [
+          el('button', { type: 'button', class: 'btn', text: cancelLabel, on: { click: () => done(false) } }),
+          confirmBtn,
+        ]),
+      ]),
+    ]);
+    document.body.appendChild(overlay);
+    document.addEventListener('keydown', onKey);
+    confirmBtn.focus();
+  });
+}
+
 /** Trigger a download of `blob` without ever leaving the page. */
 export function download(blob, filename) {
   const url = URL.createObjectURL(blob);

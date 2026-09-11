@@ -83,8 +83,9 @@ const state = {
   // they choose, so the first step is not pre-ticked.
   printType: null,
   slots: null,
-  // Pickup is the default — no delivery address needed unless the customer chooses a courier.
-  shippingMethodId: 'collect',
+  // Delivery starts unchosen (blank) so the customer makes a deliberate choice; priced
+  // as collect (no delivery cost) until they pick.
+  shippingMethodId: '',
   expedite: false,
   // Set true the first time the client presses a send button while the form is
   // invalid, so empty required fields go red (they stay neutral before that).
@@ -161,7 +162,8 @@ function price() {
   return calculateOrder({
     plate: { printerId: state.printerId, slots },
     lines: state.parts.map((p) => toLine(p)),
-    shippingMethodId: state.shippingMethodId,
+    // Before a delivery is chosen, price as collect (no delivery cost) so the total is stable.
+    shippingMethodId: state.shippingMethodId || 'collect',
     extras: [],
   }, state.settings, { internal: !!state.config?.internal });
 }
@@ -811,9 +813,13 @@ function defaultProfileId(config) {
 }
 
 /** A numbered step heading: a badge, the title, and an (i) explaining the step. */
-function stepHead(n, title, info) {
+function stepHead(n, title, info, done) {
   return el('div', { class: 'stephead' }, [
-    el('span', { class: 'stephead__num', 'aria-hidden': 'true', text: String(n) }),
+    el('span', {
+      class: `stephead__num${done ? ' stephead__num--done' : ''}`,
+      'aria-hidden': 'true',
+      text: done ? '✓' : String(n),
+    }),
     el('h2', { class: 'stephead__title', text: title }),
     info ? infoIcon(info) : null,
   ]);
@@ -896,7 +902,7 @@ function render() {
     // delivery choice, and valid contact details — never pre-ticked by defaults.
     { n: 1, id: 'step-printer', label: 'Colours', done: !!state.printType },
     { n: 2, id: 'step-parts', label: 'Your parts', done: state.parts.length > 0 && state.parts.every((p) => p.geometry) },
-    { n: 3, id: 'step-delivery', label: 'Delivery', done: !!state.shippingMethodId && !valid.errors.address },
+    { n: 3, id: 'step-delivery', label: 'Delivery', done: !!state.shippingMethodId },
     { n: 4, id: 'step-send', label: 'Your details', done: valid.ok },
   ];
   const currentStep = steps.find((s) => !s.done) || steps[steps.length - 1];
@@ -939,7 +945,7 @@ function render() {
   nodes.push(el('div', { class: 'panel', id: 'step-printer' }, [
     stepHead(1, 'Colours', 'Load the colour or colours your part needs, starting with the '
       + 'first. Add another for a multi-colour or multi-material part — we work out the right '
-      + 'machine from what you load, so you never have to know the printers.'),
+      + 'machine from what you load, so you never have to know the printers.', steps[0].done),
     ...filamentSlots({
       printer: capablePrinter,
       slots: loadedSlots,
@@ -969,7 +975,7 @@ function render() {
 
   nodes.push(el('div', { class: 'panel panel--steplead', id: 'step-parts' }, [
     stepHead(2, 'Your parts', 'Upload a 3-D model for each thing you want printed, then say '
-      + 'what it is for and how many. One part is open at a time — click a part to open it.'),
+      + 'what it is for and how many. One part is open at a time — click a part to open it.', steps[1].done),
     muted('Each part has its own model, finish, colours and quantity. Only one is open at '
       + 'a time — click a part to open it.'),
   ]));
@@ -1052,9 +1058,10 @@ function render() {
 
   nodes.push(el('div', { class: 'panel', id: 'step-delivery' }, [
     stepHead(3, 'Delivery', 'How you would like to receive the parts — a courier to your '
-      + 'address, or collect them yourself.'),
+      + 'address, or collect them yourself.', steps[2].done),
     selectField('portal-shipping', 'How should it reach you?',
-      [{ value: 'collect', label: 'I’ll collect it myself (no delivery)' },
+      [{ value: '', label: 'Choose how to get your parts…' },
+        { value: 'collect', label: 'I’ll collect it myself (no delivery)' },
         ...shipOptions.map((m) => ({ value: m.id, label: `${m.name} — about ${m.days} days` }))],
       state.shippingMethodId, (v) => { state.shippingMethodId = v; render(); }),
     state.shippingMethodId === 'collect'
@@ -1232,7 +1239,7 @@ function render() {
 
   nodes.push(el('div', { class: 'panel', id: 'step-send' }, [
     stepHead(4, 'Send it over', 'Your contact details, then send us the request with your '
-      + 'model file attached. Nothing is uploaded until you send it.'),
+      + 'model file attached. Nothing is uploaded until you send it.', steps[3].done),
     muted('This page has no server, so it cannot send the request for you. On a phone the '
       + 'easiest way is the request link — copy it and send it to us in an email or a message. '
       + 'Either way, attach your model file so we can print it.'),
@@ -1379,7 +1386,7 @@ function init() {
     state.slots = null;
     state.parts = [makePortalPart({ profileId: defaultProfileId(config) })];
     state.customer.countryId = config.countryId || null;
-    state.shippingMethodId = 'collect';
+    state.shippingMethodId = '';
     // In expedite-only mode there is no quote path, so the order is expedited
     // from the start; in optional mode the client turns it on themselves.
     state.expedite = config.expediteMode === 'only';

@@ -16,7 +16,9 @@ import {
 } from '../controls.js';
 import { calculateOrder } from '../../engine.js';
 import { orderFromProject, statusOf } from '../../projects.js';
-import { schedule, isQueued } from '../../scheduler.js';
+import {
+  schedule, liveSchedule, fmtClock, isQueued,
+} from '../../scheduler.js';
 import { num } from '../../money.js';
 import { state, customerFor, saveSoon } from '../../state.js';
 
@@ -64,6 +66,16 @@ function jobFromProject(project, settings) {
 
 function fmtDate(date) {
   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+const clampHour = (v, fallback) => Math.max(0, Math.min(24, Math.round(num(v, fallback))));
+
+/** The attended workday, read from settings with a sane fallback. */
+function workday(settings) {
+  const dayStartHour = clampHour(settings.scheduler.dayStartHour, 8);
+  let endOfDayHour = clampHour(settings.scheduler.endOfDayHour, 16);
+  if (endOfDayHour <= dayStartHour) endOfDayHour = Math.min(24, dayStartHour + 8);
+  return { dayStartHour, endOfDayHour };
 }
 
 /* ----------------------------------------------------------------- gantt -- */
@@ -142,6 +154,25 @@ export function sidebar(ctx) {
         + 'project to one of those statuses in Projects and it joins the queue here.'),
     ], { open: true }),
 
+    section('sched-workday', 'Your workday', [
+      numberField('sched-day-start', 'Workday starts at', settings.scheduler.dayStartHour,
+        (v) => { settings.scheduler.dayStartHour = clampHour(v, 8); saveSoon(); rerender(); }, {
+          min: 0, max: 23, step: 1, suffix: ':00',
+          info: 'The hour someone is at the machines. The live plan below only starts an '
+            + 'attended print during these hours.',
+        }),
+      numberField('sched-day-end', 'End of the day at', settings.scheduler.endOfDayHour,
+        (v) => { settings.scheduler.endOfDayHour = clampHour(v, 16); saveSoon(); rerender(); }, {
+          min: 1, max: 24, step: 1, suffix: ':00',
+          info: 'When the last person leaves. A print that would still be running after this '
+            + 'is set to start at the end of the day and run overnight (if overnight is on), '
+            + 'rather than being left half-done.',
+        }),
+      muted('The live plan reads the clock: look in the evening and a long print is offered '
+        + 'the night; look in the morning and the short prints that finish by end-of-day come '
+        + 'first.'),
+    ], { open: true }),
+
     section('sched-overnight', 'Overnight running', [
       checkField('sched-overnight', 'Prioritise long prints for overnight running',
         !!settings.scheduler.overnightLongPrints,
@@ -201,6 +232,17 @@ export function main(ctx) {
     overnightLongPrints: !!settings.scheduler.overnightLongPrints,
   });
 
+  // The clock-aware plan: real start/finish times from right now, so the answer
+  // changes through the day. This is what "start now" reads from.
+  const { dayStartHour, endOfDayHour } = workday(settings);
+  const live = liveSchedule(jobs, printers, {
+    now: Date.now(),
+    dayStartHour,
+    endOfDayHour,
+    overnightAllowed: !!settings.scheduler.overnightLongPrints,
+  });
+  const liveById = new Map(live.placed.map((j) => [j.id, j]));
+
   const nodes = [
     el('div', { class: 'three-numbers' }, [
       statTile('In the queue', String(result.placed.length), {
@@ -216,6 +258,27 @@ export function main(ctx) {
       }),
     ]),
   ];
+
+  // What to put on each machine right now — the live plan read from the clock.
+  if (live.recommendations.length) {
+    nodes.push(el('div', { class: 'panel' }, [
+      el('div', { class: 'panel__head' }, [
+        el('h3', { text: 'What to start now' }),
+        pill(`${fmtClock(live.now)} · workday ${dayStartHour}:00–${endOfDayHour}:00`, 'info'),
+      ]),
+      ...live.recommendations.map((rec) => el('div', {
+        class: `startnow${rec.startNowJobId ? ' startnow--go' : ''}`,
+      }, [
+        el('span', { class: 'startnow__machine', text: rec.printerName }),
+        el('span', { class: 'startnow__note', text: rec.note }),
+        rec.first?.runsOvernight ? pill('overnight', 'warn') : null,
+        rec.first?.overrunsAttendedDay ? pill('longer than a workday', 'warn') : null,
+      ].filter(Boolean))),
+      muted('This reads the clock and refreshes when you open the tab. In the evening a long '
+        + 'unattended print is offered the night; in the morning the short prints that finish by '
+        + 'end-of-day come first. It never jumps a running or higher-priority job.'),
+    ]));
+  }
 
   if (settings.scheduler.overnightLongPrints) {
     const attended = result.placed.filter((j) => j.needsAttendance);
@@ -238,23 +301,29 @@ export function main(ctx) {
   if (gnode) nodes.push(gnode);
 
   nodes.push(el('div', { class: 'panel' }, [
-    el('h3', { text: 'Start dates and promised lead times' }),
+    el('h3', { text: 'Start times and promised lead times' }),
     table([
       { label: 'Project', get: (j) => j.name },
       { label: 'Customer', get: (j) => j.customerName || '—' },
       { label: 'Printer', get: (j) => j.printerName },
       { label: 'Machine time', align: 'right', mono: true, get: (j) => `${j.machineHours.toFixed(1)} h` },
-      { label: 'Start', mono: true, get: (j) => fmtDate(j.startDate) },
-      { label: 'Ready', mono: true, get: (j) => fmtDate(j.endDate) },
+      { label: 'Start', mono: true, get: (j) => (liveById.get(j.id) ? fmtClock(liveById.get(j.id).startAt) : fmtDate(j.startDate)) },
+      { label: 'Ready', mono: true, get: (j) => (liveById.get(j.id) ? fmtClock(liveById.get(j.id).endAt) : fmtDate(j.endDate)) },
       { label: 'Lead', align: 'right', mono: true, get: (j) => `${j.leadDays} d` },
       {
         label: 'Status',
         get: (j) => el('span', {}, [
           pill(statusOf(j.status).name, statusOf(j.status).tone),
+          liveById.get(j.id)?.runsOvernight ? pill('overnight', 'warn') : null,
           j.needsAttendance ? pill('attended', 'warn') : null,
         ].filter(Boolean)),
       },
-    ], [...result.placed].sort((a, b) => a.startDay - b.startDay || a.endDay - b.endDay)),
+    ], [...result.placed].sort((a, b) => {
+      const la = liveById.get(a.id);
+      const lb = liveById.get(b.id);
+      if (la && lb) return la.startAt - lb.startAt || la.endAt - lb.endAt;
+      return a.startDay - b.startDay || a.endDay - b.endDay;
+    })),
     muted('A planning floor, not a promise to the minute: jobs are queued whole onto one '
       + 'machine each and run back to back. It does not split a job across printers or around '
       + 'a part that fails and reprints.'),

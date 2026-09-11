@@ -18,6 +18,7 @@ import { calibrate, samplesFrom, errorReport, correctionFor, CALIBRATION_SCOPES,
 import { demandMultiplier, utilisation, CAPACITY_SOURCES } from '../../demand.js';
 import { downloadCsv } from '../export.js';
 import { returnsOnMachines, surplusPool } from '../../roi.js';
+import { phaseTimeSummary, fmtSpan } from '../../phasetime.js';
 import { state, saveSoon } from '../../state.js';
 import { printsDueToday } from './scheduler.js';
 
@@ -28,7 +29,9 @@ export const short = 'Board';
 const touch = (rerender) => { saveSoon(); rerender(); };
 
 /** A sparkline. Values are scaled to their own range, padded relatively. */
-function sparkline(buckets, pick, { width = 520, height = 90, colour = 'var(--accent-strong)' } = {}) {
+function sparkline(buckets, pick, {
+  width = 520, height = 90, colour = 'var(--accent-strong)', label = 'Revenue by month',
+} = {}) {
   const values = buckets.map(pick);
   const max = Math.max(...values, 0);
   const min = Math.min(...values, 0);
@@ -36,7 +39,7 @@ function sparkline(buckets, pick, { width = 520, height = 90, colour = 'var(--ac
   const magnitude = Math.max(Math.abs(min), Math.abs(max), Number.MIN_VALUE);
   const span = Math.abs(max - min) <= magnitude * 1e-12 ? magnitude || 1 : max - min;
 
-  const root = svg('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': 'Revenue by month' });
+  const root = svg('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': label });
   const left = 8;
   const right = width - 8;
   const top = 12;
@@ -116,7 +119,20 @@ export function main(ctx) {
       + `overdue, worth ${fmtMoney(d.money.overdue, code)}.`));
   }
 
-  nodes.push(el('div', { class: 'viewport__stage' }, [sparkline(months, (b) => b.revenue)]));
+  // Revenue and profit trends, side by side, so a good month for the top line is
+  // not mistaken for a good month for the bottom line. Profit is what is left
+  // after the cost to company on each invoice that month.
+  const anyProfit = months.some((b) => b.revenue - b.cost !== 0);
+  nodes.push(el('div', { class: 'trend-grid' }, [
+    el('div', { class: 'viewport__stage' }, [
+      el('div', { class: 'trend__label', text: 'Revenue by month' }),
+      sparkline(months, (b) => b.revenue),
+    ]),
+    anyProfit ? el('div', { class: 'viewport__stage' }, [
+      el('div', { class: 'trend__label', text: 'Profit by month' }),
+      sparkline(months, (b) => b.revenue - b.cost, { colour: 'var(--ok)', label: 'Profit by month' }),
+    ]) : null,
+  ].filter(Boolean)));
 
   nodes.push(el('div', { class: 'summary-grid' }, [
     statTile('Printed', String(d.production.printed)),
@@ -266,6 +282,39 @@ export function main(ctx) {
       : muted('Nothing has paid for itself yet. Record production against each printer '
         + 'and this fills in from what the machines actually ran.'),
   ]));
+
+  /* --- where the time goes ------------------------------------------- */
+
+  const timing = phaseTimeSummary(state.projects, Date.now());
+  if (timing.rows.length) {
+    const worst = timing.slowest.averageMs;
+    nodes.push(el('div', { class: 'panel' }, [
+      el('h3', { text: 'Where the time goes' }),
+      muted('How long an order sits in each stage, on average, reconstructed from the '
+        + 'history of every order that passed through it. The slowest stage is at the top — '
+        + 'that is the one worth optimising first.'),
+      table([
+        { label: 'Stage', get: (r) => r.name },
+        {
+          label: 'Average time',
+          get: (r) => el('div', { class: 'roi' }, [
+            el('div', { class: 'roi__track' }, [
+              el('div', {
+                class: 'roi__fill',
+                style: { width: `${worst > 0 ? Math.round((r.averageMs / worst) * 100) : 0}%` },
+              }),
+            ]),
+            el('span', { class: 'roi__value value', text: fmtSpan(r.averageMs) }),
+          ]),
+        },
+        { label: 'Orders', align: 'right', mono: true, get: (r) => String(r.orders) },
+      ], timing.rows),
+      banner('info', `Across ${timing.orders} order${timing.orders === 1 ? '' : 's'}, the `
+        + `longest stage is ${timing.slowest.name} at about ${fmtSpan(timing.slowest.averageMs)} `
+        + 'each. Time spent Awaiting payment is usually the client, not you; time in Production '
+        + 'or Post-processing is where the workshop can win it back.'),
+    ]));
+  }
 
   /* --- the learning loop ---------------------------------------------- */
 

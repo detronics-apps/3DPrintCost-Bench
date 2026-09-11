@@ -119,6 +119,11 @@ export function portalRequest({
     customerId: cust.id,
     customerName: cust.name,
     status: 'draft',
+    // The bed printer is a PROJECT-level fact (one bed for the whole job), so the
+    // machine the customer's colours resolved to has to land here — not only on
+    // each part — or the import opens on the app's default printer instead.
+    ...(printerId ? { printerId } : {}),
+    ...(Array.isArray(slots) && slots.length ? { slots: slots.map((s) => ({ ...s })) } : {}),
     ...(isExpedited ? {
       phase: 'awaiting-payment',
       workflow: {

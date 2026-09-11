@@ -106,7 +106,33 @@ const HOWTOS = [
     'Projects: on the Projects list, use the Delete on the project’s row.',
     'Quotes & invoices: use the Delete on the document’s row.',
     'Inventory: use the Delete on a row in “Recent movements”.',
-    'Each asks to confirm; deleting a project also removes its stock movements.',
+    'Each asks to confirm in a pop-up; deleting a project also removes its stock movements.',
+  ] },
+  { id: 'plan-next', title: 'Plan what to print next', category: 'Production', steps: [
+    'Open the Schedule tab. Only Accepted and In-production jobs are queued.',
+    'In the sidebar set “Your workday” — when someone is at the machines, and the end of the day.',
+    'The “What to start now” panel reads the clock: in the evening it offers a long print the night; in the morning it offers the short prints that finish by end-of-day first.',
+    'Tick “Overnight running” only once a HIRA covers leaving a printer unattended — then long prints are given the night and the attended jobs fill the day.',
+    'The start and ready times are live: they shift as the day goes on, so check back and start whatever it says is next.',
+  ] },
+  { id: 'mark-paid', title: 'Mark a quote or invoice paid', category: 'Orders', steps: [
+    'Open Quotes & invoices and click the document’s number to open it.',
+    'In the sidebar’s Status section, choose “Paid”.',
+    'If the project is still in Quotation or Awaiting payment, it moves to Production automatically — you record the payment once, not twice.',
+    'A project already in production or beyond is left where it is.',
+  ] },
+  { id: 'time-per-stage', title: 'See where orders spend their time', category: 'Production', steps: [
+    'Open the Dashboard and find “Where the time goes”.',
+    'Each stage shows the average time an order sat in it, slowest first, from the real history of every order.',
+    'Time in Awaiting payment is usually the client; time in Production or Post-processing is where the workshop can win it back.',
+    'The revenue and profit trends above it show whether a busy month was also a profitable one.',
+  ] },
+  { id: 'fallen-behind', title: 'Catch up when prints went un-logged', category: 'Housekeeping', steps: [
+    'It happens: the person who logs prints is out, and the machines keep running. Nothing is lost — the app can be caught up.',
+    'For each un-logged print, open its project, pick the part, and use Production → “Record a print”, correcting the accepted, rejected, minutes and grams to what really happened.',
+    'Recording a print books its filament, hardware and resin out of stock automatically, so on-hand balances and the Dashboard hours catch up too.',
+    'For a machine’s whole prior history at once, use Settings → Backup & restore → Printer history import (CSV) so its lifetime hours and grams count from before the app.',
+    'Once caught up, the Dashboard, ROI (“has the machine paid for itself”) and stock all read true again.',
   ] },
 ];
 

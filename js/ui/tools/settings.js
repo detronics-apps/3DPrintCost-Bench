@@ -7,7 +7,7 @@
  * talking about.
  */
 
-import { el, toast, download } from '../dom.js';
+import { el, toast, download, confirmModal } from '../dom.js';
 import {
   section, subsection, numberField, textField, selectField, checkField, sliderField,
   percentField, moneyField, chips, button, buttonRow, table, muted, statTile, pill,
@@ -800,9 +800,9 @@ function labourPanel(ctx) {
         },
         {
           label: '',
-          get: (op) => button('Remove', () => {
-            if (!window.confirm(`Remove the “${op.name}” operation for good? `
-              + '(Untick “On” instead if you only want to switch it off.)')) return;
+          get: (op) => button('Remove', async () => {
+            if (!(await confirmModal(`Remove the “${op.name}” operation for good? `
+              + '(Untick “On” instead if you only want to switch it off.)', { confirmLabel: 'Remove' }))) return;
             settings.labour.ops = settings.labour.ops.filter((x) => x.id !== op.id);
             // Tombstone it so a shipped default is not topped back up on reload.
             const removed = settings.removed || (settings.removed = {});
@@ -1058,8 +1058,8 @@ function estimatorPanel(ctx) {
       el('h3', { text: 'Start again' }),
       muted('This resets every setting on this page to the shipped defaults. Projects, '
         + 'customers and stock are left alone.'),
-      buttonRow([button('Reset all settings', () => {
-        if (!window.confirm('Reset every setting to the shipped defaults?')) return;
+      buttonRow([button('Reset all settings', async () => {
+        if (!(await confirmModal('Reset every setting to the shipped defaults?', { confirmLabel: 'Reset' }))) return;
         const fresh = defaultSettings();
         state.settings = fresh;
         toast('Settings reset');
@@ -1091,9 +1091,9 @@ function backupPanel(ctx) {
         if (!file) return;
 
         const hasData = state.projects.length > 0 || state.customers.length > 0;
-        if (hasData && !window.confirm('This replaces everything on this device — your current '
+        if (hasData && !(await confirmModal('This replaces everything on this device — your current '
           + 'projects, customers and setup — with what is in the file. Save a backup first if you '
-          + 'are unsure. Continue?')) return;
+          + 'are unsure. Continue?', { confirmLabel: 'Replace everything' }))) return;
 
         const report = restoreFromFile(await file.text());
         if (!report.ok) { toast(report.error); return; }

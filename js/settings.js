@@ -192,6 +192,13 @@ export function defaultSettings() {
     // unattended stretches - and a printer may override it with its own.
     scheduler: {
       hoursPerDay: 12,
+      // The attended workday, as whole hours on a 24-h clock. The live schedule
+      // uses these to decide what to start now: inside the day it favours short
+      // prints that finish by `endOfDayHour`; a long print that would run past it
+      // is set to start at the end of the day and run overnight. Eight hours by
+      // default (08:00–16:00); the company sets its own.
+      dayStartHour: 8,
+      endOfDayHour: 16,
       // When a risk assessment (HIRA) is in place that makes unattended overnight
       // printing safe, the long jobs are the ones worth leaving to run through the
       // night. This puts the longest prints first in each machine's queue so they
@@ -515,6 +522,14 @@ export function migrateSettings(stored) {
   // The scheduler block is newer than most stored settings.
   if (!merged.scheduler || typeof merged.scheduler !== 'object') {
     merged.scheduler = clone(defaults.scheduler);
+  }
+  // The attended-workday hours are newer than the scheduler block, so backfill
+  // them onto an older stored scheduler that predates the live schedule.
+  if (!Number.isFinite(merged.scheduler.dayStartHour)) {
+    merged.scheduler.dayStartHour = defaults.scheduler.dayStartHour;
+  }
+  if (!Number.isFinite(merged.scheduler.endOfDayHour)) {
+    merged.scheduler.endOfDayHour = defaults.scheduler.endOfDayHour;
   }
   // Post-processing is a configurable operation list now. Convert the old
   // { resin, nfc } shape into it, carrying the support/deburr minutes lifted

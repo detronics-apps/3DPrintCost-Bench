@@ -9,7 +9,7 @@
  * every control to carry a stable `data-field` name.
  */
 
-import { el, clear, toast, download } from './ui/dom.js';
+import { el, clear, toast, download, confirmModal } from './ui/dom.js';
 import { capDiagramScale, captureFocus, restoreFocus, dualLabel } from './ui/patterns.js';
 import { configureSections } from './ui/controls.js';
 import {
@@ -34,7 +34,7 @@ import * as settingsTool from './ui/tools/settings.js';
 
 /** Read this before investigating anything: a stale cache wastes more time
  *  than any bug in this app has. "Reload the app" in the footer clears it. */
-export const APP_VERSION = '1.0.41';
+export const APP_VERSION = '1.0.42';
 
 const TOOLS = [estimate, projects, catalogues, inventory, documents, dashboard, scheduler, guide, settingsTool];
 
@@ -96,9 +96,9 @@ function buildHeader() {
         const text = await file.text();
         e.target.value = '';
         const hasData = state.projects.length || state.customers.length;
-        if (hasData && !window.confirm('Open this company? It replaces every project, '
+        if (hasData && !(await confirmModal('Open this company? It replaces every project, '
           + 'customer and setting currently on this device. Save the one you have open '
-          + 'first if you have not.')) return;
+          + 'first if you have not.', { confirmLabel: 'Open', danger: false }))) return;
         const report = restoreFromFile(text);
         if (!report.ok) { toast(report.error); return; }
         state.tool = 'projects';
@@ -264,9 +264,9 @@ function buildFooter() {
         'data-field': 'reset-all',
         text: 'Reset everything',
         on: {
-          click: () => {
-            if (!window.confirm('This clears every project, customer and setting on this '
-              + 'device. Save a file first if you want them back.')) return;
+          click: async () => {
+            if (!(await confirmModal('This clears every project, customer and setting on this '
+              + 'device. Save a file first if you want them back.', { confirmLabel: 'Clear everything' }))) return;
             resetAll();
             render();
             toast('Reset to defaults');

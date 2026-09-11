@@ -9,6 +9,57 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Import printer, working deletes, live schedule, paid-flows, time-per-stage (v1.0.42)
+
+A batch from a workshop test session; each item independent.
+
+- **Delivery step turns green (client form)**: `stepHead(n, title, info, done)` gained a
+  `done` param — renders `✓` on a `.stephead__num--done` (background `var(--ok)`) badge; each
+  call passes its `steps[i].done`. `step-delivery` done is now `!!state.shippingMethodId`, so
+  selecting any fitting delivery type (blank placeholder option added) turns badge ③ and the
+  top strip green. Verified live: 4 badges render, done ones show green ✓ (`js/ui/portal.js`,
+  `css/components.css`).
+- **Imported request carries the printer**: `portalRequest` set `printerId` on each part but
+  the bed printer is a **project-level** field (`makeProject` defaults `'bambu-x1e'`), so the
+  import opened on the default machine — recorded hours then landed on the wrong printer
+  (Snapmaker read 0 on the Dashboard/ROI). Fix: `portalRequest` now sets project-level
+  `printerId` and `slots` from the chosen machine (`js/portal-request.js`). Existing imports
+  keep their wrong printer — re-import or set the project printer to correct historical ones.
+- **In-app confirm dialog (deletes work in a sandbox)**: `window.confirm` is silently ignored
+  in an embedded/sandboxed webview (returns false), so every Delete and the reset/restore/
+  open-company guards did nothing. Added `confirmModal(message, { confirmLabel, cancelLabel,
+  danger, title })` → `Promise<boolean>` in `js/ui/dom.js` (`.modal-overlay`/`.modal-card`
+  CSS), and converted all 12 `window.confirm` call sites to `await confirmModal(...)` with the
+  enclosing handler made `async` (`main.js`, `documents.js`, `projects.js`, `catalogues.js`,
+  `inventory.js`, `settings.js`). Verified live: modal shows, Cancel keeps the item.
+- **Save-as-project clears the estimator**: after `replaceProject`, `state.quick` is reset to
+  `defaultQuick()` keeping only `printerId`/`materialId`/`slots` (the machine setup), so the
+  next estimate starts blank (`js/ui/tools/estimate.js`).
+- **Live, clock-aware schedule**: new `liveSchedule(jobs, printers, { now, dayStartHour,
+  endOfDayHour, overnightAllowed })` in `js/scheduler.js` advances a real per-printer clock
+  from `now` → distinct `startAt`/`endAt` per job, attended jobs kept inside the workday
+  window, unattended jobs may take the night when `overnightAllowed`; `orderForClock` makes
+  the queue clock-aware (evening → longest unattended first for the night; daytime → prints
+  that finish by end-of-day first, shortest first). Returns per-printer `recommendations`
+  ("What to start now"). Settings gained `scheduler.dayStartHour`/`endOfDayHour` (default
+  8/16, migration-backfilled). UI: `js/ui/tools/scheduler.js` shows a "What to start now"
+  panel (`.startnow`), workday fields, and live clock times in the table. `schedule` (day
+  model) is untouched so the 501 existing tests still hold; 7 new `liveSchedule` tests.
+- **Paid status flows to the project**: `documents.js` gained a `paid` quote status; in the
+  documents tool, `persistStatus(project, doc, newStatus)` writes the doc status and, when
+  set to `paid` and the project's `displayPhase` is `quotation`/`awaiting-payment` and
+  `paymentReceivedAt` is unset, calls `advance(project, 'payment-received')` (→ Production),
+  in one `replaceProject` (`js/ui/tools/documents.js`).
+- **"Where the time goes" + profit trend (Dashboard)**: new pure `js/phasetime.js` —
+  `orderPhaseTimes(project, now)` reconstructs time-in-phase from the history's
+  `phaseFrom`/`phaseTo` transitions (open phase runs to now; closed/cancelled stop the
+  clock), `phaseTimeSummary(projects)` averages across orders, slowest first; `fmtSpan`.
+  Dashboard renders it as a bar table + a slowest-stage banner, and a profit-by-month
+  sparkline beside revenue (`revenueByMonth` buckets already carry `cost`). 5 new tests.
+- **Guide**: added how-tos — plan-what-to-print-next, mark-paid, see-where-time-goes, and the
+  backlog "catch up when prints went un-logged" (`js/ui/tools/guide.js`). Why: memory rule
+  [[explain-features-in-guide]].
+
 ## Client form: pickup default, banking on expedite (v1.0.41)
 
 - **Pickup default**: `state.shippingMethodId` defaults to `'collect'` (state def + config

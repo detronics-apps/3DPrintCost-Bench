@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.0.42 — Import printer, working deletes, live schedule, paid-flows, time-per-stage (2026-09-12)
+
+- **Imported requests now carry the printer.** A customer request set the printer on each
+  part but not on the project's bed (a project-level fact), so the import opened on the
+  app's default machine — that's why recorded hours landed on the wrong printer and the
+  Snapmaker read zero. The chosen machine (and its loaded spools) now lands on the project.
+- **Delete works again — everywhere.** Every "Delete" (projects, quotes, invoices, catalogue
+  items, stock movements, post-processing ops) and the reset/restore/open-company prompts
+  used the browser's `window.confirm`, which a sandboxed/embedded webview silently ignores
+  (returns false), so nothing was ever deleted. Replaced with an in-app confirmation dialog
+  that works everywhere and matches the app's styling.
+- **Save-as-project clears the estimator.** Saving a bed as a project now wipes the models,
+  quantities and name for a clean slate (the machine, material and loaded spools are kept),
+  so you can start the next quote straight away.
+- **A live, clock-aware production schedule.** The old plan worked in whole days, so a 10 h
+  and a 2 h job on one printer both read "day 0". The Schedule tab now advances a real clock
+  per machine from right now: two jobs get distinct start times, and a "What to start now"
+  panel reads the time of day — in the evening it offers a long print the night; in the
+  morning it offers the short prints that finish by end-of-day first, and sets the long one
+  to start at end-of-day. Set your workday hours in the Schedule sidebar.
+- **Mark a quote or invoice "Paid" and the project follows.** Setting a document to Paid now
+  moves its project through to Production automatically (only ever forward, only from
+  Quotation/Awaiting payment), so payment is recorded once, not twice. Quotes gained a Paid
+  status to match.
+- **"Where the time goes" on the Dashboard.** From each order's own history, the app now
+  shows the average time orders spend in every stage — slowest first — so you can see which
+  category to optimise. Alongside it, a profit-by-month trend next to the revenue one.
+
 ## 1.0.41 — Client form: pickup default, banking on expedite (2026-09-11)
 
 - **Pickup (collect) is the default** delivery choice, and the opaque "Cheapest that

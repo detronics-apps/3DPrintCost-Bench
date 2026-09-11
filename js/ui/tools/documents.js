@@ -6,7 +6,7 @@
  * shown rather than silently applied.
  */
 
-import { el, toast } from '../dom.js';
+import { el, toast, confirmModal } from '../dom.js';
 import {
   section, numberField, textField, selectField, button, buttonRow, table, muted,
   statTile, pill, banner, emptyState, chips, costRow,
@@ -18,6 +18,7 @@ import {
 import { buildPrintSheet, printSheet, downloadCsv, documentCsv, csvFilename } from '../export.js';
 import { calculateOrder } from '../../engine.js';
 import { orderFromProject } from '../../projects.js';
+import { advance, displayPhase } from '../../workflow.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import { state, saveSoon, replaceProject, customerFor } from '../../state.js';
 
@@ -44,6 +45,29 @@ function persist(project, document_) {
   const key = document_.kind === 'invoice' ? 'invoices' : 'quotes';
   const list = project[key].map((d) => (d.id === document_.id ? document_ : d));
   replaceProject({ ...project, [key]: list });
+}
+
+/**
+ * Marking a document Paid should move its project's payment too, so the operator
+ * never has to record the same fact twice. It only ever jumps FORWARD, and only
+ * from Quotation or Awaiting payment — a project already in production or beyond
+ * is left where it is, and one whose payment is already recorded is untouched.
+ *
+ * Returns the (possibly advanced) project, having written the document status.
+ */
+function persistStatus(project, doc, newStatus) {
+  const key = doc.kind === 'invoice' ? 'invoices' : 'quotes';
+  const list = project[key].map((d) => (d.id === doc.id ? { ...doc, status: newStatus } : d));
+  let next = { ...project, [key]: list };
+
+  const paidNow = newStatus === 'paid';
+  const alreadyPaid = !!(project.workflow && project.workflow.paymentReceivedAt);
+  if (paidNow && !alreadyPaid && ['quotation', 'awaiting-payment'].includes(displayPhase(project))) {
+    next = advance(next, 'payment-received');
+    toast('Marked paid — the project moved to Production');
+  }
+  replaceProject(next);
+  return next;
 }
 
 /** Remove a quote or invoice from its project — for clearing test/training entries. */
@@ -112,8 +136,8 @@ function documentList(ctx) {
       },
       {
         label: '',
-        get: (r) => button('Delete', () => {
-          if (!window.confirm(`Delete ${r.document.kind} ${r.document.number} for good?`)) return;
+        get: (r) => button('Delete', async () => {
+          if (!(await confirmModal(`Delete ${r.document.kind} ${r.document.number} for good?`))) return;
           removeDocument(r.project, r.document);
           toast(`${r.document.kind === 'invoice' ? 'Invoice' : 'Quote'} deleted`);
           touch(rerender);
@@ -240,7 +264,9 @@ export function sidebar(ctx) {
     section('doc-status', 'Status', [
       selectField('doc-status-pick', 'Status',
         statuses.map((s) => ({ value: s.id, label: s.name })),
-        doc.status, (v) => { persist(project, { ...doc, status: v }); touch(rerender); }),
+        doc.status, (v) => { persistStatus(project, doc, v); touch(rerender); }),
+      muted('Marking this Paid also moves the project to Production, so you record '
+        + 'payment once, not twice.'),
       doc.kind === 'quote'
         ? muted(`Valid until ${doc.expiresAt ? new Date(doc.expiresAt).toLocaleDateString() : '—'}.`)
         : muted(`Due ${doc.dueAt ? new Date(doc.dueAt).toLocaleDateString() : '—'}.`),

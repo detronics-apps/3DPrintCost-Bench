@@ -8,7 +8,7 @@
  * rather than being something the reader has to go and find.
  */
 
-import { el, toast } from '../dom.js';
+import { el, toast, confirmModal } from '../dom.js';
 import {
   section, subsection, numberField, textField, selectField, checkField, chips,
   button, buttonRow, table, muted, statTile, pill, banner, emptyState, moneyField,
@@ -71,7 +71,7 @@ function catalogueActions({ keyPrefix, selected, onNew, onDuplicate, onArchive, 
  * one), and it records the id as removed so a shipped default is not re-added by
  * the upgrade-migration on the next load.
  */
-function deleteEntry({
+async function deleteEntry({
   collection, list, selected, selectKey, rerender, tombstone = true,
 }) {
   if (!selected) return;
@@ -86,8 +86,8 @@ function deleteEntry({
     toast('A project has used this — archive it instead so that work is not broken.');
     return;
   }
-  if (!window.confirm(`Delete “${selected.name}” for good? This cannot be undone. `
-    + 'Archive instead if you only want to hide it from new work.')) return;
+  if (!(await confirmModal(`Delete “${selected.name}” for good? This cannot be undone. `
+    + 'Archive instead if you only want to hide it from new work.'))) return;
 
   const idx = list.findIndex((x) => x.id === selected.id);
   if (idx >= 0) list.splice(idx, 1);
@@ -178,10 +178,10 @@ function massOps(ctx, {
         touch(rerender);
         toast(`Updated ${n} item${n === 1 ? '' : 's'}`);
       }, { primary: true, key: `mass-apply-${collection}`, disabled: chosen.size === 0 }),
-      button(`Delete ${chosen.size} selected`, () => {
+      button(`Delete ${chosen.size} selected`, async () => {
         if (!chosen.size) return;
-        if (!window.confirm(`Delete ${chosen.size} selected item${chosen.size === 1 ? '' : 's'} for good? `
-          + 'This cannot be undone. Anything a project has used is skipped — archive those instead.')) return;
+        if (!(await confirmModal(`Delete ${chosen.size} selected item${chosen.size === 1 ? '' : 's'} for good? `
+          + 'This cannot be undone. Anything a project has used is skipped — archive those instead.'))) return;
         remove([...chosen]);
       }, { danger: true, key: `mass-delete-${collection}`, disabled: chosen.size === 0 }),
     ]),

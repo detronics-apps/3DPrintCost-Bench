@@ -19,6 +19,9 @@ export const QUOTE_STATUSES = [
   { id: 'draft', name: 'Draft', tone: 'info' },
   { id: 'sent', name: 'Sent', tone: 'info' },
   { id: 'accepted', name: 'Accepted', tone: 'ok' },
+  // Marking a quote Paid (the client paid against it, e.g. an expedited order)
+  // moves its project through to Production — see the documents tool.
+  { id: 'paid', name: 'Paid', tone: 'ok' },
   { id: 'declined', name: 'Declined', tone: 'danger' },
   { id: 'expired', name: 'Expired', tone: 'warn' },
 ];

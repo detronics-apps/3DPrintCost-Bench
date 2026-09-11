@@ -48,7 +48,7 @@ import { ESTIMATE_LEVELS } from '../../estimate.js';
 import { DEMAND_TARGETS } from '../../pricing.js';
 import { makeProject, addPart, makePart } from '../../projects.js';
 import { gateMatches, entryPostOps } from '../../postprocessing.js';
-import { shareLink, replaceProject, saveSoon, defaultPart } from '../../state.js';
+import { shareLink, replaceProject, saveSoon, defaultPart, defaultQuick } from '../../state.js';
 
 export const id = 'estimate';
 export const name = 'Estimate';
@@ -1339,10 +1339,21 @@ function exportSection(ctx) {
           }));
         }
         replaceProject(project);
+        const savedCount = state.quick.parts.length;
+        // Clear the bed so the estimator is a clean slate for the next quote —
+        // the models, quantities and name are gone (they now live on the project),
+        // but the machine, material and loaded spools are kept, since the next
+        // estimate is almost always on the same setup.
+        state.quick = {
+          ...defaultQuick(),
+          printerId: state.quick.printerId,
+          materialId: state.quick.materialId,
+          slots: Array.isArray(state.quick.slots) ? state.quick.slots.map((s) => ({ ...s })) : null,
+        };
         state.activeProjectId = project.id;
         state.tool = 'projects';
-        toast(`Saved as “${project.name}” with ${state.quick.parts.length} part`
-          + `${state.quick.parts.length === 1 ? '' : 's'}`);
+        toast(`Saved as “${project.name}” with ${savedCount} part`
+          + `${savedCount === 1 ? '' : 's'} — estimator cleared`);
         rerender();
       }, { primary: true, key: 'save-project' }),
     ]),

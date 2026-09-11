@@ -6,7 +6,7 @@
  * quietly wrong.
  */
 
-import { el, toast } from '../dom.js';
+import { el, toast, confirmModal } from '../dom.js';
 import {
   section, subsection, numberField, textField, selectField, button, buttonRow,
   table, muted, statTile, pill, banner, emptyState, chips, noticeStack,
@@ -158,9 +158,9 @@ export function main(ctx) {
         { label: 'Note', get: (r) => r.movement.note || '—' },
         {
           label: '',
-          get: (r) => button('Delete', () => {
-            if (!window.confirm('Delete this stock movement? The on-hand balance is '
-              + 'recalculated without it.')) return;
+          get: (r) => button('Delete', async () => {
+            if (!(await confirmModal('Delete this stock movement? The on-hand balance is '
+              + 'recalculated without it.'))) return;
             state.inventory.movements = state.inventory.movements
               .filter((m) => m.id !== r.movement.id);
             toast('Movement deleted');

@@ -139,6 +139,215 @@ export function schedule(jobs, printers, {
   };
 }
 
+/* ------------------------------------------------------ the live schedule -- */
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/** A Date at a whole hour on the same calendar day (local time). */
+function atHour(date, hour) {
+  const d = new Date(date);
+  d.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0);
+  return d;
+}
+
+/** True when `date`'s time of day is inside the attended window [start, end). */
+function inAttendedWindow(date, dayStartHour, endOfDayHour) {
+  const h = date.getHours() + date.getMinutes() / 60;
+  return h >= dayStartHour && h < endOfDayHour;
+}
+
+/**
+ * The next moment an attended job of `hours` can START and still FINISH within
+ * an attended window, at or after `from`. If the job is longer than a whole
+ * window it cannot fit any day — then it starts at the next window opening and
+ * is flagged as overrunning, because a person cannot stay the whole time.
+ */
+function nextAttendedStart(from, hours, dayStartHour, endOfDayHour) {
+  const windowHours = Math.max(0.1, endOfDayHour - dayStartHour);
+  const tooLong = hours > windowHours;
+  let day = new Date(from);
+  for (let i = 0; i < 400; i += 1) {
+    const open = atHour(day, dayStartHour);
+    const close = atHour(day, endOfDayHour);
+    let start = from.getTime() > open.getTime() ? new Date(from) : open;
+    if (start.getTime() < close.getTime()) {
+      if (tooLong && start.getTime() <= open.getTime() + 1) {
+        return { start: open, overruns: true };
+      }
+      if (start.getTime() + hours * HOUR_MS <= close.getTime()) {
+        return { start, overruns: false };
+      }
+    }
+    // Past today's window (or it will not fit): try the next day's opening.
+    day = new Date(day.getTime() + DAY_MS);
+    day.setHours(0, 0, 0, 0);
+    from = atHour(day, dayStartHour);
+  }
+  return { start: new Date(from), overruns: tooLong };
+}
+
+/**
+ * Order a printer's queue with an eye on the clock.
+ *
+ * Priority (running, then age) is never overridden. WITHIN a band, when the
+ * workshop looks matters:
+ *   - during the attended day, the prints that still finish by end-of-day come
+ *     first, shortest first, so as many small jobs as possible clear before the
+ *     operator leaves; the longer prints fall in behind and take the night;
+ *   - in the evening/overnight, the longest UNATTENDED print goes first so it
+ *     uses the night, and attended jobs wait for the morning.
+ * A job that needs a person (manual colour swap) can never take the night.
+ */
+function orderForClock(jobs, { now, dayStartHour, endOfDayHour, overnightAllowed }) {
+  const attendedNow = inAttendedWindow(now, dayStartHour, endOfDayHour);
+  const nowH = now.getHours() + now.getMinutes() / 60;
+  const remainingToday = attendedNow ? endOfDayHour - nowH : 0;
+
+  const canNight = (j) => overnightAllowed && !j.needsAttendance;
+
+  return [...jobs].sort((a, b) => {
+    if (a.rank !== b.rank) return a.rank - b.rank;
+    if (attendedNow) {
+      // Prints that finish by end-of-day first, shortest first; the rest behind.
+      const aFits = a.machineHours <= remainingToday;
+      const bFits = b.machineHours <= remainingToday;
+      if (aFits !== bFits) return aFits ? -1 : 1;
+      if (aFits && bFits) return a.machineHours - b.machineHours;
+      // Neither fits today: the ones that can run overnight go first, longest first.
+      if (canNight(a) !== canNight(b)) return canNight(a) ? -1 : 1;
+      return b.machineHours - a.machineHours;
+    }
+    // Evening/overnight: fill the night with the longest unattended print.
+    if (canNight(a) !== canNight(b)) return canNight(a) ? -1 : 1;
+    if (canNight(a) && canNight(b)) return b.machineHours - a.machineHours;
+    return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+  });
+}
+
+/**
+ * A clock-aware, live schedule: real start and finish TIMES, not whole days.
+ *
+ * The same list scheduling as `schedule`, but it advances an actual clock per
+ * printer from `now`, so two jobs on one machine get distinct start times (the
+ * second begins the moment the first comes off) and the answer changes through
+ * the day — look at 23:00 and a long unattended print is offered the night;
+ * look at 08:00 and the short prints are offered the attended day while the long
+ * one is set to start at end-of-day and run overnight.
+ *
+ * Attended jobs (a manual colour swap needs a person) are only placed inside the
+ * attended window; unattended jobs run whenever the machine is free, including
+ * overnight when `overnightAllowed`. When overnight is NOT allowed, every job is
+ * treated as attended, so nothing is left running past the end of the day.
+ *
+ * `jobs`/`printers` are as `schedule`; options add `now`, `dayStartHour`,
+ * `endOfDayHour`, `overnightAllowed`.
+ */
+export function liveSchedule(jobs, printers, {
+  now = Date.now(), dayStartHour = 8, endOfDayHour = 16, overnightAllowed = false,
+} = {}) {
+  const nowDate = new Date(now);
+  const byId = new Map((printers || []).map((p) => [p.id, p]));
+
+  const prepared = (jobs || []).map((j) => ({
+    ...j,
+    machineHours: Math.max(0, num(j.machineHours)),
+    needsAttendance: !!j.needsAttendance,
+    rank: QUEUE_STATUS_RANK[j.status] ?? 99,
+  }));
+
+  const placed = [];
+  const unplaced = [];
+  const clocks = new Map(); // printerId -> Date the machine is next free
+
+  // Group by printer and order each queue for the current clock.
+  const groups = new Map();
+  for (const job of prepared) {
+    if (!byId.has(job.printerId)) { unplaced.push(job); continue; }
+    if (!groups.has(job.printerId)) groups.set(job.printerId, []);
+    groups.get(job.printerId).push(job);
+  }
+
+  for (const [printerId, queue] of groups) {
+    const printer = byId.get(printerId);
+    const ordered = orderForClock(queue, {
+      now: nowDate, dayStartHour, endOfDayHour, overnightAllowed,
+    });
+    let clock = new Date(nowDate);
+    for (const job of ordered) {
+      // A running job is on the machine now; it started in the past and its
+      // remaining hours run from now. An unattended job (or any job when
+      // overnight is on) may start as soon as the machine is free. An attended
+      // job must fit inside an attended window.
+      const attended = job.needsAttendance || !overnightAllowed;
+      let start;
+      let overruns = false;
+      if (job.status === 'in-production') {
+        start = new Date(clock);
+      } else if (attended) {
+        const slot = nextAttendedStart(clock, job.machineHours, dayStartHour, endOfDayHour);
+        start = slot.start;
+        overruns = slot.overruns;
+      } else {
+        start = new Date(clock);
+      }
+      const end = new Date(start.getTime() + job.machineHours * HOUR_MS);
+      clock = new Date(end);
+      const runsOvernight = !inAttendedWindow(end, dayStartHour, endOfDayHour)
+        || end.getDate() !== start.getDate();
+      placed.push({
+        ...job,
+        printerId,
+        printerName: printer.name,
+        startAt: start,
+        endAt: end,
+        startsNow: Math.abs(start.getTime() - nowDate.getTime()) < 30 * 60 * 1000,
+        runsOvernight,
+        overrunsAttendedDay: overruns,
+        window: attended ? 'attended' : 'unattended',
+      });
+    }
+    clocks.set(printerId, clock);
+  }
+
+  // Per-printer recommendation of what to put on the machine right now.
+  const recommendations = [];
+  for (const [printerId, queue] of groups) {
+    const printer = byId.get(printerId);
+    const mine = placed.filter((j) => j.printerId === printerId)
+      .sort((a, b) => a.startAt - b.startAt);
+    const first = mine[0];
+    if (!first) continue;
+    let note;
+    if (first.status === 'in-production') {
+      note = `${first.name} is running — ready about ${fmtClock(first.endAt)}.`;
+    } else if (first.startsNow) {
+      note = first.runsOvernight
+        ? `Start ${first.name} now — it runs overnight, ready about ${fmtClock(first.endAt)}.`
+        : `Start ${first.name} now — ready about ${fmtClock(first.endAt)}.`;
+    } else {
+      note = `Next: ${first.name} at ${fmtClock(first.startAt)} — ready about ${fmtClock(first.endAt)}.`;
+    }
+    recommendations.push({
+      printerId, printerName: printer.name, startNowJobId: first.startsNow ? first.id : null, note, first,
+    });
+  }
+
+  return {
+    now: nowDate,
+    placed,
+    unplaced,
+    recommendations,
+    freeFrom: Object.fromEntries([...clocks.entries()].map(([id, c]) => [id, c])),
+  };
+}
+
+/** A short local wall-clock label like "Tue 09:30". */
+export function fmtClock(date) {
+  return new Date(date).toLocaleString(undefined, {
+    weekday: 'short', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 /** The lead time to promise for a job about to land on a given printer. */
 export function leadTimeFor(scheduleResult, printerId, machineHours, hoursPerDay = 12) {
   const t = scheduleResult.timelines.find((x) => x.id === printerId);
