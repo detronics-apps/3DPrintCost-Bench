@@ -9,6 +9,40 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Per-day working hours, click-to-select catalogues, auto-record on completion (v1.0.43)
+
+Follow-up from the same workshop test session.
+
+- **Per-day working hours**: `settings.scheduler.week` — 7 days indexed by `getDay()`, each
+  `{ working, start, end }`; default Mon–Fri 08–16, weekend off (`js/settings.js`, with a
+  migration that builds `week` from the old `dayStartHour`/`endOfDayHour` — weekdays working,
+  weekend off — and normalises a partial stored week). Scheduler refactor: `js/scheduler.js`
+  `resolveWeek`/`dayWindow`/`inAttendedWindow(date, week)`/`nextAttendedStart(from, hours,
+  week)` (skips non-working days) and `orderForClock` now key off the day's window;
+  `liveSchedule` takes `week` (falls back to a uniform week built from `dayStartHour`/
+  `endOfDayHour`, so the earlier tests still hold). On a non-working day the evening/overnight
+  branch runs, so the longest unattended print is offered now and short attended jobs wait for
+  the next working day — the Saturday bug the user hit. UI: `js/ui/tools/scheduler.js` renders
+  7 per-day rows (working toggle + From/To) via `workWeek`/`ensureWeek`, passes `week` to
+  `liveSchedule`, and the "What to start now" header shows today's hours or "… is a day off".
+  +3 tests. Verified live via fresh dynamic import: Sat afternoon → recommends the 12.5 h now.
+- **Click-to-select catalogue rows**: `table(columns, rows, options)` gained `onRowClick`,
+  `isSelected` and `rowClass` (`js/ui/controls.js`) — a row click selects unless it lands on a
+  real control (`closest('button,input,a,select,label,textarea')`). Every catalogue browse
+  table (printers, materials, shipping/packaging/hardware via `listEditor`, customers) now
+  passes these; the per-editor "…-pick" dropdowns are removed; archived rows are shown dimmed
+  and sorted to the foot (`.is-archived`) so they stay reachable to restore. CSS `.is-clickable`
+  /`.is-selected`/`.is-archived` (`css/components.css`). Verified live via dynamic import.
+- **Auto-record on complete production**: extracted `recordOnePrint(project, part, line)` in
+  `js/ui/tools/projects.js` (the manual button now calls it); the `inspection-pass` action
+  auto-records one plate for every part with zero attempts (from the estimate, booking stock),
+  then advances — so completing production books hours+stock without a second step and never
+  double-counts a part already recorded. Records ONE plate (same figures as the manual button)
+  so it never over-states the hours the ROI reads. Why: the user completed a print and it did
+  not record.
+- **ROI wording**: `js/ui/tools/dashboard.js` — columns renamed "Hours run / life" and "Still
+  to pay off" (pill "≈ N more print-hours" / "paid off · +X beyond"), with an explanatory line.
+
 ## Import printer, working deletes, live schedule, paid-flows, time-per-stage (v1.0.42)
 
 A batch from a workshop test session; each item independent.

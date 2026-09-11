@@ -390,18 +390,40 @@ export function table(columns, rows, options = {}) {
     text: c.label,
   })));
 
-  const body = rows.map((row) => el('tr', { class: row.className || null }, columns.map((c) => {
-    const value = typeof c.get === 'function' ? c.get(row) : row[c.key];
-    const cell = el('td', {
-      class: [
-        c.align === 'right' ? 'is-right' : null,
-        c.mono ? 'value' : null,
-      ].filter(Boolean).join(' ') || null,
-    });
-    if (value instanceof Node) cell.appendChild(value);
-    else cell.textContent = value == null ? '—' : String(value);
-    return cell;
-  })));
+  const clickable = typeof options.onRowClick === 'function';
+  const body = rows.map((row) => {
+    const isSel = typeof options.isSelected === 'function' && options.isSelected(row);
+    const cls = [
+      row.className || null,
+      typeof options.rowClass === 'function' ? options.rowClass(row) : null,
+      clickable ? 'is-clickable' : null,
+      isSel ? 'is-selected' : null,
+    ].filter(Boolean).join(' ') || null;
+    const attrs = { class: cls };
+    if (clickable) {
+      attrs['aria-selected'] = String(!!isSel);
+      attrs.on = {
+        // A click anywhere on the row selects it — unless it landed on a real
+        // control in the row (a tick box, a Delete button), which does its own job.
+        click: (e) => {
+          if (e.target.closest('button, input, a, select, label, textarea')) return;
+          options.onRowClick(row);
+        },
+      };
+    }
+    return el('tr', attrs, columns.map((c) => {
+      const value = typeof c.get === 'function' ? c.get(row) : row[c.key];
+      const cell = el('td', {
+        class: [
+          c.align === 'right' ? 'is-right' : null,
+          c.mono ? 'value' : null,
+        ].filter(Boolean).join(' ') || null,
+      });
+      if (value instanceof Node) cell.appendChild(value);
+      else cell.textContent = value == null ? '—' : String(value);
+      return cell;
+    }));
+  });
 
   return el('div', { class: 'table-wrap' }, [
     el('table', { class: `table${options.compact ? ' table--compact' : ''}` }, [

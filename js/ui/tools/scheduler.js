@@ -70,12 +70,28 @@ function fmtDate(date) {
 
 const clampHour = (v, fallback) => Math.max(0, Math.min(24, Math.round(num(v, fallback))));
 
-/** The attended workday, read from settings with a sane fallback. */
-function workday(settings) {
-  const dayStartHour = clampHour(settings.scheduler.dayStartHour, 8);
-  let endOfDayHour = clampHour(settings.scheduler.endOfDayHour, 16);
-  if (endOfDayHour <= dayStartHour) endOfDayHour = Math.min(24, dayStartHour + 8);
-  return { dayStartHour, endOfDayHour };
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** The stored week, guaranteed to be a normalised 7-day array ready to mutate. */
+function ensureWeek(settings) {
+  if (!Array.isArray(settings.scheduler.week) || settings.scheduler.week.length !== 7) {
+    settings.scheduler.week = workWeek(settings);
+  }
+  return settings.scheduler.week;
+}
+
+/** The per-day working-hours week, read from settings with a sane fallback. */
+function workWeek(settings) {
+  const stored = settings.scheduler.week;
+  return Array.from({ length: 7 }, (_, dow) => {
+    const d = Array.isArray(stored) ? stored[dow] : null;
+    const start = clampHour(d?.start, 8);
+    let end = clampHour(d?.end, 16);
+    if (end <= start) end = Math.min(24, start + 8);
+    // Default working days are Mon–Fri when nothing is stored.
+    const working = typeof d?.working === 'boolean' ? d.working : (dow >= 1 && dow <= 5);
+    return { working, start, end };
+  });
 }
 
 /* ----------------------------------------------------------------- gantt -- */
@@ -154,23 +170,26 @@ export function sidebar(ctx) {
         + 'project to one of those statuses in Projects and it joins the queue here.'),
     ], { open: true }),
 
-    section('sched-workday', 'Your workday', [
-      numberField('sched-day-start', 'Workday starts at', settings.scheduler.dayStartHour,
-        (v) => { settings.scheduler.dayStartHour = clampHour(v, 8); saveSoon(); rerender(); }, {
-          min: 0, max: 23, step: 1, suffix: ':00',
-          info: 'The hour someone is at the machines. The live plan below only starts an '
-            + 'attended print during these hours.',
+    section('sched-workday', 'Your working hours', [
+      muted('Set the hours someone is at the machines, per day. On a day that is off — a '
+        + 'weekend, say — the plan starts no attended print, but a long print can still be '
+        + 'set to run overnight if overnight running is on below.'),
+      ...workWeek(settings).map((d, dow) => el('div', { class: 'workday-row' }, [
+        checkField(`sched-work-${dow}`, DAY_NAMES[dow], d.working, (v) => {
+          ensureWeek(settings)[dow].working = v; saveSoon(); rerender();
         }),
-      numberField('sched-day-end', 'End of the day at', settings.scheduler.endOfDayHour,
-        (v) => { settings.scheduler.endOfDayHour = clampHour(v, 16); saveSoon(); rerender(); }, {
-          min: 1, max: 24, step: 1, suffix: ':00',
-          info: 'When the last person leaves. A print that would still be running after this '
-            + 'is set to start at the end of the day and run overnight (if overnight is on), '
-            + 'rather than being left half-done.',
-        }),
-      muted('The live plan reads the clock: look in the evening and a long print is offered '
-        + 'the night; look in the morning and the short prints that finish by end-of-day come '
-        + 'first.'),
+        d.working ? el('div', { class: 'workday-row__hours' }, [
+          numberField(`sched-start-${dow}`, 'From', d.start, (v) => {
+            ensureWeek(settings)[dow].start = clampHour(v, 8); saveSoon(); rerender();
+          }, { min: 0, max: 23, step: 1, suffix: ':00' }),
+          numberField(`sched-end-${dow}`, 'To', d.end, (v) => {
+            ensureWeek(settings)[dow].end = clampHour(v, 16); saveSoon(); rerender();
+          }, { min: 1, max: 24, step: 1, suffix: ':00' }),
+        ]) : muted('Closed'),
+      ])),
+      muted('The live plan reads the clock and the day: in the evening or on a day off, a '
+        + 'long print is offered the night; during working hours, the short prints that '
+        + 'finish by the end of the day come first.'),
     ], { open: true }),
 
     section('sched-overnight', 'Overnight running', [
@@ -233,15 +252,15 @@ export function main(ctx) {
   });
 
   // The clock-aware plan: real start/finish times from right now, so the answer
-  // changes through the day. This is what "start now" reads from.
-  const { dayStartHour, endOfDayHour } = workday(settings);
+  // changes through the day AND the day of the week. This is what "start now" reads.
+  const week = workWeek(settings);
   const live = liveSchedule(jobs, printers, {
     now: Date.now(),
-    dayStartHour,
-    endOfDayHour,
+    week,
     overnightAllowed: !!settings.scheduler.overnightLongPrints,
   });
   const liveById = new Map(live.placed.map((j) => [j.id, j]));
+  const todayCfg = week[new Date().getDay()];
 
   const nodes = [
     el('div', { class: 'three-numbers' }, [
@@ -264,7 +283,10 @@ export function main(ctx) {
     nodes.push(el('div', { class: 'panel' }, [
       el('div', { class: 'panel__head' }, [
         el('h3', { text: 'What to start now' }),
-        pill(`${fmtClock(live.now)} · workday ${dayStartHour}:00–${endOfDayHour}:00`, 'info'),
+        pill(`${fmtClock(live.now)} · ${todayCfg.working
+          ? `${todayCfg.start}:00–${todayCfg.end}:00 today`
+          : `${DAY_NAMES[new Date().getDay()]} is a day off`}`,
+        todayCfg.working ? 'info' : 'warn'),
       ]),
       ...live.recommendations.map((rec) => el('div', {
         class: `startnow${rec.startNowJobId ? ' startnow--go' : ''}`,

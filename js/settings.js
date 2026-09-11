@@ -192,11 +192,25 @@ export function defaultSettings() {
     // unattended stretches - and a printer may override it with its own.
     scheduler: {
       hoursPerDay: 12,
-      // The attended workday, as whole hours on a 24-h clock. The live schedule
-      // uses these to decide what to start now: inside the day it favours short
-      // prints that finish by `endOfDayHour`; a long print that would run past it
-      // is set to start at the end of the day and run overnight. Eight hours by
-      // default (08:00–16:00); the company sets its own.
+      // The attended workday, PER DAY OF THE WEEK — indexed by JS getDay()
+      // (0 = Sunday … 6 = Saturday). Each day is either working (someone at the
+      // machines, between `start` and `end` on a 24-h clock) or not. The live
+      // schedule reads the actual day: inside a working window it favours short
+      // prints that finish by `end`; outside one — the evening, or a non-working
+      // day like a weekend — it offers the long unattended print the night and
+      // leaves the short attended jobs for the next working day. Mon–Fri 08:00–
+      // 16:00 by default, weekend off; the company sets its own.
+      week: [
+        { working: false, start: 8, end: 16 }, // Sun
+        { working: true, start: 8, end: 16 }, // Mon
+        { working: true, start: 8, end: 16 }, // Tue
+        { working: true, start: 8, end: 16 }, // Wed
+        { working: true, start: 8, end: 16 }, // Thu
+        { working: true, start: 8, end: 16 }, // Fri
+        { working: false, start: 8, end: 16 }, // Sat
+      ],
+      // Legacy single-window fields, kept so an older stored settings migrates
+      // into `week`. The scheduler reads `week`, not these.
       dayStartHour: 8,
       endOfDayHour: 16,
       // When a risk assessment (HIRA) is in place that makes unattended overnight
@@ -530,6 +544,26 @@ export function migrateSettings(stored) {
   }
   if (!Number.isFinite(merged.scheduler.endOfDayHour)) {
     merged.scheduler.endOfDayHour = defaults.scheduler.endOfDayHour;
+  }
+  // Per-day working hours are newer still. When they are missing, build a week
+  // from the single-window fields: the old uniform window on every WEEKDAY, and
+  // the weekend off — the sensible default the single window could not express.
+  if (!Array.isArray(merged.scheduler.week) || merged.scheduler.week.length !== 7) {
+    const start = merged.scheduler.dayStartHour;
+    const end = merged.scheduler.endOfDayHour;
+    merged.scheduler.week = [0, 1, 2, 3, 4, 5, 6].map((dow) => ({
+      working: dow >= 1 && dow <= 5, start, end,
+    }));
+  } else {
+    // Normalise each stored day so a partial object cannot crash the scheduler.
+    merged.scheduler.week = merged.scheduler.week.map((d, dow) => {
+      const def = defaults.scheduler.week[dow];
+      return {
+        working: typeof d?.working === 'boolean' ? d.working : def.working,
+        start: Number.isFinite(d?.start) ? d.start : def.start,
+        end: Number.isFinite(d?.end) ? d.end : def.end,
+      };
+    });
   }
   // Post-processing is a configurable operation list now. Convert the old
   // { resin, nfc } shape into it, carrying the support/deburr minutes lifted

@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.0.43 — Per-day working hours, click-to-select catalogues, auto-record on completion (2026-09-12)
+
+- **Working hours per day of the week.** The schedule treated every day the same, so it
+  offered a short print on a Saturday afternoon as if it were a workday. Now each day
+  (Mon–Sun) has its own hours in the Schedule sidebar, and any day can be marked off. On a
+  day off — or in the evening — the plan offers the long unattended print the night and
+  leaves the short attended jobs for the next working day, instead of suggesting a short
+  print nobody is there to start. Default: Mon–Fri 08:00–16:00, weekend off.
+- **Pick a catalogue item by clicking its row.** Printers, materials, shipping, packaging,
+  hardware and customers are now chosen by clicking the row in the table (it highlights and
+  loads into the editor), instead of a dropdown that would be unusable with thousands of
+  customers. Archived items show dimmed at the foot so they can still be reached and
+  restored. The left-hand tick boxes stay for bulk update/delete.
+- **Completing production records the prints.** Marking “Passed inspection — complete
+  production” now auto-records a print for any part that has none, from the estimate, so the
+  machine hours and the stock draw are booked without a second manual step. Parts already
+  recorded are left alone, so nothing is double-counted.
+- **Clearer ROI wording.** “Hours run / life” (hours printed out of the machine’s expected
+  lifetime) and “Still to pay off” (≈ how many more print-hours until it has paid for itself)
+  now say what they mean, with a line explaining both.
+
 ## 1.0.42 — Import printer, working deletes, live schedule, paid-flows, time-per-stage (2026-09-12)
 
 - **Imported requests now carry the printer.** A customer request set the printer on each

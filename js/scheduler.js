@@ -150,40 +150,73 @@ function atHour(date, hour) {
   return d;
 }
 
-/** True when `date`'s time of day is inside the attended window [start, end). */
-function inAttendedWindow(date, dayStartHour, endOfDayHour) {
+/**
+ * A working-hours week the schedule can read: seven days indexed by getDay()
+ * (0 = Sunday … 6 = Saturday), each `{ working, start, end }`. Callers may pass
+ * a `week` directly, or the single-window `dayStartHour`/`endOfDayHour`, which
+ * become a uniform window on EVERY day (so a caller that does not care about the
+ * weekend still behaves as before).
+ */
+function resolveWeek({ week, dayStartHour = 8, endOfDayHour = 16 } = {}) {
+  if (Array.isArray(week) && week.length === 7) {
+    return week.map((d) => ({
+      working: d?.working !== false,
+      start: Number.isFinite(d?.start) ? d.start : 8,
+      end: Number.isFinite(d?.end) ? d.end : 16,
+    }));
+  }
+  return Array.from({ length: 7 }, () => ({ working: true, start: dayStartHour, end: endOfDayHour }));
+}
+
+/** The working window for the calendar day `date` falls on. */
+function dayWindow(week, date) {
+  const d = week[date.getDay()] || { working: true, start: 8, end: 16 };
+  let start = d.start;
+  let end = d.end;
+  if (!(end > start)) end = Math.min(24, start + 8);
+  return { working: !!d.working, start, end };
+}
+
+/** True when `date` lands inside a WORKING day's attended window [start, end). */
+function inAttendedWindow(date, week) {
+  const c = dayWindow(week, date);
+  if (!c.working) return false;
   const h = date.getHours() + date.getMinutes() / 60;
-  return h >= dayStartHour && h < endOfDayHour;
+  return h >= c.start && h < c.end;
 }
 
 /**
- * The next moment an attended job of `hours` can START and still FINISH within
- * an attended window, at or after `from`. If the job is longer than a whole
- * window it cannot fit any day — then it starts at the next window opening and
- * is flagged as overrunning, because a person cannot stay the whole time.
+ * The next moment an attended job of `hours` can START and still FINISH within a
+ * working day's attended window, at or after `from`. Non-working days (a closed
+ * weekend) are skipped entirely. If the job is longer than a whole window it
+ * cannot fit any day — then it starts at the next working opening and is flagged
+ * as overrunning, because a person cannot stay the whole time.
  */
-function nextAttendedStart(from, hours, dayStartHour, endOfDayHour) {
-  const windowHours = Math.max(0.1, endOfDayHour - dayStartHour);
-  const tooLong = hours > windowHours;
-  let day = new Date(from);
-  for (let i = 0; i < 400; i += 1) {
-    const open = atHour(day, dayStartHour);
-    const close = atHour(day, endOfDayHour);
-    let start = from.getTime() > open.getTime() ? new Date(from) : open;
-    if (start.getTime() < close.getTime()) {
-      if (tooLong && start.getTime() <= open.getTime() + 1) {
-        return { start: open, overruns: true };
-      }
-      if (start.getTime() + hours * HOUR_MS <= close.getTime()) {
-        return { start, overruns: false };
+function nextAttendedStart(from, hours, week) {
+  let cursor = new Date(from);
+  for (let i = 0; i < 800; i += 1) {
+    const c = dayWindow(week, cursor);
+    if (c.working) {
+      const open = atHour(cursor, c.start);
+      const close = atHour(cursor, c.end);
+      const windowHours = Math.max(0.1, c.end - c.start);
+      const tooLong = hours > windowHours;
+      const start = cursor.getTime() > open.getTime() ? new Date(cursor) : open;
+      if (start.getTime() < close.getTime()) {
+        if (tooLong && start.getTime() <= open.getTime() + 1) {
+          return { start: open, overruns: true };
+        }
+        if (start.getTime() + hours * HOUR_MS <= close.getTime()) {
+          return { start, overruns: false };
+        }
       }
     }
-    // Past today's window (or it will not fit): try the next day's opening.
-    day = new Date(day.getTime() + DAY_MS);
-    day.setHours(0, 0, 0, 0);
-    from = atHour(day, dayStartHour);
+    // Past today's window (or a non-working day): jump to the next day's start.
+    const next = new Date(cursor.getTime() + DAY_MS);
+    next.setHours(0, 0, 0, 0);
+    cursor = next;
   }
-  return { start: new Date(from), overruns: tooLong };
+  return { start: new Date(from), overruns: true };
 }
 
 /**
@@ -191,17 +224,18 @@ function nextAttendedStart(from, hours, dayStartHour, endOfDayHour) {
  *
  * Priority (running, then age) is never overridden. WITHIN a band, when the
  * workshop looks matters:
- *   - during the attended day, the prints that still finish by end-of-day come
+ *   - during a working day, the prints that still finish by end-of-day come
  *     first, shortest first, so as many small jobs as possible clear before the
  *     operator leaves; the longer prints fall in behind and take the night;
- *   - in the evening/overnight, the longest UNATTENDED print goes first so it
- *     uses the night, and attended jobs wait for the morning.
+ *   - outside working hours — the evening, or a non-working day like a weekend —
+ *     the longest UNATTENDED print goes first so it uses the night, and the
+ *     attended jobs wait for the next working day.
  * A job that needs a person (manual colour swap) can never take the night.
  */
-function orderForClock(jobs, { now, dayStartHour, endOfDayHour, overnightAllowed }) {
-  const attendedNow = inAttendedWindow(now, dayStartHour, endOfDayHour);
+function orderForClock(jobs, { now, week, overnightAllowed }) {
+  const attendedNow = inAttendedWindow(now, week);
   const nowH = now.getHours() + now.getMinutes() / 60;
-  const remainingToday = attendedNow ? endOfDayHour - nowH : 0;
+  const remainingToday = attendedNow ? dayWindow(week, now).end - nowH : 0;
 
   const canNight = (j) => overnightAllowed && !j.needsAttendance;
 
@@ -239,13 +273,16 @@ function orderForClock(jobs, { now, dayStartHour, endOfDayHour, overnightAllowed
  * overnight when `overnightAllowed`. When overnight is NOT allowed, every job is
  * treated as attended, so nothing is left running past the end of the day.
  *
- * `jobs`/`printers` are as `schedule`; options add `now`, `dayStartHour`,
- * `endOfDayHour`, `overnightAllowed`.
+ * `jobs`/`printers` are as `schedule`; options add `now`, `overnightAllowed`,
+ * and the working hours — either a per-day `week` (getDay()-indexed
+ * `{ working, start, end }`) or the single-window `dayStartHour`/`endOfDayHour`,
+ * which apply to every day.
  */
 export function liveSchedule(jobs, printers, {
-  now = Date.now(), dayStartHour = 8, endOfDayHour = 16, overnightAllowed = false,
+  now = Date.now(), week, dayStartHour = 8, endOfDayHour = 16, overnightAllowed = false,
 } = {}) {
   const nowDate = new Date(now);
+  const cal = resolveWeek({ week, dayStartHour, endOfDayHour });
   const byId = new Map((printers || []).map((p) => [p.id, p]));
 
   const prepared = (jobs || []).map((j) => ({
@@ -270,7 +307,7 @@ export function liveSchedule(jobs, printers, {
   for (const [printerId, queue] of groups) {
     const printer = byId.get(printerId);
     const ordered = orderForClock(queue, {
-      now: nowDate, dayStartHour, endOfDayHour, overnightAllowed,
+      now: nowDate, week: cal, overnightAllowed,
     });
     let clock = new Date(nowDate);
     for (const job of ordered) {
@@ -284,7 +321,7 @@ export function liveSchedule(jobs, printers, {
       if (job.status === 'in-production') {
         start = new Date(clock);
       } else if (attended) {
-        const slot = nextAttendedStart(clock, job.machineHours, dayStartHour, endOfDayHour);
+        const slot = nextAttendedStart(clock, job.machineHours, cal);
         start = slot.start;
         overruns = slot.overruns;
       } else {
@@ -292,7 +329,7 @@ export function liveSchedule(jobs, printers, {
       }
       const end = new Date(start.getTime() + job.machineHours * HOUR_MS);
       clock = new Date(end);
-      const runsOvernight = !inAttendedWindow(end, dayStartHour, endOfDayHour)
+      const runsOvernight = !inAttendedWindow(end, cal)
         || end.getDate() !== start.getDate();
       placed.push({
         ...job,

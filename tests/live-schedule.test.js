@@ -102,3 +102,47 @@ test('a job with no known printer is surfaced, not dropped', () => {
   assert.equal(r.placed.length, 0);
   assert.equal(r.unplaced.length, 1);
 });
+
+// Per-day working hours: Mon–Fri 08–16, weekend closed.
+const weekMonFri = [
+  { working: false, start: 8, end: 16 }, // Sun
+  { working: true, start: 8, end: 16 }, // Mon
+  { working: true, start: 8, end: 16 }, // Tue
+  { working: true, start: 8, end: 16 }, // Wed
+  { working: true, start: 8, end: 16 }, // Thu
+  { working: true, start: 8, end: 16 }, // Fri
+  { working: false, start: 8, end: 16 }, // Sat
+];
+// 2026-01-10 is a Saturday; 13:00 local.
+const satAfternoon = new Date(2026, 0, 10, 13, 0, 0, 0);
+
+test('on a non-working Saturday, the long print is offered the night — not the short one', () => {
+  const r = liveSchedule([
+    { id: 'long', name: '12.5 h', printerId: 'snap', machineHours: 12.5, status: 'accepted', createdAt: '1' },
+    { id: 'short', name: '2.8 h', printerId: 'snap', machineHours: 2.8, status: 'accepted', createdAt: '2' },
+  ], printers, { now: satAfternoon.getTime(), week: weekMonFri, overnightAllowed: true });
+  assert.equal(r.recommendations[0].startNowJobId, 'long', 'the 12.5 h runs now, over the weekend night');
+  const short = r.placed.find((j) => j.id === 'short');
+  assert.ok(!short.startsNow, 'the short print is NOT started now');
+});
+
+test('with overnight off, a closed Saturday starts nothing now — it waits for Monday', () => {
+  const r = liveSchedule([
+    { id: 'short', name: '2.8 h', printerId: 'snap', machineHours: 2.8, status: 'accepted', createdAt: '1' },
+  ], printers, { now: satAfternoon.getTime(), week: weekMonFri, overnightAllowed: false });
+  const short = r.placed[0];
+  assert.ok(!short.startsNow, 'nobody is in on Saturday, so nothing starts now');
+  assert.equal(short.startAt.getDay(), 1, 'it waits for Monday');
+  assert.equal(short.startAt.getHours(), 8, 'at the Monday opening');
+});
+
+test('a short print during a working day is not mislabelled overnight', () => {
+  // Wed 12:00, a 2.8 h print finishes 14:48, inside the 08–16 window.
+  const wedNoon = new Date(2026, 0, 7, 12, 0, 0, 0);
+  const r = liveSchedule([
+    { id: 'short', name: '2.8 h', printerId: 'snap', machineHours: 2.8, status: 'accepted', createdAt: '1' },
+  ], printers, { now: wedNoon.getTime(), week: weekMonFri, overnightAllowed: true });
+  const short = r.placed[0];
+  assert.ok(short.startsNow, 'it starts now');
+  assert.ok(!short.runsOvernight, 'and finishes within the day, so it is not overnight');
+});

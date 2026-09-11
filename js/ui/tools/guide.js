@@ -89,6 +89,7 @@ const HOWTOS = [
     'In the Production panel, click “Record a print”.',
     'Correct the actual accepted, rejected, minutes and grams in the row.',
     'Stock (filament, hardware, resin) is booked out automatically; delete a mistaken print to reverse it.',
+    'You can also just complete production (Workflow → “Passed inspection”): any part with no print yet is auto-recorded from the estimate, then correct the actuals here if they differ.',
   ] },
   { id: 'internal', title: 'Do an internal print', category: 'Orders', steps: [
     'Open the project and set “Order type” in the sidebar.',
@@ -110,10 +111,10 @@ const HOWTOS = [
   ] },
   { id: 'plan-next', title: 'Plan what to print next', category: 'Production', steps: [
     'Open the Schedule tab. Only Accepted and In-production jobs are queued.',
-    'In the sidebar set “Your workday” — when someone is at the machines, and the end of the day.',
-    'The “What to start now” panel reads the clock: in the evening it offers a long print the night; in the morning it offers the short prints that finish by end-of-day first.',
-    'Tick “Overnight running” only once a HIRA covers leaving a printer unattended — then long prints are given the night and the attended jobs fill the day.',
-    'The start and ready times are live: they shift as the day goes on, so check back and start whatever it says is next.',
+    'In the sidebar set “Your working hours” — tick the days you work and set the hours for each; a day left un-ticked is a day off (e.g. the weekend).',
+    'The “What to start now” panel reads the clock AND the day: during working hours it offers the short prints that finish by the end of the day first; in the evening or on a day off it offers a long print the night.',
+    'Tick “Overnight running” only once a HIRA covers leaving a printer unattended — then long prints are given the night and the attended jobs fill the working day.',
+    'The start and ready times are live: they shift through the day, so check back and start whatever it says is next.',
   ] },
   { id: 'mark-paid', title: 'Mark a quote or invoice paid', category: 'Orders', steps: [
     'Open Quotes & invoices and click the document’s number to open it.',

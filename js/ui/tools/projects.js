@@ -337,6 +337,25 @@ function workflowPanel(ctx, project, result) {
       rerender();
       return;
     }
+    if (id === 'inspection-pass') {
+      // Completing production records the prints too: any part with no print yet
+      // is auto-recorded from the estimate (one plate each), so the hours and the
+      // stock draw are booked without a second manual step. Parts already recorded
+      // are left alone, so nothing is double-counted.
+      let p = project;
+      const unrecorded = p.parts.filter((pt) => (pt.attempts || []).length === 0);
+      for (const pt of unrecorded) {
+        const idx = p.parts.findIndex((x) => x.id === pt.id);
+        p = recordOnePrint(p, p.parts[idx], result.lines[idx]);
+      }
+      commit(advance(p, 'inspection-pass'));
+      toast(unrecorded.length
+        ? `Production complete — ${unrecorded.length} print${unrecorded.length === 1 ? '' : 's'} `
+          + 'auto-recorded from the estimate; correct the actuals in Production if needed'
+        : 'Production complete');
+      rerender();
+      return;
+    }
     if (id === 'cancel') {
       if (!(await confirmModal('Cancel this order? It can be reopened later.',
         { confirmLabel: 'Cancel order', cancelLabel: 'Keep open' }))) return;
@@ -475,6 +494,57 @@ function partsPanel(ctx, project, result) {
   ]);
 }
 
+/**
+ * Record one plate of `part` from the estimate, and book the stock it drew.
+ *
+ * The single source of truth for "a print happened", used by the manual Record
+ * button and by completing production (which auto-records any part that has no
+ * print yet). It records ONE plate — the same figures the manual button uses —
+ * so it never over-states the hours the ROI reads; more plates are added by hand.
+ *
+ * Pure on the project (returns the next one); the stock draw is the one side
+ * effect, exactly as recording a print has always been.
+ */
+function recordOnePrint(project, part, line) {
+  const onPlate = Math.min(part.quantity, line?.perPlate || 1);
+  const attempt = {
+    printerId: part.printerOverride ? part.printerId : project.printerId,
+    materialId: part.materialId,
+    quantity: onPlate,
+    accepted: onPlate,
+    rejected: 0,
+    minutes: Math.round((line?.estimate.minutes || 0) * onPlate),
+    grams: Number(((line?.estimate.grams || 0) * onPlate).toFixed(1)),
+    estimatedMinutes: Math.round((line?.estimate.minutes || 0) * onPlate),
+    estimatedGrams: Number(((line?.estimate.grams || 0) * onPlate).toFixed(1)),
+    costPerAttempt: line?.ctc || 0,
+  };
+  const withRun = recordAttempt(project, part.id, attempt);
+  const created = withRun.parts.find((p) => p.id === part.id).attempts.at(-1);
+  const next = logEvent(withRun, 'print-recorded',
+    `Print recorded for ${part.name} — ${created.accepted} accepted`);
+  const movements = movementsForRun({
+    project: next, part, attempt: created, result: line,
+    settings: state.settings, inventory: state.inventory,
+  });
+  state.inventory.movements.push(...movements);
+  const size = part.orientedSize || part.geometry?.size;
+  const resinG = resinGramsForPart(part, size, state.settings) * Math.max(0, num(created.accepted));
+  const bottle = resinG > 0 ? resinItemFor(state.inventory) : null;
+  if (bottle && resinG > 0) {
+    state.inventory.movements.push(makeMovement({
+      itemId: bottle.id,
+      reason: created.failed ? 'scrap' : 'production',
+      quantity: -resinG,
+      projectId: next.id,
+      partId: part.id,
+      runId: created.id,
+      note: `Resin on ${part.name}`,
+    }));
+  }
+  return next;
+}
+
 function productionPanel(ctx, project, result) {
   const { rerender } = ctx;
   const part = activePart();
@@ -493,52 +563,9 @@ function productionPanel(ctx, project, result) {
     el('div', { class: 'panel__head' }, [
       el('h3', { text: `Production — ${part.name}` }),
       button('Record a print', () => {
-        const attempt = {
-          // The effective printer: the project bed unless this part is an override.
-          // (A part's own `printerId` is only meaningful when it overrides.)
-          printerId: part.printerOverride ? part.printerId : project.printerId,
-          materialId: part.materialId,
-          quantity: Math.min(part.quantity, line?.perPlate || 1),
-          accepted: Math.min(part.quantity, line?.perPlate || 1),
-          rejected: 0,
-          minutes: Math.round((line?.estimate.minutes || 0) * Math.min(part.quantity, line?.perPlate || 1)),
-          grams: Number(((line?.estimate.grams || 0) * Math.min(part.quantity, line?.perPlate || 1)).toFixed(1)),
-          estimatedMinutes: Math.round((line?.estimate.minutes || 0) * Math.min(part.quantity, line?.perPlate || 1)),
-          estimatedGrams: Number(((line?.estimate.grams || 0) * Math.min(part.quantity, line?.perPlate || 1)).toFixed(1)),
-          costPerAttempt: line?.ctc || 0,
-        };
-        const withRun = recordAttempt(project, part.id, attempt);
-        // Book it against the attempt just created (with its id), so deleting
-        // that print later can find and reverse exactly these movements.
-        const created = withRun.parts.find((p) => p.id === part.id).attempts.at(-1);
-        const next = logEvent(withRun, 'print-recorded',
-          `Print recorded for ${part.name} — ${created.accepted} accepted`);
-        commit(next);
-        // Stock follows production, and only production. Passing inventory lets
-        // the filament and component draws land on the real stock items (the
-        // spool in use, the tracked component), so their on-hand counts fall.
-        const movements = movementsForRun({
-          project: next, part, attempt: created, result: line,
-          settings: state.settings, inventory: state.inventory,
-        });
-        state.inventory.movements.push(...movements);
-        // A resined part draws resin from a bottle in stock, if one is tracked.
-        // resinGramsForPart returns 0 unless the resin-coat step is selected, so
-        // the >0 check is the real gate.
-        const size = part.orientedSize || part.geometry?.size;
-        const resinG = resinGramsForPart(part, size, state.settings) * Math.max(0, num(created.accepted));
-        const bottle = resinG > 0 ? resinItemFor(state.inventory) : null;
-        if (bottle && resinG > 0) {
-          state.inventory.movements.push(makeMovement({
-            itemId: bottle.id,
-            reason: created.failed ? 'scrap' : 'production',
-            quantity: -resinG,
-            projectId: next.id,
-            partId: part.id,
-            runId: created.id,
-            note: `Resin on ${part.name}`,
-          }));
-        }
+        // Stock follows production: recordOnePrint books the filament, component
+        // and resin draws against the attempt it creates, so on-hand counts fall.
+        commit(recordOnePrint(project, part, line));
         saveSoon();
         toast('Print recorded — correct the actual figures below');
         rerender();

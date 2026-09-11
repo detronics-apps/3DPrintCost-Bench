@@ -260,21 +260,25 @@ export function main(ctx) {
         get: (r) => (r.percent == null ? muted('nothing to pay back') : roiBar(r)),
       },
       {
-        label: 'Hours run',
+        label: 'Hours run / life',
         align: 'right',
         mono: true,
-        get: (r) => `${r.hours.toFixed(0)} of ${r.lifetimeHours.toLocaleString()}`,
+        get: (r) => `${r.hours.toFixed(0)} of ${r.lifetimeHours.toLocaleString()} h`,
       },
       {
-        label: '',
+        label: 'Still to pay off',
         get: (r) => {
           if (r.percent == null) return '';
-          if (r.paidOff) return pill(`+${fmtMoney(r.surplus, code)} beyond`, 'ok');
+          if (r.paidOff) return pill(`paid off · +${fmtMoney(r.surplus, code)} beyond`, 'ok');
           if (r.hoursToBreakEven == null) return pill('no history yet', 'info');
-          return pill(`${Math.ceil(r.hoursToBreakEven)} h to go`, 'warn');
+          return pill(`≈ ${Math.ceil(r.hoursToBreakEven)} more print-hours`, 'warn');
         },
       },
     ], roi),
+    muted('“Hours run / life” is how many hours the machine has printed out of the total '
+      + 'it is expected to last. “Still to pay off” is roughly how many more hours of '
+      + 'printing it needs — at the rate it has earned so far — before the money it has '
+      + 'made for the machine covers what the machine cost.'),
     pool.paidOff > 0
       ? banner('ok', `${pool.paidOff} machine${pool.paidOff === 1 ? ' has' : 's have'} paid for `
         + `${pool.paidOff === 1 ? 'itself' : 'themselves'}, and ${fmtMoney(pool.total, code)} `

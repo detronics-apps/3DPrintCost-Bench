@@ -221,7 +221,10 @@ function printersPanel(ctx) {
   const { rerender } = ctx;
   const settings = state.settings;
   const code = settings.currencyCode;
-  const ranked = byMachineHourCost(settings.printers.filter((p) => !p.archived));
+  // Every printer, ranked by machine-hour cost, archived ones dimmed at the foot
+  // so they can still be clicked to restore.
+  const ranked = byMachineHourCost(settings.printers)
+    .sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0));
 
   return [
     banner('info', 'The order below is a result, not a setting. Change a purchase price '
@@ -238,9 +241,13 @@ function printersPanel(ctx) {
       { label: 'Flow', align: 'right', mono: true, get: (p) => `${p.flowRate} mm³/s` },
       { label: 'Failure', align: 'right', mono: true, get: (p) => fmtRate(p.failureRate) },
       { label: '', get: (p) => (p.verified ? pill('checked', 'ok') : pill('starting value', 'warn')) },
-    ], ranked),
-    muted('Every specification shipped with this app is a starting value to be checked '
-      + 'against the machine in front of you. Tick "I have checked this" once you have.'),
+    ], ranked, {
+      onRowClick: (p) => { state.ui.selectedPrinter = p.id; touch(rerender); },
+      isSelected: (p) => p.id === state.ui.selectedPrinter,
+      rowClass: (p) => (p.archived ? 'is-archived' : null),
+    }),
+    muted('Click a printer to edit it below. Every specification shipped with this app is a '
+      + 'starting value to be checked against the machine in front of you.'),
   ];
 }
 
@@ -260,12 +267,7 @@ function printerEditor(ctx) {
   const rate = machineHourCost(selected);
 
   return [
-    selectField('printer-pick', 'Printer',
-      settings.printers.map((p) => ({
-        value: p.id,
-        label: p.name + (p.archived ? ' (archived)' : (p.active === false ? ' (under maintenance)' : '')),
-      })),
-      selected.id, (v) => { state.ui.selectedPrinter = v; touch(rerender); }),
+    muted(`Editing ${selected.name}${selected.archived ? ' (archived)' : ''} — click another row above to switch.`),
 
     checkField('printer-active',
       selected.active === false ? 'Under maintenance — not selectable for new work' : 'Available for new work',
@@ -466,7 +468,12 @@ function materialsPanel(ctx) {
           ? pill(`no ${country} price`, 'danger')
           : (m.priceOverride != null ? pill('overridden', 'warn') : '')),
       },
-    ], live),
+    ], [...settings.materials].sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0)), {
+      onRowClick: (m) => { state.ui.selectedMaterial = m.id; touch(rerender); },
+      isSelected: (m) => m.id === state.ui.selectedMaterial,
+      rowClass: (m) => (m.archived ? 'is-archived' : null),
+    }),
+    muted('Click a material to edit it below.'),
   ];
 }
 
@@ -482,9 +489,7 @@ function materialEditor(ctx) {
   const type = materialType(selected.type);
 
   return [
-    selectField('material-pick', 'Material',
-      settings.materials.map((m) => ({ value: m.id, label: `${m.name} · ${m.colour}` })),
-      selected.id, (v) => { state.ui.selectedMaterial = v; touch(rerender); }),
+    muted(`Editing ${selected.name} · ${selected.colour}${selected.archived ? ' (archived)' : ''} — click another row above to switch.`),
 
     section('material-detail', 'Material', [
       textField('material-name', 'Name', selected.name, set('name')),
@@ -568,8 +573,15 @@ function listEditor(ctx, {
 
   // With mass operations on, a tick column leads the table so rows can be picked.
   const tableColumns = massFields ? [selectionColumn(selectionKey, ctx), ...columns] : columns;
+  // Show every row — including archived ones (dimmed) — so any of them can be
+  // clicked to edit or restore. Archived rows sort to the bottom.
+  const rows = [...list].sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0));
   const panel = [
-    table(tableColumns, live),
+    table(tableColumns, rows, {
+      onRowClick: (row) => { state.ui[selectedKey] = row.id; touch(rerender); },
+      isSelected: (row) => row.id === (selected && selected.id),
+      rowClass: (row) => (row.archived ? 'is-archived' : null),
+    }),
   ];
 
   const add = (item) => {
@@ -580,10 +592,8 @@ function listEditor(ctx, {
   };
 
   const editor = selected
-    ? [section(`${collection}-editor`, label, [
-      selectField(`${collection}-pick`, label,
-        list.map((x) => ({ value: x.id, label: x.name })),
-        selected.id, (v) => { state.ui[selectedKey] = v; touch(rerender); }),
+    ? [section(`${collection}-editor`, `${label}: ${selected.name}`, [
+      muted('Click a row in the table above to edit it here.'),
       ...fields(selected, (key) => (value) => { selected[key] = value; touch(rerender); }),
       catalogueActions({
         keyPrefix: collection,
@@ -827,7 +837,13 @@ function customersParts(ctx) {
         { label: 'VAT', get: (c) => c.vatNumber || '—' },
         { label: 'Standing discount', get: (c) => (c.discount?.kind === 'none' || !c.discount ? '—' : `${c.discount.percent ?? c.discount.kind}${c.discount.kind === 'percent' ? '%' : ''}`) },
         { label: 'Projects', align: 'right', mono: true, get: (c) => String(state.projects.filter((p) => p.customerId === c.id).length) },
-      ], liveCustomers),
+      ], [...customers].sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0)), {
+        onRowClick: (c) => { state.ui.selectedCustomer = c.id; touch(rerender); },
+        isSelected: (c) => c.id === (selected && selected.id),
+        rowClass: (c) => (c.archived ? 'is-archived' : null),
+      }),
+      muted('Click a customer to edit them below. The tick boxes are for updating or '
+        + 'deleting several at once.'),
     ]
     : [emptyState('No customers yet.')];
 
@@ -838,10 +854,8 @@ function customersParts(ctx) {
     touch(rerender);
   };
 
-  const editor = selected ? [section('customer-editor', 'Customer', [
-    selectField('customer-pick', 'Customer',
-      customers.map((c) => ({ value: c.id, label: c.name })),
-      selected.id, (v) => { state.ui.selectedCustomer = v; touch(rerender); }),
+  const editor = selected ? [section('customer-editor', `Customer: ${selected.name}`, [
+    muted('Click a customer in the table above to edit them here.'),
     textField('customer-name', 'Name', selected.name, (v) => { selected.name = v; touch(rerender); }),
     textField('customer-email', 'Email', selected.email, (v) => { selected.email = v; touch(rerender); }),
     textField('customer-phone', 'Phone', selected.phone, (v) => { selected.phone = v; touch(rerender); }),
