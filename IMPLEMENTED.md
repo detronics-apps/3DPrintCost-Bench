@@ -19,7 +19,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   names the cheapest fitting courier (`fittingMethods` sorted by basePrice). The
   project delivery select's auto label was reworded to match. Why: the owner wanted to
   *see which box the parts fit in*, not an opaque "cheapest that fits"; the override
-  lists stay. Served source verified (labels present); 481 tests green. (2026-09-11, <commit>)
+  lists stay. Served source verified (labels present); 481 tests green. (2026-09-11, 2ead913)
 
 ## Notes fold into one dismissible line (v1.0.15)
 
