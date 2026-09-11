@@ -22,7 +22,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   project's `partSettingOverrides` (both via `setOverride('adaptiveLayers')`). The
   simplified client form exposes no advanced flags, so it's left out (noted in
   `BACKLOG.md`). Tests: adaptive-layers factor is 1.15 time / 1 material on, 1/1 off;
-  full suite green (482). (2026-09-11, <commit>)
+  full suite green (482). (2026-09-11, 399a1a6)
 
 ## Delivery names the calculated box and courier (v1.0.16)
 
