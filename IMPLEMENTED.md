@@ -9,6 +9,14 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Remove-model button on the client form (v1.0.39)
+
+- `js/ui/portal.js` `partPanel`: a red `button('Remove model', …, { danger: true })`
+  (clears `part.geometry` + `part.modelName`) shows when a model is loaded — previously
+  the client could only replace a model, not remove it. `js/ui/tools/estimate.js`
+  "Clear the model" gained `danger: true` so it's red to match. Why: user asked where
+  the (red) remove-model button was.
+
 ## Free delivery: remaining-to-threshold message (v1.0.38)
 
 - `js/ui/portal.js` price panel: when not yet free and a threshold is set, show a

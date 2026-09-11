@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.39 — Remove-model button on the client form (2026-09-11)
+
+- The client form now has a red **Remove model** button once a model is loaded (it was
+  missing — you could only replace it). The estimate's "Clear the model" is now red too.
+
 ## 1.0.38 — Free delivery: show how much more to add (2026-09-11)
 
 - On the client form, instead of stating the free-delivery threshold, it now says

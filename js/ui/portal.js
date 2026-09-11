@@ -570,6 +570,13 @@ function partPanel(ctx, part, index, line, open = true) {
       el('dt', { text: 'Size' }), el('dd', { class: 'value', text: fmtSize(part.geometry.size) }),
       el('dt', { text: 'Volume' }), el('dd', { class: 'value', text: `${mm3ToCm3(part.geometry.volume).toFixed(2)} cm³` }),
     ]) : muted('Without a model this part is priced from a nominal 50 mm cube.'),
+    part.geometry
+      ? buttonRow([button('Remove model', () => {
+        part.geometry = null;
+        part.modelName = null;
+        render();
+      }, { key: `portal-clear-model-${part.id}`, danger: true })])
+      : null,
     part.geometry && !part.geometry.watertight
       ? banner('warn', 'This model has holes in its surface, so the volume is an estimate. '
         + 'We will check it before confirming a price.')

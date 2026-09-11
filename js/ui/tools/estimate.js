@@ -220,7 +220,7 @@ function partBlock(ctx, part, index, canRemove, open = true) {
         part.orientedSize = null;
         saveSoon();
         rerender();
-      }, { key: `clear-model-${key}` }),
+      }, { key: `clear-model-${key}`, danger: true }),
     ]));
   } else {
     const fill = Math.min(1, Math.max(0, num(state.settings.estimate?.assumptions?.spaceClaimFill, 0.6)));
