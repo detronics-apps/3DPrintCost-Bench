@@ -258,3 +258,38 @@ test('every action a phase offers is one advance knows how to apply', () => {
     }
   }
 });
+
+/* -------------------------------------------------- the slicing gate ------ */
+
+import {
+  partFullySliced, partHasSlicerGrams, partHasSlicerTime, unslicedParts, SLICE_GATED_ACTIONS,
+} from '../js/workflow.js';
+
+test('a part is fully sliced only with BOTH grams and print time', () => {
+  assert.equal(partFullySliced(makePart({ slicer: { grams: 100, minutes: 200 } })), true);
+  assert.equal(partFullySliced(makePart({ slicer: { grams: 100, minutes: 0 } })), false, 'no time');
+  assert.equal(partFullySliced(makePart({ slicer: { grams: 0, minutes: 200 } })), false, 'no grams');
+  assert.equal(partFullySliced(makePart({ slicer: null })), false, 'nothing sliced');
+});
+
+test('grams count from a per-head total, not only the flat figure', () => {
+  const p = makePart({ slicer: { grams: 0, minutes: 200, heads: [{ slotId: 's1', grams: 40 }] } });
+  assert.equal(partHasSlicerGrams(p), true);
+  assert.equal(partHasSlicerTime(p), true);
+  assert.equal(partFullySliced(p), true);
+});
+
+test('unslicedParts lists exactly the parts still missing figures', () => {
+  let o = addPart(makeProject({ name: 'Job' }), makePart({ name: 'A', slicer: { grams: 10, minutes: 30 } }));
+  o = addPart(o, makePart({ name: 'B', slicer: { grams: 0, minutes: 0 } }));
+  const missing = unslicedParts(o);
+  assert.equal(missing.length, 1);
+  assert.equal(missing[0].name, 'B');
+});
+
+test('the gated actions are the ones that move toward production', () => {
+  for (const id of ['send-quote', 'payment-received', 'start-production', 'inspection-pass']) {
+    assert.equal(SLICE_GATED_ACTIONS.has(id), true, `${id} is gated`);
+  }
+  assert.equal(SLICE_GATED_ACTIONS.has('confirm-delivered'), false, 'delivery is not gated');
+});

@@ -31,6 +31,7 @@ import {
 import {
   workflowState, advance, clientProgressReport, phaseName, PHASES, isInternal, displayPhase,
   phaseSkipped, isCompanyInternal,
+  SLICE_GATED_ACTIONS, unslicedParts, partFullySliced, partHasSlicerGrams, partHasSlicerTime,
 } from '../../workflow.js';
 import {
   makeQuote, invoiceFromQuote, recordPayment, agreeTotal, lockedPricing,
@@ -310,6 +311,26 @@ function workflowPanel(ctx, project, result) {
   // Dispatch an action. A couple also touch documents; the rest are pure
   // transitions, with notes collected where the decision needs a reason.
   const run = async (id) => {
+    // The slicer gate: nothing moves toward production until every part carries
+    // real sliced figures (grams AND print time), whatever the path in. The
+    // button is not disabled — pressing it here flags the missing inputs red,
+    // opens the first offending part and scrolls to it, and says why.
+    if (SLICE_GATED_ACTIONS.has(id)) {
+      const missing = unslicedParts(project);
+      if (missing.length) {
+        state.ui.requireSlice = true;
+        state.activePartId = missing[0].id;
+        rerender();
+        toast(`Add the real slicer figures first — grams and print time — for `
+          + `${missing.length} part${missing.length === 1 ? '' : 's'} before this can go to production`);
+        setTimeout(() => {
+          document.querySelector(`[data-slice-part="${missing[0].id}"]`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 60);
+        return;
+      }
+      state.ui.requireSlice = false;
+    }
     if (id === 'send-quote') {
       const withQuote = project.quotes.length ? project : createQuote(project, result);
       commit(advance(withQuote, 'send-quote'));
@@ -401,6 +422,16 @@ function workflowPanel(ctx, project, result) {
       key: `wf-${a.id}`, primary: a.primary, danger: a.tone === 'danger',
     }));
 
+  // A standing warning while any part still lacks its real slicer figures and the
+  // order has not passed production — so the block is no surprise when pressed.
+  const unsliced = unslicedParts(project);
+  const sliceWarn = unsliced.length && !ws.terminal
+    && ['quotation', 'awaiting-payment', 'production'].includes(ws.effectivePhase)
+    ? banner('warn', `${unsliced.length} part${unsliced.length === 1 ? '' : 's'} still `
+      + `${unsliced.length === 1 ? 'needs' : 'need'} the real slicer figures — total grams and `
+      + 'print time — before this can go to production. Open the part and fill in Slicer figures.')
+    : null;
+
   return el('div', { class: 'panel' }, [
     el('div', { class: 'panel__head' }, [
       el('h3', { text: 'Workflow' }),
@@ -425,6 +456,7 @@ function workflowPanel(ctx, project, result) {
       ? muted(`Next: ${ws.nextExpected.name}`)
       : null,
 
+    sliceWarn,
     el('div', { class: 'btn-row' }, actionButtons),
 
     ws.phase.id === 'closeout' ? closeoutForm(project, rerender) : null,
@@ -827,11 +859,17 @@ function slicerFigures(part, liveSlots, settings, set) {
   };
 
   const qty = Math.max(1, num(part.quantity, 1));
+  // The production gate: once the operator has tried to move toward production
+  // with figures missing, the fields that still need the real slicer values are
+  // flagged red until they are filled.
+  const gated = !!state.ui.requireSlice && !partFullySliced(part);
+  const missingGrams = gated && !partHasSlicerGrams(part);
+  const missingTime = gated && !partHasSlicerTime(part);
   const gramFields = liveSlots.map((s, i) => {
     const material = findMaterial(settings.materials, s.materialId);
     return numberField(`part-slicer-g-${part.id}-${i}`,
       liveSlots.length > 1 ? `${materialLabel(material)} — total` : 'Total material',
-      headGrams(s.id), (v) => setHeadGrams(s.id, v), { min: 0, suffix: 'g' });
+      headGrams(s.id), (v) => setHeadGrams(s.id, v), { min: 0, suffix: 'g', invalid: missingGrams });
   });
 
   // Print time is entered the way the slicer reports it — hours AND minutes
@@ -844,16 +882,22 @@ function slicerFigures(part, liveSlots, settings, set) {
     slicer: { ...slicer, minutes: Math.max(0, Math.round(num(h, 0)) * 60 + Math.round(num(m, 0))) },
   });
 
-  return subsection('Slicer figures', [
+  const body = subsection('Slicer figures', [
+    gated
+      ? banner('danger', 'Add the real slicer figures before this can go to production — the '
+        + `total grams${liveSlots.length > 1 ? ' off each head' : ''} and the print time in hours `
+        + 'and minutes. Until then the price is only the app’s estimate, not the sliced job. '
+        + `${[missingGrams ? 'grams' : null, missingTime ? 'print time' : null].filter(Boolean).join(' and ')} still needed.`)
+      : null,
     muted(`Once you have sliced it, paste the slicer’s TOTALS for the whole print`
       + `${qty > 1 ? ` of all ${qty}` : ''} — the grams off each head and the total print `
       + 'time — not the figure per part. These outrank the app’s own geometry.'),
     ...gramFields,
     el('div', { class: 'field-grid' }, [
       numberField(`part-slicer-h-${part.id}`, 'Print time — hours', timeHrs,
-        (v) => setTime(v, timeMins), { min: 0, step: 1, suffix: 'h' }),
+        (v) => setTime(v, timeMins), { min: 0, step: 1, suffix: 'h', invalid: missingTime }),
       numberField(`part-slicer-m-${part.id}`, 'and minutes', timeMins,
-        (v) => setTime(timeHrs, v), { min: 0, step: 1, suffix: 'min' }),
+        (v) => setTime(timeHrs, v), { min: 0, step: 1, suffix: 'min', invalid: missingTime }),
     ]),
     // Which estimate to trust — the same control the estimator offers. Advanced+
     // only; Simple always uses the best available figure.
@@ -868,6 +912,8 @@ function slicerFigures(part, liveSlots, settings, set) {
       ? `The whole print, not per part — the app divides across the ${qty} for you.`
       : 'The whole print as the slicer reports it.',
   });
+  // A scroll anchor so the production gate can jump straight to this part's figures.
+  return el('div', { 'data-slice-part': part.id }, [body]);
 }
 
 /** The embedded components on one project part — add, change quantity, remove. */

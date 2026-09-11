@@ -52,18 +52,50 @@ export function postProcessingRequired(project) {
   return (project.parts || []).some((p) => partHasPostProcessing(p));
 }
 
-/** A part counts as sliced once it carries any slicer figure. */
-function partSliced(part) {
-  const s = part.slicer;
+/** Does the part have real material grams entered (a total, or on any head)? */
+export function partHasSlicerGrams(part) {
+  const s = part?.slicer;
   if (!s) return false;
-  return num(s.grams) > 0 || num(s.minutes) > 0
-    || (Array.isArray(s.heads) && s.heads.some((h) => num(h.grams) > 0));
+  return num(s.grams) > 0 || (Array.isArray(s.heads) && s.heads.some((h) => num(h.grams) > 0));
 }
+
+/** Does the part have a real print time entered? */
+export function partHasSlicerTime(part) {
+  return num(part?.slicer?.minutes) > 0;
+}
+
+/**
+ * A part is FULLY sliced only when it has BOTH real material grams AND a real
+ * print time — the two figures a quote and production must be built on, not the
+ * app's own estimate. This is the stricter bar the production gate uses.
+ */
+export function partFullySliced(part) {
+  return partHasSlicerGrams(part) && partHasSlicerTime(part);
+}
+
+/** Parts still missing their real slicer figures — must be filled before production. */
+export function unslicedParts(project) {
+  return (project?.parts || []).filter((p) => !partFullySliced(p));
+}
+
+/**
+ * Actions that must NOT run until every part carries real slicer figures. These
+ * are the moments an order moves toward or into production — sending the quote
+ * (which should price the sliced job, not an estimate), taking payment (which
+ * starts production, including an expedited order that skipped the quote), and
+ * the production actions themselves for a company-internal print that has no
+ * quote or payment step at all.
+ */
+export const SLICE_GATED_ACTIONS = new Set([
+  'send-quote', 'payment-received', 'start-production', 'inspection-pass',
+]);
 
 function facts(project) {
   const stats = projectStats(project);
   return {
-    sliced: (project.parts || []).length > 0 && project.parts.every(partSliced),
+    // "Sliced" means fully sliced — grams AND print time — the same bar the
+    // production gate enforces, so the progress tick and the gate never disagree.
+    sliced: (project.parts || []).length > 0 && project.parts.every(partFullySliced),
     hasQuote: (project.quotes || []).length > 0,
     ppRequired: postProcessingRequired(project),
     attempts: (project.parts || []).reduce((t, p) => t + (p.attempts || []).length, 0),

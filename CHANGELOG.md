@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.45 — No production without the real slicer figures (2026-09-12)
+
+- **An order cannot move toward production until every part carries its real slicer figures —
+  total grams and print time.** This holds whatever the path: sending a quotation, taking
+  payment, or an expedited order that skipped the quote — all now require the sliced figures
+  first, because until then the price is only the app’s estimate, not the sliced job.
+- **The button is not greyed out — pressing it tells you why.** If figures are missing, pressing
+  the action opens the first part that needs them, scrolls to its Slicer figures, turns the empty
+  grams and print-time boxes **red**, and shows a message saying exactly what is still needed.
+- A standing amber note also appears in the Workflow panel while any part is unsliced, so the
+  block is never a surprise.
+
 ## 1.0.44 — Event-history times, h:m slicer time, trend toggle, document filters (2026-09-12)
 
 - **Event history shows the time, not just the date.** Each entry in a project’s history now

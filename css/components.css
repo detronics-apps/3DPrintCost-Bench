@@ -266,6 +266,12 @@
   color: var(--text);
 }
 .input--area { resize: vertical; min-height: 60px; font-family: inherit; }
+/* A field the production gate is waiting on — grams or print time not yet entered. */
+.input--error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 25%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+}
 
 /* Client-form validation: red when wrong (with a message), green when a value
    already looks valid, and an asterisk on the required fields. */

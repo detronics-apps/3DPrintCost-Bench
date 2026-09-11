@@ -127,7 +127,8 @@ function wrap(label, control, { info, hint, suffix } = {}) {
  */
 export function numberField(key, label, value, onChange, options = {}) {
   const {
-    min = null, max = null, step = 'any', info, hint, suffix, decimals = null, disabled = false,
+    min = null, max = null, step = 'any', info, hint, suffix, decimals = null,
+    disabled = false, invalid = false,
   } = options;
 
   const shown = decimals != null && Number.isFinite(num(value))
@@ -135,7 +136,7 @@ export function numberField(key, label, value, onChange, options = {}) {
     : String(value ?? '');
 
   const input = el('input', {
-    class: 'input',
+    class: `input${invalid ? ' input--error' : ''}`,
     type: 'number',
     'data-field': key,
     value: shown,

@@ -9,6 +9,25 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## No production without the real slicer figures (v1.0.45)
+
+- **Domain** (`js/workflow.js`): `partHasSlicerGrams` (flat total or any head > 0),
+  `partHasSlicerTime` (minutes > 0), `partFullySliced` (both), `unslicedParts(project)`, and
+  `SLICE_GATED_ACTIONS = {send-quote, payment-received, start-production, inspection-pass}` — the
+  moments an order moves toward/into production, covering the quote path, the expedited path
+  (payment-received) and a company-internal print (production actions, no quote/payment). The old
+  loose `partSliced` is gone; `facts.sliced` now uses `partFullySliced`, so the Quotation progress
+  tick and the gate agree. +4 tests.
+- **Gate** (`js/ui/tools/projects.js` `run`): if a gated action is pressed with parts unsliced,
+  it does NOT advance — sets `state.ui.requireSlice`, makes the first offending part active,
+  rerenders, toasts why, and scrolls to `[data-slice-part=<id>]`.
+- **Feedback** (`slicerFigures`): when `state.ui.requireSlice` and the part is not fully sliced,
+  a red `banner('danger', …)` names what is missing, and the empty grams / hours / minutes fields
+  render with `input--error` (red). The subsection is wrapped in a `[data-slice-part]` anchor for
+  the scroll. `numberField` gained an `invalid` option (`js/ui/controls.js`); `.input--error` CSS.
+  A standing amber `banner` in the Workflow panel lists how many parts still need figures while
+  the order is at/before production.
+
 ## Event-history times, h:m slicer time, trend toggle, document filters (v1.0.44)
 
 Same workshop session; corrections and follow-ups.
