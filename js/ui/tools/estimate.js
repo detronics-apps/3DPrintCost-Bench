@@ -136,7 +136,7 @@ async function loadModel(file, part, rerender) {
 }
 
 /** One part's whole editor: what it is, how much of it, and how it prints. */
-function partBlock(ctx, part, index, canRemove) {
+function partBlock(ctx, part, index, canRemove, open = true) {
   const { state, rerender } = ctx;
   const key = part.id;
   const geometry = part.geometry;
@@ -390,16 +390,37 @@ function partBlock(ctx, part, index, canRemove) {
     textField(`part-name-${key}`, 'Part name', part.name, set('name')),
   ]);
 
+  // Accordion: with more than one part, each collapses to a clickable header so
+  // the operator is never scrolling through several open at once. Only the open
+  // one shows its body; opening a part is what closes the others (partsSection
+  // holds one open id). A single part is always open — nothing to collapse.
+  const collapsible = canRemove;
+  const head = el('div', { class: 'part-block__head' }, [
+    collapsible
+      ? el('button', {
+        class: 'part-block__toggle', type: 'button', 'data-field': `toggle-part-${key}`,
+        'aria-expanded': String(open),
+        on: { click: () => { state.ui.openEstimatePart = open ? null : part.id; saveSoon(); rerender(); } },
+      }, [
+        el('span', { class: 'part-block__chev', 'aria-hidden': 'true', text: open ? '▾' : '▸' }),
+        el('strong', { text: `Part ${index + 1}${part.name ? ` — ${part.name}` : ''}` }),
+      ])
+      : el('strong', { text: `Part ${index + 1}` }),
+    canRemove ? button('Remove this part', () => {
+      state.quick.parts.splice(index, 1);
+      if (state.ui.selectedEstimatePart === part.id) state.ui.selectedEstimatePart = null;
+      if (state.ui.openEstimatePart === part.id) state.ui.openEstimatePart = null;
+      saveSoon();
+      rerender();
+    }, { key: `remove-part-${key}`, danger: true }) : null,
+  ]);
+
+  if (collapsible && !open) {
+    return el('div', { class: 'part-block part-block--collapsed' }, [head]);
+  }
+
   return el('div', { class: 'part-block' }, [
-    el('div', { class: 'part-block__head' }, [
-      el('strong', { text: `Part ${index + 1}` }),
-      canRemove ? button('Remove this part', () => {
-        state.quick.parts.splice(index, 1);
-        if (state.ui.selectedEstimatePart === part.id) state.ui.selectedEstimatePart = null;
-        saveSoon();
-        rerender();
-      }, { key: `remove-part-${key}`, danger: true }) : null,
-    ]),
+    head,
     headerRow,
     subsection('Model', modelBody),
     subsection('Print intent', intentBody),
@@ -415,13 +436,17 @@ function partsSection(ctx) {
   const { state, rerender } = ctx;
   const quick = state.quick;
 
-  const blocks = quick.parts.map((part, i) => partBlock(ctx, part, i, quick.parts.length > 1));
+  // One part is open at a time; default to the first if the remembered one is gone.
+  const openId = quick.parts.some((p) => p.id === state.ui.openEstimatePart)
+    ? state.ui.openEstimatePart : quick.parts[0]?.id;
+  const blocks = quick.parts.map((part, i) => partBlock(ctx, part, i, quick.parts.length > 1, part.id === openId));
 
   return section('parts', quick.parts.length > 1 ? `Parts (${quick.parts.length})` : 'Model', [
     ...blocks,
     buttonRow([button('Add another part', () => {
       const next = defaultPart({ name: `Part ${quick.parts.length + 1}` });
       quick.parts.push(next);
+      state.ui.openEstimatePart = next.id; // open the new one, collapse the rest
       saveSoon();
       rerender();
     }, { key: 'add-part' })]),

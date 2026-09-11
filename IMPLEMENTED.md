@@ -9,6 +9,19 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Estimate parts accordion (v1.0.14)
+
+- **One estimate part open at a time** — `partBlock` (`js/ui/tools/estimate.js`)
+  gained an `open` param; with >1 part it renders a collapsed clickable header
+  (chevron + "Part N — name" + Remove) and returns early unless open, else the full
+  body. `partsSection` holds the open id in `state.ui.openEstimatePart` (defaults to
+  the first when the remembered one is gone); clicking a header toggles it, opening
+  one closes the rest; "Add another part" opens the new one. CSS `.part-block__toggle`
+  /`__chev`/`--collapsed`. Why: three open parts meant endless scrolling with no clear
+  part boundaries. Bug caught in review: the `open` param was used before being added
+  to the signature — fixed. Verified live: 3 parts → 2 collapsed, 1 open.
+  (2026-09-11, <commit>)
+
 ## Bed layout: 3-D view beside top-down, purge tower, selectable (v1.0.13)
 
 - **Two views of one arrangement + tower + click-to-select** — `arrangeBed`

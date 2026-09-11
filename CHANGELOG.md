@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.14 — Estimate parts collapse to an accordion (2026-09-11)
+
+- **One part open at a time on the estimate** — with several parts, each collapses
+  to a clickable header (Part N — name, with its Remove button); click one to expand
+  it, which closes the others. No more scrolling through three open parts to find
+  where one ends and the next begins. Adding a part opens the new one.
+
 ## 1.0.13 — Bed layout: 3-D view beside the top-down, purge tower, click-to-select (2026-09-11)
 
 - **Top-down and isometric views of the SAME bed** — the "Beds & layout" picture

@@ -341,6 +341,15 @@
   gap: var(--space-3);
 }
 .part-block__head strong { font-size: 14px; }
+/* The clickable accordion header for a part. */
+.part-block--collapsed { padding: var(--space-3) var(--space-4); }
+.part-block__toggle {
+  display: flex; align-items: center; gap: var(--space-2);
+  background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+  font: inherit; color: var(--text); text-align: left; flex: 1 1 auto; min-width: 0;
+}
+.part-block__toggle:hover strong { text-decoration: underline; }
+.part-block__chev { color: var(--text-dim); font-size: 12px; width: 1em; flex: 0 0 auto; }
 
 .dropzone {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
