@@ -852,12 +852,22 @@ function render() {
 
   // The bed picture: every part positioned together on the plate(s), so the
   // client sees how their parts share a bed — the same view the workshop sees.
+  // A part's colours are the loaded spools its mix actually uses (percent > 0),
+  // so a plate only shows a purge tower where its parts span more than one.
+  const materialsOfPart = (p) => {
+    const ids = normaliseMix(p.mix, slots).entries
+      .filter((e) => e.percent > 0)
+      .map((e) => slots.find((s) => s.id === e.slotId)?.materialId)
+      .filter(Boolean);
+    return [...new Set(ids)];
+  };
   const bedItems = state.parts.map((p, i) => ({
     id: p.id || `p${i}`,
     label: p.name || `Part ${i + 1}`,
     size: p.orientedSize || p.geometry?.size
       || (p.manual ? { x: p.manual.x, y: p.manual.y, z: p.manual.z } : null),
     count: p.quantity,
+    materials: materialsOfPart(p),
   })).filter((it) => it.size && it.size.x && it.size.y);
   const bedNode = bedPlan(bedItems, printer?.build, {
     tower: bedTowerFootprint(config, slots),

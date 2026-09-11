@@ -9,6 +9,32 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Bed layout polish and per-part thirds bar (v1.0.21)
+
+- **Iso view: coloured blocks only, shorter tower, rotated.** In `js/ui/svg/bed.js`,
+  `isoBox` no longer draws text labels (names stay on the top view). The purge tower
+  height is now `max(part z on that plate)` instead of `bz * 0.6`. The whole iso is
+  rotated 90° CCW via a `rot90(rect, aw)` helper applied to every placement and the
+  reserve, with the build footprint swapped (`bx = area.h, by = area.w`) — this puts
+  the back-left top-view tower on the LEFT of the iso, and keeps face shading correct
+  because the projection is unchanged (only the input coordinates are pre-rotated).
+- **Per-plate purge tower.** `plateNeedsTower(plate)` counts the distinct `materials`
+  across a plate's placements; the tower is drawn (top and iso) only when > 1, with a
+  fallback to the old bed-wide behaviour when placements carry no material info. Each
+  part's `materials` are threaded through `arrangeBed` onto every placement. Callers
+  derive a part's materials from the spools its **mix** actually uses (percent > 0)
+  plus any colour-by-height bands: estimate (`js/ui/tools/estimate.js`), project
+  (`js/ui/tools/projects.js`), portal (`js/ui/portal.js`). Why: a part set to 100% of
+  one colour, alone on a plate, was still drawing a tower it never prints. Test in
+  `tests/bedplan.test.js` (materials ride through to placements).
+- **Colours before parts (estimate sidebar).** `sidebar()` now renders
+  `machineSection` before `partsSection`; the "shares one … below/above" wording was
+  flipped to match. The project sidebar already had the bed above the part.
+- **Per-part thirds bar under the part selector.** In estimate `main()`, the
+  `thirdsDiagram({ price: line.price })` block moved to immediately after the
+  `select-part` chips (above the order-wide production diagram), so the bar that
+  reacts to the selection sits under the selector. Why: user asked for it directly.
+
 ## Dashboard: hardware used most (v1.0.20)
 
 - **`byHardware` on the dashboard** — `dashboard()` (`js/analytics.js`) now

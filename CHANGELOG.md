@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.21 — Bed layout polish and per-part thirds bar (2026-09-11)
+
+- **The 3-D bed reads cleaner.** The isometric view now shows the coloured blocks
+  only — no part names cluttering the boxes. The purge tower is only as tall as the
+  tallest part on that bed (not a full-height spike), and the view is rotated so the
+  tower sits on the left, matching the top-left corner of the top-down plan.
+- **No tower on a single-colour bed.** A plate only shows a purge tower when the
+  parts on it actually run more than one colour — so a part set to 100% of one
+  filament, alone on its plate, no longer draws a tower it never prints.
+- **Colours first, then parts (estimate).** The "Printer and loaded filament" panel
+  now sits above the parts, so you load the bed and then fill in each part without
+  scrolling back up. (The project already worked this way.)
+- **The per-part thirds bar moved up** to sit directly under the Part 1 / Part 2
+  selector, so it's clear it belongs to the part you picked and updates as you
+  switch parts.
+
 ## 1.0.20 — Dashboard: hardware used most (2026-09-11)
 
 - **"Hardware used most" on the Dashboard** — a new panel counts every component

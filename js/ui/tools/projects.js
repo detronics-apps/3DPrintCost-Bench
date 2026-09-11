@@ -21,7 +21,7 @@ import { platformInflate } from '../../zip.js';
 import { analyse, fmtSize, mm3ToCm3 } from '../../geometry.js';
 import { calculateOrder } from '../../engine.js';
 import { filamentSlots } from '../filament-slots.js';
-import { reconcileSlots, defaultSlots } from '../../filaments.js';
+import { reconcileSlots, defaultSlots, normaliseMix } from '../../filaments.js';
 import { findMaterial, materialLabel } from '../../materials.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import {
@@ -1218,8 +1218,22 @@ function bedLayoutPanel(ctx, project, result) {
   // height, so the 3-D view is honest), so the operator sees which parts share each
   // plate and where. A multi-colour bed also books a purge tower.
   const footprintOf = (p) => p.orientedSize || p.geometry?.size || p.manual || null;
+  // The loaded colours each part uses — the shared spools its mix draws from
+  // (percent > 0) plus any colour-by-height bands. A plate books a purge tower only
+  // when its parts span more than one, so a part set to a single colour needs none.
+  const bedSlots = reconcileSlots(
+    project.slots || defaultSlots(printer, null), printer, settings.materials,
+  ).slots;
+  const materialsOf = (p) => {
+    const fromMix = normaliseMix(p.mix, bedSlots).entries
+      .filter((e) => e.percent > 0)
+      .map((e) => bedSlots.find((s) => s.id === e.slotId)?.materialId);
+    const fromBands = Array.isArray(p.colourBands) ? p.colourBands.map((b) => b.materialId) : [];
+    const ids = [...new Set([...fromMix, ...fromBands].filter(Boolean))];
+    return ids.length ? ids : [p.materialId].filter(Boolean);
+  };
   const planItems = shared
-    .map((p) => ({ id: p.id, label: p.name, size: footprintOf(p), count: p.quantity }))
+    .map((p) => ({ id: p.id, label: p.name, size: footprintOf(p), count: p.quantity, materials: materialsOf(p) }))
     .filter((it) => it.size && it.size.x && it.size.y);
   const plan = bedPlan(planItems, printer.build, {
     tower: bedTowerFootprint(settings, project.slots),

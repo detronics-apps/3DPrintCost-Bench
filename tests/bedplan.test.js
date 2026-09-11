@@ -57,6 +57,16 @@ test('placements carry height, and a reserved tower keeps its strip clear', () =
   }
 });
 
+test('each placement carries the part materials, so a plate can decide its own tower', () => {
+  const plan = arrangeBed([
+    { id: 'a', label: 'A', size: { x: 40, y: 30 }, count: 2, materials: ['petg'] },
+    { id: 'b', label: 'B', size: { x: 40, y: 30 }, count: 1, materials: ['petg', 'pla'] },
+  ], build);
+  const byId = (id) => plan.plates.flatMap((p) => p.placements).filter((pl) => pl.id === id);
+  assert.deepEqual(byId('a')[0].materials, ['petg'], 'a single-colour part carries one material');
+  assert.deepEqual(byId('b')[0].materials, ['petg', 'pla'], 'a multi-colour part carries both');
+});
+
 test('a full bed spills onto a second plate', () => {
   // 100x100 footprints on a 220x220 usable-ish bed: at most 4 per plate.
   const plan = arrangeBed([{ id: 'big', label: 'Big', size: { x: 100, y: 100 }, count: 6 }], build);

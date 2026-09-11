@@ -21,6 +21,21 @@ const PALETTE = [
 const TOWER_FILL = 'var(--text-dim)';
 
 /**
+ * Does THIS plate need a purge tower? A tower is only needed where a plate
+ * actually runs more than one colour — a plate holding parts that all print in
+ * one material never purges, even on a machine with several spools loaded. When
+ * the parts carry no material info we fall back to the bed-wide decision.
+ */
+function plateNeedsTower(plate) {
+  const set = new Set();
+  let any = false;
+  for (const p of plate.placements) {
+    for (const m of (p.materials || [])) { set.add(m); any = true; }
+  }
+  return any ? set.size > 1 : true;
+}
+
+/**
  * The purge-tower footprint for a bed, or null. A tower is only needed when the
  * bed runs more than one colour (a single colour never purges), so this returns
  * the configured tower footprint when the loaded slots carry more than one
@@ -79,9 +94,10 @@ function topSvg(plate, area, reserve, { colourById }) {
 const AX = Math.cos(Math.PI / 6);
 const AY = Math.sin(Math.PI / 6);
 
-// A single box (a part) drawn as three faces, shaded from one fill.
-function isoBox(cx, cy, s, { x, y, w, d, z }, fill, label) {
-  const P = (px, py, pz) => ({ sx: cx + (px - py) * AX * s, sy: cy - (px + py) * AY * s - pz * s });
+// A single box (a part) drawn as three faces, shaded from one fill. `P` is the
+// shared isometric projection so every box and the cage agree. No text — the
+// isometric view shows the coloured blocks only; names live on the top view.
+function isoBox(P, { x, y, w, d, z }, fill) {
   const zTop = Math.max(z, 1);
   const c = {
     // base corners
@@ -93,26 +109,31 @@ function isoBox(cx, cy, s, { x, y, w, d, z }, fill, label) {
     points: pts.map((q) => `${q.sx.toFixed(1)},${q.sy.toFixed(1)}`).join(' '),
     fill: f, 'fill-opacity': op, stroke: fill, 'stroke-width': 0.5, 'stroke-opacity': 0.6,
   });
-  const g = svg('g', {}, [
+  return svg('g', {}, [
     poly([c.b, c.d0, c.D, c.B], fill, 0.5), // right face
     poly([c.e, c.d0, c.D, c.E], fill, 0.35), // front face
     poly([c.A, c.B, c.D, c.E], fill, 0.8), // top face
   ]);
-  if (label && w * s > 26) {
-    const mid = P(x + w / 2, y + d / 2, zTop);
-    g.appendChild(svg('text', {
-      x: mid.sx, y: mid.sy, 'font-size': 8, fill: 'var(--text)', 'font-family': 'inherit',
-      'text-anchor': 'middle', 'dominant-baseline': 'central',
-    }, [label]));
-  }
-  return g;
 }
 
-function isoSvg(plate, area, reserve, build, { colourById, printerName }) {
+// Rotate a rect 90° counter-clockwise within an `aw`-wide area, so the purge
+// tower (back-left in the top view) lands on the LEFT of the isometric view.
+function rot90(r, aw) {
+  return { ...r, x: r.y, y: aw - (r.x + r.w), w: r.h, h: r.w };
+}
+
+function isoSvg(plate, area, reserve, build, { colourById, printerName, showTower }) {
   const W = 400;
   const H = 300;
-  const bx = area.w;
-  const by = area.h;
+  // The iso view is the top view rotated 90° CCW: swap the build footprint and
+  // rotate every placement, so the same models read from the rotated viewpoint.
+  const bx = area.h;
+  const by = area.w;
+  const placements = plate.placements.map((p) => ({ ...p, ...rot90(p, area.w) }));
+  const towerRect = showTower && reserve ? rot90(reserve, area.w) : null;
+  // The tower is only as tall as the tallest part on this bed, not the whole cage.
+  const towerZ = Math.max(1, ...placements.map((p) => Number(p.z) || 0));
+
   const bz = Math.max(1, Number(build?.z) || Math.max(bx, by));
   // Scale so the whole cage fits.
   const spanX = (bx + by) * AX;
@@ -140,14 +161,13 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName }) {
   }
 
   // Boxes back-to-front so nearer parts overlap farther ones correctly.
-  const boxes = plate.placements.map((p) => ({ ...p, key: p.x + p.y }))
-    .sort((a, b) => a.key - b.key);
+  const boxes = placements.map((p) => ({ ...p, key: p.x + p.y })).sort((a, b) => a.key - b.key);
   for (const p of boxes) {
-    node.appendChild(isoBox(cx, cy, s, { x: p.x, y: p.y, w: p.w, d: p.h, z: p.z }, p.colour || colourById(p.id), p.label));
+    node.appendChild(isoBox(P, { x: p.x, y: p.y, w: p.w, d: p.h, z: p.z }, p.colour || colourById(p.id)));
   }
-  // The purge tower, tall and thin, in its reserved corner.
-  if (reserve) {
-    node.appendChild(isoBox(cx, cy, s, { x: reserve.x, y: reserve.y, w: reserve.w, d: reserve.h, z: bz * 0.6 }, TOWER_FILL, 'Purge'));
+  // The purge tower, thin and as tall as the tallest part, in its reserved corner.
+  if (towerRect) {
+    node.appendChild(isoBox(P, { x: towerRect.x, y: towerRect.y, w: towerRect.w, d: towerRect.h, z: towerZ }, TOWER_FILL));
   }
   if (printerName) {
     node.appendChild(svg('text', { x: W / 2, y: 14, 'font-size': 11, fill: 'var(--text-dim)', 'font-family': 'inherit', 'text-anchor': 'middle' }, [printerName]));
@@ -181,9 +201,11 @@ export function bedPlan(items, build, { gap = 8, margin = 10, tower = null, prin
     el('span', { text: `${it.label} ×${Math.round(it.count)}` }),
   ])));
 
+  const towerOn = (plate) => (plan.reserve ? plateNeedsTower(plate) : false);
+
   const plates = plan.plates.map((plate, i) => {
     const fig = el('figure', { class: `bedplan__plate${i === sel ? ' is-selected' : ''}` }, [
-      topSvg(plate, plan.area, plan.reserve, { colourById }),
+      topSvg(plate, plan.area, towerOn(plate) ? plan.reserve : null, { colourById }),
       el('figcaption', { class: 'bedplan__cap', text: `Bed ${i + 1} — ${plate.placements.length} part${plate.placements.length === 1 ? '' : 's'}` }),
     ]);
     if (onSelectBed && plan.plates.length > 1) {
@@ -198,7 +220,9 @@ export function bedPlan(items, build, { gap = 8, margin = 10, tower = null, prin
 
   const isoWrap = el('div', { class: 'bedplan__isowrap' }, [
     el('div', { class: 'bedplan__isohead', text: plan.plates.length > 1 ? `Bed ${sel + 1}, in 3-D` : 'In 3-D' }),
-    isoSvg(plan.plates[sel], plan.area, plan.reserve, build, { colourById, printerName }),
+    isoSvg(plan.plates[sel], plan.area, plan.reserve, build, {
+      colourById, printerName, showTower: towerOn(plan.plates[sel]),
+    }),
   ]);
 
   const body = el('div', { class: 'bedplan__cols' }, [

@@ -46,8 +46,9 @@ export function arrangeBed(items, build, { gap = 8, margin = 10, reserve = null 
     const uh = Math.max(0, num(it.size?.y));
     const uz = Math.max(0, num(it.size?.z));
     const n = Math.max(0, Math.round(num(it.count, 0)));
+    const materials = Array.isArray(it.materials) ? it.materials.filter(Boolean) : [];
     if (n > 0 && (uw > w || uh > packH || w <= 0 || packH <= 0)) overflow.add(it.id);
-    else for (let i = 0; i < n; i += 1) units.push({ id: it.id, label: it.label, colour: it.colour || null, w: uw, h: uh, z: uz });
+    else for (let i = 0; i < n; i += 1) units.push({ id: it.id, label: it.label, colour: it.colour || null, w: uw, h: uh, z: uz, materials });
   }
   units.sort((a, b) => (b.w * b.h) - (a.w * a.h));
 

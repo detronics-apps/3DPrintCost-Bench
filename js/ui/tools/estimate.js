@@ -40,7 +40,7 @@ import { fmtMoney, fmtRate, num } from '../../money.js';
 import { groupLabour } from '../../labour.js';
 import { INFILL_PATTERNS, FACTOR_LABELS } from '../../profiles.js';
 import { filamentSlots, mixEditor, filamentBreakdown } from '../filament-slots.js';
-import { defaultSlots, reconcileSlots } from '../../filaments.js';
+import { defaultSlots, reconcileSlots, normaliseMix } from '../../filaments.js';
 import { materialStock } from '../../inventory.js';
 import { methodsForCountry, packageFits } from '../../shipping.js';
 import { containerFits, choosePackaging } from '../../packaging.js';
@@ -456,7 +456,7 @@ function partsSection(ctx) {
     }, { key: 'add-part' })]),
     quick.parts.length > 1
       ? muted('Every part here shares one printer and one set of loaded filament, '
-        + 'below — they print on the same bed, and their volumes and plates are '
+        + 'above — they print on the same bed, and their volumes and plates are '
         + 'combined on the invoice.')
       : null,
   ].filter(Boolean), { open: true });
@@ -499,7 +499,7 @@ function machineSection(ctx) {
 
   return section('machine', 'Printer and loaded filament', body, {
     open: true,
-    info: 'What is loaded belongs to the bed, not to any one part — every model above '
+    info: 'What is loaded belongs to the bed, not to any one part — every model below '
       + 'draws from the same spools.',
   });
 }
@@ -1246,8 +1246,10 @@ function allocationPanel(result) {
 export function sidebar(ctx) {
   const { state } = ctx;
   return [
-    partsSection(ctx),
+    // Colours first, then the parts — you load the bed, then say what sits on it,
+    // without scrolling back up.
     machineSection(ctx),
+    partsSection(ctx),
     orderSection(ctx),
     state.mode !== 'simple' ? pricingSection(ctx) : null,
     exportSection(ctx),
@@ -1366,6 +1368,12 @@ export function main(ctx) {
     return nodes.filter(Boolean);
   }
 
+  // The per-part thirds bar sits directly under the part selector above, so it is
+  // clear it belongs to the chosen part and updates as the selection changes.
+  nodes.push(el('div', { class: 'viewport__stage' }, [
+    thirdsDiagram({ price: line.price, currencyCode: code }),
+  ]));
+
   // Production and part-price bars sum across every part sharing the bed;
   // the invoice bar already is order-wide.
   const sumOver = (pick) => result.lines.reduce((t, l) => t + pick(l) * l.quantity, 0);
@@ -1418,20 +1426,30 @@ export function main(ctx) {
     }),
   ]));
 
-  nodes.push(el('div', { class: 'viewport__stage' }, [
-    thirdsDiagram({ price: line.price, currencyCode: code }),
-  ]));
-
   // Every part on the shared bed, positioned together on each plate — a top-down
   // plan and a 3-D view of the SAME models. A multi-colour bed books a purge tower.
   const bedPrinter = settings.printers.find((p) => p.id === state.quick.printerId) || settings.printers[0];
   const bedSlots = state.quick.slots || null;
+  // Which loaded colours a part actually uses — the spools its mix draws from
+  // (percent > 0) plus any colour-by-height bands. A plate purges only when its
+  // parts span more than one, so a part set to 100% of one colour needs no tower.
+  const liveBedSlots = reconcileSlots(
+    bedSlots || defaultSlots(bedPrinter, state.quick.materialId), bedPrinter, settings.materials,
+  ).slots;
+  const materialsOf = (p) => {
+    const fromMix = normaliseMix(p.mix, liveBedSlots).entries
+      .filter((e) => e.percent > 0)
+      .map((e) => liveBedSlots.find((s) => s.id === e.slotId)?.materialId);
+    const fromBands = Array.isArray(p.colourBands) ? p.colourBands.map((b) => b.materialId) : [];
+    return [...new Set([...fromMix, ...fromBands].filter(Boolean))];
+  };
   const bedItems = state.quick.parts.map((p, i) => ({
     id: p.id,
     label: p.name || `Part ${i + 1}`,
     size: p.orientedSize || p.geometry?.size
       || (p.manual ? { x: p.manual.x, y: p.manual.y, z: p.manual.z } : null),
     count: p.quantity,
+    materials: materialsOf(p),
   })).filter((it) => it.size && it.size.x && it.size.y);
   const bedNode = bedPlan(bedItems, bedPrinter?.build, {
     tower: bedTowerFootprint(settings, bedSlots),
