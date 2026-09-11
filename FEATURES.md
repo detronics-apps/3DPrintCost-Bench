@@ -71,6 +71,13 @@ from the development history on 2026-09-07; kept up per feature from here on.
 
 ## For the operator (running the app)
 
+- **Bed layout in 3-D, with the purge tower** (2026-09-11) — "Beds & layout" now
+  shows the top-down plan and a 3-D isometric view of the *same* parts side by side
+  (so they never disagree), with the parts at their real heights. A multi-colour bed
+  draws its purge tower in the corner of every plate. When a job needs several
+  plates, click a bed to select it — it highlights and the 3-D view shows that one.
+  The old separate build-volume cage and the print-orientation strip are gone; these
+  two views replace them.
 - **Workflow-ordered tabs** (2026-09-10) — the top tabs now read left to right the
   way the work flows: Estimate, then Projects · Schedule (production), then
   Dashboard · Quotes · Inventory (managing the work), then Catalogues · Settings

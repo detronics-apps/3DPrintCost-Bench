@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.13 — Bed layout: 3-D view beside the top-down, purge tower, click-to-select (2026-09-11)
+
+- **Top-down and isometric views of the SAME bed** — the "Beds & layout" picture
+  now shows the top-down plan and a 3-D isometric view of the same parts side by
+  side, so the two never disagree. Click a bed (when a job needs several plates) to
+  select it — it highlights, and the 3-D view shows that plate.
+- **Purge tower on the bed** — a multi-colour bed now books a purge tower in the
+  back corner of every plate, shown on both views (a single-colour bed needs none).
+- **Removed the old print-height / orientation render** — the separate build-volume
+  cage and the Y-up/X-up orientation strip are gone; the two bed views replace them.
+
 ## 1.0.12 — Fix: project parts used the wrong printer in two places (2026-09-10)
 
 - **The "Multi-colour (by height)" section and a recorded print now use the

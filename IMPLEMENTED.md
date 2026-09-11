@@ -9,6 +9,27 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Bed layout: 3-D view beside top-down, purge tower, selectable (v1.0.13)
+
+- **Two views of one arrangement + tower + click-to-select** — `arrangeBed`
+  (`js/bedplan.js`) now carries each part's height `z` onto placements and takes a
+  `reserve` (tower footprint) that keeps a back strip clear on every plate (parts
+  offset below it), returning a `reserve` rect. `bedPlan` (`js/ui/svg/bed.js`) draws
+  BOTH a top-down `topSvg` and an isometric `isoSvg` from the SAME placements, so
+  they can't disagree; the tower is drawn on both; plates are clickable
+  (`onSelectBed`/`selectedIndex`, highlighted via `.is-selected`) and the iso shows
+  the selected plate. New `bedTowerFootprint(settings, slots)` returns the configured
+  tower (`estimate.assumptions.purgeTower`, default 30×30) only when >1 distinct
+  loaded colour. CSS: `.bedplan__cols` is a 2-col grid (stacks under 720px), plus
+  iso/selection styles. Wired into projects/estimate/portal with `state.ui.selectedBed`.
+  **Removed** the old single-part `plateInBuildVolume` + `orientationChart` render
+  (the build-volume cage and the Y-up/X-up strip) from the estimate and project —
+  the two bed views replace them; dropped the now-unused imports. Why: the owner
+  wanted the iso to show the same models as the top-down (they diverged), the tower
+  visible on the bed, and to click a bed to view it. Locked with a bedplan test
+  (height rides through; tower strip stays clear). Verified live: top-down + iso show
+  Bracket/Cover/Clip with correct heights and the tower. (2026-09-11, <commit>)
+
 ## Fix: project parts read the wrong printer (v1.0.12)
 
 - **Multi-colour section + recorded print use the effective printer** — after the

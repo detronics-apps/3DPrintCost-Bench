@@ -20,8 +20,7 @@ import {
   costRow, muted, emptyState, pill,
 } from '../controls.js';
 import { moneyDiagram, thirdsDiagram } from '../svg/money.js';
-import { plateInBuildVolume, orientationChart } from '../svg/part.js';
-import { bedPlan } from '../svg/bed.js';
+import { bedPlan, bedTowerFootprint } from '../svg/bed.js';
 import { savingsChart } from '../svg/savings.js';
 import { plateSaving } from '../../savings.js';
 import { splitByColour } from '../../colourplates.js';
@@ -35,7 +34,7 @@ import {
 } from '../export.js';
 import { readMesh } from '../../mesh.js';
 import { platformInflate } from '../../zip.js';
-import { analyse, orientations, plateLayout, fmtSize, mm3ToCm3 } from '../../geometry.js';
+import { analyse, orientations, fmtSize, mm3ToCm3 } from '../../geometry.js';
 import { calculateOrder, comparePrinters } from '../../engine.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import { groupLabour } from '../../labour.js';
@@ -1376,51 +1375,26 @@ export function main(ctx) {
     thirdsDiagram({ price: line.price, currencyCode: code }),
   ]));
 
-  // Every part on the shared bed, positioned together on each plate.
+  // Every part on the shared bed, positioned together on each plate — a top-down
+  // plan and a 3-D view of the SAME models. A multi-colour bed books a purge tower.
   const bedPrinter = settings.printers.find((p) => p.id === state.quick.printerId) || settings.printers[0];
+  const bedSlots = state.quick.slots || null;
   const bedItems = state.quick.parts.map((p, i) => ({
     id: p.id,
     label: p.name || `Part ${i + 1}`,
-    size: p.orientedSize || p.geometry?.size || (p.manual ? { x: p.manual.x, y: p.manual.y } : null),
+    size: p.orientedSize || p.geometry?.size
+      || (p.manual ? { x: p.manual.x, y: p.manual.y, z: p.manual.z } : null),
     count: p.quantity,
   })).filter((it) => it.size && it.size.x && it.size.y);
-  const bedNode = bedPlan(bedItems, bedPrinter?.build);
+  const bedNode = bedPlan(bedItems, bedPrinter?.build, {
+    tower: bedTowerFootprint(settings, bedSlots),
+    printerName: bedPrinter?.name || '',
+    selectedIndex: num(state.ui.selectedBed, 0),
+    onSelectBed: (i) => { state.ui.selectedBed = i; saveSoon(); rerender(); },
+  });
   if (bedNode) {
     nodes.push(el('div', { class: 'panel' }, [el('h3', { text: 'Beds & layout' }), bedNode]));
   }
-
-  const geometry = line.geometry;
-  const printer = settings.printers.find((p) => p.id === line.printer.id);
-
-  // One picture: the build-volume cage AND every part standing on the plate,
-  // so "will it fit and how tall" and "where do they go and how many" are the
-  // same drawing.
-  const orientedSize = detailPart?.orientedSize || geometry.size;
-  const towerArea = line.detail.tower?.needed
-    ? num(line.detail.tower.x) * num(line.detail.tower.y) : 0;
-  // Draw only as many as actually go on the first plate: the whole plate holds
-  // `perPlate`, but if fewer are ordered than that, fewer are shown.
-  const layout = plateLayout(orientedSize, printer?.build || {}, {
-    reservedArea: towerArea,
-    max: Math.min(line.quantity, line.perPlate),
-  });
-  nodes.push(el('div', { class: 'stage-pair' }, [
-    el('div', { class: 'viewport__stage' }, [
-      plateInBuildVolume({
-        build: printer?.build,
-        layout,
-        size: orientedSize,
-        fits: line.fit.fits,
-        printerName: line.printer.name,
-      }),
-    ]),
-    el('div', { class: 'viewport__stage' }, [
-      orientationChart({
-        options: orientations(geometry.size),
-        chosenIndex: 0,
-      }),
-    ]),
-  ]));
 
   nodes.push(el('div', { class: 'summary-grid' }, [
     statTile(`${line.name} — material`, `${line.estimate.grams.toFixed(1)} g`, {

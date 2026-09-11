@@ -13,13 +13,12 @@ import {
   sliderField, moneyField,
 } from '../controls.js';
 import { moneyDiagram } from '../svg/money.js';
-import { plateInBuildVolume } from '../svg/part.js';
-import { bedPlan } from '../svg/bed.js';
+import { bedPlan, bedTowerFootprint } from '../svg/bed.js';
 import { explainLine, explainOrder } from '../explain.js';
 import { downloadJson, downloadCsv, orderCsv, copyText } from '../export.js';
 import { readMesh } from '../../mesh.js';
 import { platformInflate } from '../../zip.js';
-import { analyse, fmtSize, mm3ToCm3, plateLayout } from '../../geometry.js';
+import { analyse, fmtSize, mm3ToCm3 } from '../../geometry.js';
 import { calculateOrder } from '../../engine.js';
 import { filamentSlots } from '../filament-slots.js';
 import { reconcileSlots, defaultSlots } from '../../filaments.js';
@@ -1204,6 +1203,7 @@ export function sidebar(ctx) {
  * shared bed.
  */
 function bedLayoutPanel(ctx, project, result) {
+  const { rerender } = ctx;
   const settings = state.settings;
   const printer = settings.printers.find((p) => p.id === project.printerId) || settings.printers[0];
   const limit = slotLimit(printer);
@@ -1211,50 +1211,30 @@ function bedLayoutPanel(ctx, project, result) {
   const shared = project.parts.filter((p) => !p.printerOverride);
   const overrides = project.parts.filter((p) => p.printerOverride);
 
-  // The mixed-part plate plan: every shared part positioned on the bed, so the
-  // operator sees which parts share each plate and roughly where they sit.
+  // The mixed-part plate plan: every shared part positioned on the bed (with its
+  // height, so the 3-D view is honest), so the operator sees which parts share each
+  // plate and where. A multi-colour bed also books a purge tower.
   const footprintOf = (p) => p.orientedSize || p.geometry?.size || p.manual || null;
   const planItems = shared
     .map((p) => ({ id: p.id, label: p.name, size: footprintOf(p), count: p.quantity }))
     .filter((it) => it.size && it.size.x && it.size.y);
-  const plan = bedPlan(planItems, printer.build);
-
-  // The selected part, drawn on its plate inside the build volume.
-  const part = activePart();
-  const idx = part ? project.parts.findIndex((p) => p.id === part.id) : -1;
-  const line = idx >= 0 ? result.lines[idx] : null;
-  let stage = null;
-  if (part && line && line.geometry) {
-    const linePrinter = settings.printers.find((p) => p.id === line.printer.id) || printer;
-    const orientedSize = part.orientedSize || line.geometry.size;
-    const towerArea = line.detail?.tower?.needed
-      ? num(line.detail.tower.x) * num(line.detail.tower.y) : 0;
-    const layout = plateLayout(orientedSize, linePrinter?.build || {}, {
-      reservedArea: towerArea,
-      max: Math.min(line.quantity, line.perPlate),
-    });
-    stage = el('div', { class: 'viewport__stage' }, [
-      plateInBuildVolume({
-        build: linePrinter?.build,
-        layout,
-        size: orientedSize,
-        fits: line.fit.fits,
-        printerName: line.printer.name,
-      }),
-    ]);
-  }
+  const plan = bedPlan(planItems, printer.build, {
+    tower: bedTowerFootprint(settings, project.slots),
+    printerName: printer.name,
+    selectedIndex: num(state.ui.selectedBed, 0),
+    onSelectBed: (i) => { state.ui.selectedBed = i; rerender(); },
+  });
 
   return el('div', { class: 'panel' }, [
     el('h3', { text: 'Beds & layout' }),
     muted(`${printer.name} holds ${limit} colour${limit === 1 ? '' : 's'} at once. Parts sharing the `
-      + 'bed are laid out onto the fewest plates; a part moved to a different printer prints on its own.'),
+      + 'bed are laid out onto the fewest plates; a part moved to a different printer prints on its own. '
+      + 'Click a bed to see it in 3-D.'),
     plan || muted('Add parts with a size or a model to see the bed layout.'),
     overrides.length
       ? muted(`On other printers: ${overrides.map((p) => `${p.name} — `
         + `${settings.printers.find((x) => x.id === p.printerId)?.name || '?'}`).join('; ')}.`)
       : null,
-    part && stage ? muted(`In the build volume: ${part.name} on ${line?.printer.name || printer.name}.`) : null,
-    stage,
   ].filter(Boolean));
 }
 

@@ -41,7 +41,7 @@ import { radarChart } from './svg/radar.js';
 import { portalRequest } from '../portal-request.js';
 import { makeAddressParts, formatAddress, ADDRESS_TYPES } from '../projects.js';
 import { filamentSlots, mixEditor } from './filament-slots.js';
-import { bedPlan } from './svg/bed.js';
+import { bedPlan, bedTowerFootprint } from './svg/bed.js';
 import { plateSaving } from '../savings.js';
 import { savingsChart } from './svg/savings.js';
 
@@ -855,10 +855,16 @@ function render() {
   const bedItems = state.parts.map((p, i) => ({
     id: p.id || `p${i}`,
     label: p.name || `Part ${i + 1}`,
-    size: p.orientedSize || p.geometry?.size || (p.manual ? { x: p.manual.x, y: p.manual.y } : null),
+    size: p.orientedSize || p.geometry?.size
+      || (p.manual ? { x: p.manual.x, y: p.manual.y, z: p.manual.z } : null),
     count: p.quantity,
   })).filter((it) => it.size && it.size.x && it.size.y);
-  const bedNode = bedPlan(bedItems, printer?.build);
+  const bedNode = bedPlan(bedItems, printer?.build, {
+    tower: bedTowerFootprint(config, slots),
+    printerName: printer?.name || '',
+    selectedIndex: state.ui?.selectedBed || 0,
+    onSelectBed: (i) => { state.ui = { ...(state.ui || {}), selectedBed: i }; render(); },
+  });
   if (bedNode) {
     nodes.push(el('div', { class: 'panel' }, [el('h2', { text: 'On the bed' }), bedNode]));
   }

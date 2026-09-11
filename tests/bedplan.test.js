@@ -44,6 +44,19 @@ test('parts too big for the bed are flagged as overflow, not placed', () => {
   assert.equal(plan.plates.flatMap((p) => p.placements).length, 1, 'only the fitting part is placed');
 });
 
+test('placements carry height, and a reserved tower keeps its strip clear', () => {
+  const plan = arrangeBed([{ id: 'a', label: 'A', size: { x: 40, y: 30, z: 22 }, count: 3 }],
+    build, { reserve: { x: 30, y: 30 } });
+  const all = plan.plates.flatMap((p) => p.placements);
+  assert.ok(all.every((pl) => pl.z === 22), 'height rides through to every placement for the 3-D view');
+  assert.ok(plan.reserve && plan.reserve.w === 30 && plan.reserve.h === 30, 'the tower rect is reported');
+  // No part sits inside the tower strip along the back.
+  for (const pl of all) {
+    const inStrip = pl.y < plan.reserve.h && pl.x < plan.reserve.w;
+    assert.ok(!inStrip, 'no part overlaps the reserved tower corner');
+  }
+});
+
 test('a full bed spills onto a second plate', () => {
   // 100x100 footprints on a 220x220 usable-ish bed: at most 4 per plate.
   const plan = arrangeBed([{ id: 'big', label: 'Big', size: { x: 100, y: 100 }, count: 6 }], build);
