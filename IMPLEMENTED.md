@@ -20,7 +20,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   /`__chev`/`--collapsed`. Why: three open parts meant endless scrolling with no clear
   part boundaries. Bug caught in review: the `open` param was used before being added
   to the signature — fixed. Verified live: 3 parts → 2 collapsed, 1 open.
-  (2026-09-11, <commit>)
+  (2026-09-11, 27990e6)
 
 ## Bed layout: 3-D view beside top-down, purge tower, selectable (v1.0.13)
 
