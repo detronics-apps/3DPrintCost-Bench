@@ -323,22 +323,28 @@ export const CATEGORY_BASELINE_WEIGHT = 10;
  * @returns {{lines, addToPrice, baseTotal, adjustedTotal}}
  */
 export function commercialAdjustment(categories = DEFAULT_COMMERCIAL_CATEGORIES, bases = {}) {
+  const total = Math.max(0, num(bases.total));
   const lines = (categories || []).filter((c) => c.enabled !== false).map((c) => {
-    const custom = c.source === 'custom' || Boolean(c.custom);
-    const base = custom
-      ? (c.baseKind === 'percent'
-        ? Math.max(0, num(c.baseRate)) * Math.max(0, num(bases.productionCost))
-        : Math.max(0, num(c.baseAmount)))
-      : Math.max(0, num(bases[c.source ?? c.id]));
-    const weight = Math.max(0, num(c.weight, CATEGORY_BASELINE_WEIGHT));
-    const factor = weight / CATEGORY_BASELINE_WEIGHT;
-    const adjusted = base * factor;
-    // A built-in category already sits in the price, so only the CHANGE from the
-    // baseline is added. A custom category is new money, so all of it is added.
-    const addToPrice = custom ? adjusted : base * (factor - 1);
+    const hasSource = Boolean(c.source) && c.source !== 'custom' && bases[c.source] != null;
+    const base = hasSource ? Math.max(0, num(bases[c.source])) : 0;
+    if (hasSource) {
+      // A category the model already calculates: the WEIGHT dials it. 10 leaves it
+      // as-is; only the change from 10 is added to the price (it is already in it).
+      const weight = Math.max(0, num(c.weight, CATEGORY_BASELINE_WEIGHT));
+      const factor = weight / CATEGORY_BASELINE_WEIGHT;
+      const adjusted = base * factor;
+      return {
+        id: c.id, name: c.name, mode: 'weight', base, weight, pct: 0,
+        adjusted, delta: adjusted - base, addToPrice: base * (factor - 1),
+      };
+    }
+    // Nothing in the model feeds this category (R0), so a weight would do nothing.
+    // Instead it is a percentage of the whole order that gets ADDED as new money.
+    const pct = c.pct != null ? Math.max(0, num(c.pct)) : Math.max(0, num(c.baseRate, 0));
+    const added = pct * total;
     return {
-      id: c.id, name: c.name, custom, weight, base, adjusted,
-      delta: adjusted - base, addToPrice,
+      id: c.id, name: c.name, mode: 'percent', base: 0, weight: num(c.weight, CATEGORY_BASELINE_WEIGHT),
+      pct, adjusted: added, delta: added, addToPrice: added,
     };
   });
   return {

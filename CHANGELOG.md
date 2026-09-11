@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.28 — Commercial categories: edit in Settings, add/delete any (2026-09-11)
+
+- **The category inputs now live in Settings → Pricing** (Commercial categories); the
+  estimate panel just *shows* where the money goes. Every category — built-in or your
+  own — can now be **deleted**, and you can add new ones.
+- **Added categories are a % of the order total** (there is no calculated amount behind
+  them), while the calculated categories keep the weight dial. The part-selector chips
+  on the estimate now read "Part 1", "Part 2", not the model file name.
+
 ## 1.0.27 — Commercial categories: see and dial where the money goes (2026-09-11)
 
 - **"Where the money in this order goes" replaces the old commercial-share panel.**

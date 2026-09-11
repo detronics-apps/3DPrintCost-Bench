@@ -443,32 +443,27 @@ function pricingPanel(ctx) {
       table([
         {
           label: 'Category',
-          get: (b) => (b.source === 'custom'
-            ? textField(`alloc-name-${b.id}`, '', b.name, (v) => { b.name = v || 'Category'; touch(rerender); })
-            : b.name),
+          get: (b) => (b.source && b.source !== 'custom'
+            ? b.name
+            : textField(`alloc-name-${b.id}`, '', b.name, (v) => { b.name = v || 'Category'; touch(rerender); })),
         },
         {
-          label: 'Weight',
+          label: 'Setting',
           align: 'right',
-          get: (b) => numberField(`alloc-${b.id}`, '', num(b.weight, 10),
-            (v) => { b.weight = Math.max(0, num(v)); touch(rerender); }, { min: 0, step: 1 }),
-        },
-        {
-          label: 'Custom base (% of cost)',
-          align: 'right',
-          get: (b) => (b.source === 'custom'
-            ? numberField(`alloc-rate-${b.id}`, '', Math.round(num(b.baseRate) * 100),
-              (v) => { b.baseRate = Math.max(0, num(v)) / 100; touch(rerender); }, { min: 0, step: 1, suffix: '%' })
-            : '—'),
+          // A calculated category is dialled with a weight (10 = as-is, 11 = +10%);
+          // an added category has no calculated amount, so it is a % of the order total.
+          get: (b) => (b.source && b.source !== 'custom'
+            ? numberField(`alloc-${b.id}`, '', num(b.weight, 10),
+              (v) => { b.weight = Math.max(0, num(v)); touch(rerender); }, { min: 0, step: 1 })
+            : numberField(`alloc-pct-${b.id}`, '', Math.round(num(b.pct ?? b.baseRate) * 100),
+              (v) => { b.pct = Math.max(0, num(v)) / 100; touch(rerender); }, { min: 0, step: 1, suffix: '% of total' })),
         },
         {
           label: '',
-          get: (b) => (b.source === 'custom'
-            ? button('Remove', () => {
-              settings.allocations = settings.allocations.filter((x) => x.id !== b.id);
-              touch(rerender);
-            }, { key: `rm-alloc-${b.id}` })
-            : ''),
+          get: (b) => button('Delete', () => {
+            settings.allocations = settings.allocations.filter((x) => x.id !== b.id);
+            touch(rerender);
+          }, { key: `rm-alloc-${b.id}` }),
         },
       ], settings.allocations),
       buttonRow([

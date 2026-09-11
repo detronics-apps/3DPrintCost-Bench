@@ -835,6 +835,9 @@ export function calculateOrder(order, settings, context = {}) {
   const acShare = (k) => (acSum > 0 ? Math.max(0, num(ac[k])) / acSum : 0);
   const categoryBases = {
     productionCost: ctcTotal,
+    // The whole calculated value of the order, for the % of total that a custom
+    // (unsourced) category adds.
+    total: partValue + orderExtras,
     material: sumLine((l) => l.production.material),
     machine: sumLine((l) => l.production.machine),
     electricity: sumLine((l) => l.production.electricity),

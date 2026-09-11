@@ -388,6 +388,19 @@ test('commercial categories at the baseline weight do not change the price', () 
   assert.ok(r.allocation.lines.some((l) => l.id === 'profit'), 'profit is a category');
 });
 
+test('an added (custom) category charges a percent of the order total', () => {
+  const s = settings();
+  const order = { lines: [{ ...bracket(), quantity: 3 }] };
+  const base = calculateOrder(order, s);
+  const withCat = clone(s);
+  withCat.allocations = [...withCat.allocations, { id: 'charity', name: 'Charity', source: 'custom', pct: 0.05, weight: 10 }];
+  const r = calculateOrder(order, withCat);
+  const orderTotal = base.parts.total + base.orderExtras.total;
+  close(r.totals.net - base.totals.net, orderTotal * 0.05, 1e-6, '5% of the order total added');
+  const line = r.allocation.lines.find((l) => l.id === 'charity');
+  assert.equal(line.mode, 'percent', 'a sourceless category is a percent-of-total one');
+});
+
 test('raising a category weight adds that share of it to the price', () => {
   const s = settings();
   const order = { lines: [{ ...bracket(), quantity: 3 }] };

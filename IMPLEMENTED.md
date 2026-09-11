@@ -9,6 +9,24 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Commercial categories — edit in Settings, add/delete any (v1.0.28)
+
+- **Mode is structural** (`commercialAdjustment` in `js/pricing.js`): a category with a
+  real `source` uses the WEIGHT dial (base from `bases[source]`); a category with no
+  source (custom/added) is a **percent of the order total** (`pct` × `bases.total`,
+  added as new money). `bases.total = partValue + orderExtras` added in the engine.
+  Backwards-compatible with the earlier custom `baseRate`.
+- **Inputs moved to Settings** (`js/ui/tools/settings.js` → Pricing → Commercial
+  categories): weight input for sourced categories, "% of total" for added ones, a
+  **Delete on every row** (not just custom), and Add a category. The estimate
+  `allocationPanel(result)` is now READ-ONLY — Category / Calculated / Setting /
+  Charged / To the invoice — and points to Settings.
+- **Part-selector chips** on the estimate now read `Part ${i+1}` instead of the model
+  name. Why: user asked to add/delete any category, make sourceless (R0) categories a
+  % of total, keep inputs in Settings, and label the chips by position. Verified live
+  (estimate panel 0 inputs; Settings has 13 inputs + 13 Delete + Add; chips "Part 1/2").
+  Test: a custom category adds 5% of the order total.
+
 ## Commercial categories — dial where the money goes (v1.0.27)
 
 - **New model** (`js/pricing.js`): `DEFAULT_COMMERCIAL_CATEGORIES` (each `{id, name,

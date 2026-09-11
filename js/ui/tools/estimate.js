@@ -1223,37 +1223,20 @@ function comparison(ctx, part, result) {
   ]);
 }
 
-function allocationPanel(ctx, result) {
-  const { state, rerender } = ctx;
+function allocationPanel(result) {
   const code = result.currencyCode;
-  const cats = state.settings.allocations || [];
   const lines = result.allocation.lines;
 
-  const setCat = (id, patch) => {
-    state.settings.allocations = cats.map((c) => (c.id === id ? { ...c, ...patch } : c));
-    saveSoon();
-    rerender();
-  };
-  const weightInput = (line) => el('input', {
-    type: 'number', min: '0', step: '1', value: String(line.weight),
-    class: 'cell-input',
-    on: { change: (e) => setCat(line.id, { weight: Math.max(0, num(e.target.value, 10)) }) },
-  });
-  const nameInput = (line) => el('input', {
-    type: 'text', value: line.name, class: 'cell-input cell-input--text',
-    on: { change: (e) => setCat(line.id, { name: e.target.value || 'Category' }) },
-  });
-  const removeBtn = (line) => button('Remove', () => {
-    state.settings.allocations = cats.filter((c) => c.id !== line.id);
-    saveSoon();
-    rerender();
-  }, { key: `rm-cat-${line.id}` });
-
   const rows = table([
-    { label: 'Category', get: (r) => (r.custom ? nameInput(r) : r.name) },
-    { label: 'Calculated', align: 'right', mono: true, get: (r) => fmtMoney(r.base, code) },
-    { label: 'Weight', align: 'right', get: (r) => weightInput(r) },
-    { label: 'Adjusted', align: 'right', mono: true, get: (r) => fmtMoney(r.adjusted, code) },
+    { label: 'Category', key: 'name' },
+    { label: 'Calculated', align: 'right', mono: true, get: (r) => (r.mode === 'percent' ? '—' : fmtMoney(r.base, code)) },
+    {
+      label: 'Setting',
+      align: 'right',
+      mono: true,
+      get: (r) => (r.mode === 'percent' ? `${(r.pct * 100).toFixed(1)}% of total` : `weight ${r.weight}`),
+    },
+    { label: 'Charged', align: 'right', mono: true, get: (r) => fmtMoney(r.adjusted, code) },
     {
       label: 'To the invoice',
       align: 'right',
@@ -1261,37 +1244,21 @@ function allocationPanel(ctx, result) {
       get: (r) => (Math.abs(r.addToPrice) < 0.005 ? '—'
         : `${r.addToPrice > 0 ? '+' : '−'}${fmtMoney(Math.abs(r.addToPrice), code)}`),
     },
-    { label: '', get: (r) => (r.custom ? removeBtn(r) : '') },
   ], lines);
 
   const added = result.allocation.addToPrice;
   return el('div', { class: 'panel' }, [
     el('h3', { text: 'Where the money in this order goes' }),
-    muted('Every category shows the amount already worked out for it in this order. The '
-      + 'Weight is how you dial it: 10 leaves it exactly as calculated, 11 adds 10% of that '
-      + 'category to the client’s price, 9 takes 10% off. Profit is just another category — '
-      + 'its weight moves profit up or down and nothing else. Add your own categories for '
-      + 'anything else you want money set aside for.'),
+    muted('Each category shows the amount worked out for it in this order and how it is set. '
+      + 'A calculated category is charged at its amount when its weight is 10 (11 adds 10%, 9 takes '
+      + '10% off); an added category is a percentage of the whole order. Adjust the weights, add or '
+      + 'remove categories in Settings → Commercial categories.'),
     rows,
-    buttonRow([button('Add a category', () => {
-      state.settings.allocations = [...cats, {
-        id: `cat-${Date.now().toString(36)}`,
-        name: 'New category',
-        source: 'custom',
-        baseKind: 'percent',
-        baseRate: 0.05,
-        weight: 10,
-      }];
-      saveSoon();
-      rerender();
-    }, { key: 'add-cat' })]),
     muted(added > 0.005
-      ? `These weights add ${fmtMoney(added, code)} to the client’s price for this order.`
+      ? `The weights and added categories put ${fmtMoney(added, code)} on top of this order.`
       : (added < -0.005
-        ? `These weights take ${fmtMoney(-added, code)} off the client’s price for this order.`
-        : 'At the current weights the price is exactly the calculated total — nothing added or removed. '
-          + 'A custom category is charged as new money (its own amount); a built-in one only changes the '
-          + 'price by how far its weight is from 10.')),
+        ? `The weights take ${fmtMoney(-added, code)} off this order.`
+        : 'At the current settings the price is exactly the calculated total — nothing added or removed.')),
   ]);
 }
 
@@ -1464,7 +1431,7 @@ export function main(ctx) {
 
   if (result.lines.length > 1) {
     nodes.push(chips('select-part',
-      result.lines.map((l) => ({ value: l.partId, label: l.name })),
+      result.lines.map((l, i) => ({ value: l.partId, label: `Part ${i + 1}` })),
       line?.partId, (partId) => {
         state.ui.selectedEstimatePart = partId;
         saveSoon();
@@ -1558,7 +1525,7 @@ export function main(ctx) {
     nodes.push(breakdown(line, result, settings));
     nodes.push(labourPanel(line, code, settings));
     nodes.push(comparison(ctx, detailPart, result));
-    nodes.push(allocationPanel(ctx, result));
+    nodes.push(allocationPanel(result));
   }
 
   return nodes.filter(Boolean);
