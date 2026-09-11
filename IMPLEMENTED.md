@@ -9,6 +9,23 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## 3-D bed: solid parts, bigger and centred (v1.0.23)
+
+- **Near-face rendering fix** in `isoBox` (`js/ui/svg/bed.js`): the box drew its +x
+  and +y faces (the two meeting at the FAR vertical edge d0–D), so parts looked
+  inside-out. Now draws the −y (front-right, `[a,b,B,A]`) and −x (front-left,
+  `[a,e,E,A]`) faces — the two meeting at the near edge a–A — plus the top. Box
+  draw order flipped to farthest-first (`sort((a,b)=>b.key-a.key)`, key=x+y) so
+  nearer parts paint over farther ones.
+- **Fit/centre rewrite** in `isoSvg`: the cage height was the full build volume
+  (`bz`), so flat parts scaled tiny against a tall empty cage. Now `contentZ =
+  max part/tower z` and the cage is `contentZ*1.15`. Scale fits the projected
+  bounding box (`widthUnit=(bx+by)·AX`, `heightUnit=(bx+by)·AY+bz`) into the frame
+  with a top pad for the printer name; `cx`/`cy` computed to centre the bbox
+  (previously `cy=H-24` pinned it to the bottom). Verified live: fills 93% width,
+  centreX=200, centreY≈159. Why: user reported inside-out parts and wasted white
+  space. No test (pure SVG geometry); checked via DOM bbox in the preview.
+
 ## Estimate: money breakdown moved up, table renamed (v1.0.22)
 
 - **Order-wide `moneyDiagram` moved** in estimate `main()` (`js/ui/tools/estimate.js`)

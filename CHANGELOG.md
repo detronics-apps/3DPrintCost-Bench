@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.23 — 3-D bed: solid parts, bigger and centred (2026-09-11)
+
+- **Parts render solid, the right way round.** The 3-D view was drawing each part's
+  far faces, so the boxes looked inside-out; it now draws the near faces (the two
+  you actually see) with the top, so every part reads as a solid block.
+- **Bigger and centred.** The view no longer scales to a tall, mostly-empty
+  build-volume cage — the cage now hugs the parts, and the whole drawing is centred
+  and fills the frame, so there's far less empty white space.
+
 ## 1.0.22 — Estimate: money breakdown moved up, table renamed (2026-09-11)
 
 - **The whole-bed money breakdown (production, part price, invoice) moved up** to

@@ -109,9 +109,12 @@ function isoBox(P, { x, y, w, d, z }, fill) {
     points: pts.map((q) => `${q.sx.toFixed(1)},${q.sy.toFixed(1)}`).join(' '),
     fill: f, 'fill-opacity': op, stroke: fill, 'stroke-width': 0.5, 'stroke-opacity': 0.6,
   });
+  // The viewer looks down onto the front corner (a/A), so the visible faces are the
+  // two that meet at that near edge — the −y face (front-right) and the −x face
+  // (front-left) — plus the top. Drawing the far faces showed the box inside-out.
   return svg('g', {}, [
-    poly([c.b, c.d0, c.D, c.B], fill, 0.5), // right face
-    poly([c.e, c.d0, c.D, c.E], fill, 0.35), // front face
+    poly([c.a, c.b, c.B, c.A], fill, 0.5), // front-right face (−y)
+    poly([c.a, c.e, c.E, c.A], fill, 0.35), // front-left face (−x)
     poly([c.A, c.B, c.D, c.E], fill, 0.8), // top face
   ]);
 }
@@ -134,13 +137,21 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName, showTowe
   // The tower is only as tall as the tallest part on this bed, not the whole cage.
   const towerZ = Math.max(1, ...placements.map((p) => Number(p.z) || 0));
 
-  const bz = Math.max(1, Number(build?.z) || Math.max(bx, by));
-  // Scale so the whole cage fits.
-  const spanX = (bx + by) * AX;
-  const spanY = (bx + by) * AY + bz;
-  const s = Math.min((W - 40) / Math.max(1, spanX), (H - 40) / Math.max(1, spanY)) * 0.92;
+  // The cage is only as tall as the parts (plus a little headroom), not the whole
+  // build volume — a full-height empty cage just wastes the frame with flat parts.
+  const contentZ = Math.max(1, towerZ, ...placements.map((p) => Number(p.z) || 0));
+  const bz = contentZ * 1.15;
+
+  // Fit and centre the whole drawing in the frame. The projected bounding box is
+  // (bx+by)·AX wide and (bx+by)·AY + bz tall; scale to fill, leaving room at the
+  // top for the printer name, then place the origin so the box is centred.
+  const topPad = printerName ? 26 : 14;
+  const pad = 14;
+  const widthUnit = (bx + by) * AX;
+  const heightUnit = (bx + by) * AY + bz;
+  const s = Math.min((W - pad * 2) / Math.max(1, widthUnit), (H - topPad - pad) / Math.max(1, heightUnit));
   const cx = W / 2 + (by - bx) * AX * s / 2;
-  const cy = H - 24;
+  const cy = topPad + (H - topPad - pad + heightUnit * s) / 2;
   const P = (px, py, pz) => ({ sx: cx + (px - py) * AX * s, sy: cy - (px + py) * AY * s - pz * s });
 
   const node = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'bedplan__svg bedplan__iso', role: 'img', preserveAspectRatio: 'xMidYMid meet' });
@@ -151,7 +162,7 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName, showTowe
     points: f.map((q) => `${q.sx.toFixed(1)},${q.sy.toFixed(1)}`).join(' '),
     fill: 'var(--surface-2, #eef1f5)', stroke: 'var(--border)', 'stroke-width': 1,
   }));
-  // The build-volume cage (back edges), so height reads.
+  // The cage (back edges), so height reads without swamping the frame.
   const cage = [[P(0, 0, 0), P(0, 0, bz)], [P(bx, 0, 0), P(bx, 0, bz)], [P(0, by, 0), P(0, by, bz)],
     [P(0, 0, bz), P(bx, 0, bz)], [P(0, 0, bz), P(0, by, bz)]];
   for (const [a, b] of cage) {
@@ -160,8 +171,8 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName, showTowe
     }));
   }
 
-  // Boxes back-to-front so nearer parts overlap farther ones correctly.
-  const boxes = placements.map((p) => ({ ...p, key: p.x + p.y })).sort((a, b) => a.key - b.key);
+  // Farthest parts first, so nearer parts paint over the ones behind them.
+  const boxes = placements.map((p) => ({ ...p, key: p.x + p.y })).sort((a, b) => b.key - a.key);
   for (const p of boxes) {
     node.appendChild(isoBox(P, { x: p.x, y: p.y, w: p.w, d: p.h, z: p.z }, p.colour || colourById(p.id)));
   }
