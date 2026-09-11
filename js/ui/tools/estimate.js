@@ -290,6 +290,10 @@ function partBlock(ctx, part, index, canRemove, open = true) {
       checkField(`angle-opt-${key}`, FACTOR_LABELS.angleOptimisation, merged.angleOptimisation, setOverride('angleOptimisation')),
       checkField(`ironing-${key}`, FACTOR_LABELS.ironing, merged.ironing, setOverride('ironing')),
       checkField(`fuzzy-${key}`, FACTOR_LABELS.fuzzySkin, merged.fuzzySkin, setOverride('fuzzySkin')),
+      checkField(`adaptive-${key}`, FACTOR_LABELS.adaptiveLayers, merged.adaptiveLayers, setOverride('adaptiveLayers'), {
+        hint: 'Finer layers where the surface curves — a better finish for longer. Adds about 15% '
+          + 'to the print time (editable in Expert factor settings).',
+      }),
       overridden
         ? buttonRow([button(`Back to the ${profile.name} profile`, () => {
           part.settingOverrides = {};

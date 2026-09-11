@@ -38,6 +38,15 @@ test('the fitted model reproduces every published factor', () => {
   }
 });
 
+test('adaptive layers add time but not material', () => {
+  const off = factorFor('adaptiveLayers', { adaptiveLayers: false });
+  const on = factorFor('adaptiveLayers', { adaptiveLayers: true });
+  assert.equal(off.time, 1);
+  assert.equal(off.material, 1);
+  within(on.time, 1.15, 0.001, 'adaptive layers time uplift');
+  assert.equal(on.material, 1, 'the plastic used is unchanged');
+});
+
 test('the baseline profile has a factor of exactly 1 in both directions', () => {
   const baseline = byId(BASELINE_PROFILE_ID);
   const f = factorsFor(baseline.settings);

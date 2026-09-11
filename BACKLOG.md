@@ -199,9 +199,11 @@ _Extends the existing filament cluster; the CSV items tie inventory to real usag
 
 ## Print-setting model additions
 
-- **Adaptive layer lines** — a print setting that trades finer layers for more time.
-  Model it simply: apply an average time uplift (e.g. +10–20%) when it's on, to
-  account for the extra time. Available in all three surfaces. (Raised 2026-09-10.)
+- **Adaptive layers in the client form** — adaptive layers shipped as a flag factor
+  on the estimate and the project (v1.0.17, ~15% time uplift). The simplified client
+  form does not expose the advanced print-setting toggles (ironing, fuzzy skin, …)
+  at all, so adding just adaptive layers there needs a decision on whether to surface
+  the advanced flags on the client form. (Raised 2026-09-10; est/project shipped v1.0.17.)
 
 ## Cross-cutting UX
 

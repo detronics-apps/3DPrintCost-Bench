@@ -9,6 +9,21 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Adaptive layers (v1.0.17)
+
+- **Adaptive layers as a flag factor** — added `adaptiveLayers` to the factor model
+  (`js/profiles.js` `DEFAULT_FACTOR_MODEL`, `FACTOR_ORDER`, `FACTOR_LABELS`) as
+  `{ kind:'flag', on:{ time:1.15, material:1 }, measured:false }`, so the existing
+  `factorsFor` machinery applies the ~15% time uplift automatically when a part's
+  settings have it on (no engine change). Added `adaptiveLayers:false` to every
+  shipped profile's settings and `adaptiveLayers:1` to every `PUBLISHED_FACTORS`
+  column (off ⇒ ×1, so published totals still multiply out and the reproduction
+  tests hold). UI checkboxes in the estimator's "This part's settings" and the
+  project's `partSettingOverrides` (both via `setOverride('adaptiveLayers')`). The
+  simplified client form exposes no advanced flags, so it's left out (noted in
+  `BACKLOG.md`). Tests: adaptive-layers factor is 1.15 time / 1 material on, 1/1 off;
+  full suite green (482). (2026-09-11, <commit>)
+
 ## Delivery names the calculated box and courier (v1.0.16)
 
 - **Show the calculated box/courier instead of "cheapest that fits"** — the estimate

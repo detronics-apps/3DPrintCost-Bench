@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.17 — Adaptive layers (2026-09-11)
+
+- **Adaptive layers print setting** — tick it on a part (Advanced/Expert, on the
+  estimate and the project) for finer layers where the surface curves: a better
+  finish that adds about 15% to the print time (the plastic is unchanged). The
+  uplift is editable in Expert factor settings.
+
 ## 1.0.16 — Delivery names the calculated box and courier (2026-09-11)
 
 - **The box the parts fit in is named, not "cheapest that fits"** — the packaging

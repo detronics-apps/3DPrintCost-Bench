@@ -940,6 +940,9 @@ function partSettingOverrides(part, settings, set) {
     checkField(`part-angle-opt-${part.id}`, FACTOR_LABELS.angleOptimisation, merged.angleOptimisation, setOverride('angleOptimisation')),
     checkField(`part-ironing-${part.id}`, FACTOR_LABELS.ironing, merged.ironing, setOverride('ironing')),
     checkField(`part-fuzzy-${part.id}`, FACTOR_LABELS.fuzzySkin, merged.fuzzySkin, setOverride('fuzzySkin')),
+    checkField(`part-adaptive-${part.id}`, FACTOR_LABELS.adaptiveLayers, merged.adaptiveLayers, setOverride('adaptiveLayers'), {
+      hint: 'Finer layers where the surface curves — a better finish for longer (about +15% time).',
+    }),
     overridden
       ? buttonRow([button(`Back to the ${profile.name} profile`,
         () => set({ settingOverrides: {} }), { key: `part-reset-overrides-${part.id}` })])

@@ -93,6 +93,10 @@ export const DEFAULT_FACTOR_MODEL = {
   angleOptimisation: { kind: 'flag', on: { time: 1.05, material: 1.05 }, measured: true },
   ironing: { kind: 'flag', on: { time: 1.1, material: 1.0 }, measured: true },
   fuzzySkin: { kind: 'flag', on: { time: 1.35, material: 1.0 }, measured: true },
+  // Adaptive layers thin the layers where the surface curves, for a finer finish
+  // at the cost of more time (the plastic is unchanged). Not company-measured — a
+  // stated ~15% time uplift you can edit in Expert factor settings.
+  adaptiveLayers: { kind: 'flag', on: { time: 1.15, material: 1.0 }, measured: false },
   layerHeight: {
     kind: 'anchors',
     points: [
@@ -109,7 +113,7 @@ export const DEFAULT_FACTOR_MODEL = {
 /** The order the breakdown is always presented in, so two screens agree. */
 export const FACTOR_ORDER = [
   'infill', 'infillPattern', 'wallLoops', 'materialType', 'colour',
-  'shrinkage', 'angleOptimisation', 'ironing', 'fuzzySkin', 'layerHeight',
+  'shrinkage', 'angleOptimisation', 'ironing', 'fuzzySkin', 'adaptiveLayers', 'layerHeight',
 ];
 
 export const FACTOR_LABELS = {
@@ -122,6 +126,7 @@ export const FACTOR_LABELS = {
   angleOptimisation: 'Angle / orientation optimisation',
   ironing: 'Ironing',
   fuzzySkin: 'Fuzzy skin',
+  adaptiveLayers: 'Adaptive layers',
   layerHeight: 'Layer height',
 };
 
@@ -159,6 +164,7 @@ export const DEFAULT_PROFILES = [
       angleOptimisation: true,
       ironing: false,
       fuzzySkin: false,
+      adaptiveLayers: false,
       layerHeight: 0.2,
     }, { speed: 2, cost: 2, strength: 5, precision: 3 }),
   profile('strength', 'Strength',
@@ -173,6 +179,7 @@ export const DEFAULT_PROFILES = [
       angleOptimisation: true,
       ironing: false,
       fuzzySkin: false,
+      adaptiveLayers: false,
       layerHeight: 0.2,
     }, { speed: 3, cost: 3, strength: 4, precision: 3 }),
   profile('fit', 'Fit',
@@ -187,6 +194,7 @@ export const DEFAULT_PROFILES = [
       angleOptimisation: false,
       ironing: false,
       fuzzySkin: false,
+      adaptiveLayers: false,
       layerHeight: 0.2,
     }, { speed: 4, cost: 3, strength: 2, precision: 5 }),
   profile('function', 'Function',
@@ -201,6 +209,7 @@ export const DEFAULT_PROFILES = [
       angleOptimisation: false,
       ironing: false,
       fuzzySkin: false,
+      adaptiveLayers: false,
       layerHeight: 0.2,
     }, { speed: 3, cost: 3, strength: 3, precision: 3 }),
   profile('visual', 'Visual',
@@ -215,6 +224,7 @@ export const DEFAULT_PROFILES = [
       angleOptimisation: true,
       ironing: true,
       fuzzySkin: true,
+      adaptiveLayers: false,
       layerHeight: 0.15,
     }, { speed: 2, cost: 4, strength: 2, precision: 4 }),
   profile('display', 'Display Only',
@@ -229,6 +239,7 @@ export const DEFAULT_PROFILES = [
       angleOptimisation: false,
       ironing: false,
       fuzzySkin: false,
+      adaptiveLayers: false,
       layerHeight: 0.2,
     }, { speed: 5, cost: 5, strength: 1, precision: 2 }),
 ];
@@ -240,20 +251,20 @@ export const DEFAULT_PROFILES = [
  */
 export const PUBLISHED_FACTORS = {
   time: {
-    'extra-strong': { total: 31.88, infill: 4.59, infillPattern: 1.05, wallLoops: 6.3, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
-    strength: { total: 18.07, infill: 3.92, infillPattern: 1.05, wallLoops: 4.18, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
-    fit: { total: 1.05, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1.05, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
-    function: { total: 3.63, infill: 1.68, infillPattern: 1, wallLoops: 2.06, materialType: 1, colour: 1, shrinkage: 1.05, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
-    visual: { total: 1.64, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1.1, fuzzySkin: 1.35, layerHeight: 1.05 },
-    display: { total: 1, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
+    'extra-strong': { total: 31.88, infill: 4.59, infillPattern: 1.05, wallLoops: 6.3, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
+    strength: { total: 18.07, infill: 3.92, infillPattern: 1.05, wallLoops: 4.18, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
+    fit: { total: 1.05, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1.05, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
+    function: { total: 3.63, infill: 1.68, infillPattern: 1, wallLoops: 2.06, materialType: 1, colour: 1, shrinkage: 1.05, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
+    visual: { total: 1.64, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1.1, fuzzySkin: 1.35, adaptiveLayers: 1, layerHeight: 1.05 },
+    display: { total: 1, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
   },
   material: {
-    'extra-strong': { total: 30.35, infill: 4.83, infillPattern: 0.95, wallLoops: 6.3, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
-    strength: { total: 17.14, infill: 4.11, infillPattern: 0.95, wallLoops: 4.18, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
-    fit: { total: 1.05, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1.05, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
-    function: { total: 3.7, infill: 1.71, infillPattern: 1, wallLoops: 2.06, materialType: 1, colour: 1, shrinkage: 1.05, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
-    visual: { total: 1.06, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, layerHeight: 1.01 },
-    display: { total: 1, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, layerHeight: 1 },
+    'extra-strong': { total: 30.35, infill: 4.83, infillPattern: 0.95, wallLoops: 6.3, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
+    strength: { total: 17.14, infill: 4.11, infillPattern: 0.95, wallLoops: 4.18, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
+    fit: { total: 1.05, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1.05, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
+    function: { total: 3.7, infill: 1.71, infillPattern: 1, wallLoops: 2.06, materialType: 1, colour: 1, shrinkage: 1.05, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
+    visual: { total: 1.06, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1.05, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1.01 },
+    display: { total: 1, infill: 1, infillPattern: 1, wallLoops: 1, materialType: 1, colour: 1, shrinkage: 1, angleOptimisation: 1, ironing: 1, fuzzySkin: 1, adaptiveLayers: 1, layerHeight: 1 },
   },
 };
 
