@@ -20,7 +20,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   were replaced by one `noticeStack` "stock alerts" line (dismissible). The reorder-
   point editor already existed (the `stock-reorder` numberField). Why: the owner
   wanted actionable reorders at the bottom and closable alerts, not a wall of
-  banners. 482 tests green. (2026-09-11, <commit>)
+  banners. 482 tests green. (2026-09-11, bbca964)
 
 ## Adaptive layers (v1.0.17)
 
