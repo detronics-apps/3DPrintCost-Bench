@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.38 — Free delivery: show how much more to add (2026-09-11)
+
+- On the client form, instead of stating the free-delivery threshold, it now says
+  **how much more to add** — e.g. "Only add R320 more to your parts to get free
+  delivery" — in a notification block.
+
 ## 1.0.37 — Print-intent: collapsible radar, clearer blurbs, Display default (2026-09-11)
 
 - **The score radar is tucked into a "See how it scores" fold** (collapsed by default)

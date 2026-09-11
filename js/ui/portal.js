@@ -1082,7 +1082,9 @@ function render() {
         ? `Delivery is free on this order — the ${fmtMoney(deliveryTotal, code)} above is packaging.`
         : 'This order qualifies for free delivery.')
       : (result.shipping.freeRule.threshold > 0
-        ? muted(`Delivery is free on part orders over ${fmtMoney(result.shipping.freeRule.threshold, code)}.`)
+        // Show how much more the customer needs to add to earn free delivery, rather
+        // than the bare threshold.
+        ? banner('info', `Only add ${fmtMoney(Math.max(0, result.shipping.freeRule.threshold - num(result.shipping.freeRule.measured)), code)} more to your parts to get free delivery.`)
         : null),
     belowMinimum
       ? banner('warn', `The minimum order is ${fmtMoney(config.minimumOrder, code)}. `

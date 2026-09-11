@@ -9,6 +9,14 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Free delivery: remaining-to-threshold message (v1.0.38)
+
+- `js/ui/portal.js` price panel: when not yet free and a threshold is set, show a
+  `banner('info', 'Only add {threshold − measured} more to your parts to get free
+  delivery.')` (using `result.shipping.freeRule.threshold`/`measured`) instead of
+  stating the bare threshold. Verified live ("Only add R681.02 more…"). Why: user
+  wants the outstanding amount, in a notification block.
+
 ## Print-intent: collapsible radar, self-contained blurbs, Display default (v1.0.37)
 
 - **Collapsible radar** (`js/ui/portal.js`): the per-part score radar is wrapped in a
