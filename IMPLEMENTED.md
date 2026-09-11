@@ -18,7 +18,7 @@ _This ledger begins 2026-09-08. Features that shipped before then are recorded i
   both the how-tos and FAQs benefit. Why: a reader who doesn't know the app's words
   ("team sync") searches what they'd say ("local save", "cloud"). Locked with
   `tests/guide-search.test.js` (local save→team sync, ran out of filament→reorder,
-  client form→portal, unrelated stays unmatched). (2026-09-11, <commit>)
+  client form→portal, unrelated stays unmatched). (2026-09-11, 35c259c)
 
 ## Inventory reorders section + closable alerts (v1.0.18)
 
