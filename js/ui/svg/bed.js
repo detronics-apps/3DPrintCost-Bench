@@ -140,8 +140,11 @@ function rot90(r, aw) {
 }
 
 function isoSvg(plate, area, reserve, build, { colourById, printerName, showTower }) {
-  const W = 400;
-  const H = 300;
+  // A large canvas: the 3-D view is the focus of the panel and fills the space
+  // beside the top-down plates. (capDiagramScale pins the on-screen max-width to
+  // this viewBox width, so this is what actually sets how big it renders.)
+  const W = 760;
+  const H = 560;
   // The iso view is the top view rotated 90° CCW: swap the build footprint and
   // rotate every placement, so the same models read from the rotated viewpoint.
   const bx = area.h;
@@ -161,8 +164,8 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName, showTowe
   // Fit and centre the whole drawing in the frame. The projected bounding box is
   // (bx+by)·AX wide and (bx+by)·AY + spanZ tall; scale to fill, leaving room at the
   // top for the printer name, then place the origin so the box is centred.
-  const topPad = printerName ? 26 : 14;
-  const pad = 14;
+  const topPad = printerName ? 34 : 16;
+  const pad = 18;
   const widthUnit = (bx + by) * AX;
   const heightUnit = (bx + by) * AY + spanZ;
   const s = Math.min((W - pad * 2) / Math.max(1, widthUnit), (H - topPad - pad) / Math.max(1, heightUnit));
@@ -200,7 +203,7 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName, showTowe
     node.appendChild(isoBox(P, { x: towerRect.x, y: towerRect.y, w: towerRect.w, d: towerRect.h, z: towerZ }, TOWER_FILL));
   }
   if (printerName) {
-    node.appendChild(svg('text', { x: W / 2, y: 14, 'font-size': 11, fill: 'var(--text-dim)', 'font-family': 'inherit', 'text-anchor': 'middle' }, [printerName]));
+    node.appendChild(svg('text', { x: W / 2, y: 22, 'font-size': 14, fill: 'var(--text-dim)', 'font-family': 'inherit', 'text-anchor': 'middle' }, [printerName]));
   }
   return node;
 }

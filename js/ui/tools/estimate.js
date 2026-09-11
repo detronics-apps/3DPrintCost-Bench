@@ -233,8 +233,17 @@ function partBlock(ctx, part, index, canRemove, open = true) {
       numberField(`manual-y-${key}`, 'Width', m.y, setManual('y'), { min: 0, suffix: 'mm' }),
       numberField(`manual-z-${key}`, 'Height', m.z, setManual('z'), { min: 0, suffix: 'mm' }),
     ]));
+    // With no model the solid volume is worked out from the three measurements —
+    // 35% of the length × width × height box. Show that figure so it is never a
+    // blank 0; a real number typed here overrides it.
+    const boxVol = num(m.x) * num(m.y) * num(m.z);
+    const estVol = num(m.volume, 0) > 0 ? num(m.volume) : Math.round(boxVol * 0.35);
     modelBody.push(numberField(`manual-volume-${key}`, 'Solid volume', m.volume, setManual('volume'), {
-      min: 0, suffix: 'mm³', hint: 'Leave at zero to estimate it from the bounding box.',
+      min: 0, suffix: 'mm³',
+      hint: boxVol > 0
+        ? `Left at zero, it is calculated from the measurements: ≈ ${estVol.toLocaleString()} mm³ `
+          + `(35% of the ${Math.round(boxVol).toLocaleString()} mm³ box). Type a value to override it.`
+        : 'Enter the length, width and height above, or a solid volume if you know it.',
     }));
   }
 

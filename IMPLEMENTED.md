@@ -9,6 +9,24 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Bigger 3-D view, shown solid volume (v1.0.25)
+
+- **Larger iso** (`js/ui/svg/bed.js`): viewBox bumped 400×300 → 760×560. This is the
+  real lever, because `capDiagramScale` (`js/ui/patterns.js`) pins each diagram's
+  inline `max-width` to its viewBox width — so a CSS `max-width` alone did nothing.
+  In-canvas printer-name text and paddings scaled up to match (`topPad` 34, `pad`
+  18, name font 14 at y=22). CSS (`components.css`): `.bedplan__cols` is now
+  `auto minmax(360px, 1fr)` so the top-view plates take only their content width and
+  the 3-D view fills the rest (kills the gap that was wasted space); `.bedplan__grid`
+  capped at `max-width:640`; `.bedplan__isohead` set to `font-size:15px; font-weight:700`
+  to match the panel's `h3` ("Beds & layout"). Verified live: iso renders 760×560,
+  heading computed 15px/700 same as the h3.
+- **Solid volume shown** (`js/ui/tools/estimate.js` `partBlock`): when a part has no
+  model, the Solid volume field hint now states the calculated figure — `round(L·W·H
+  · 0.35)` — with the box volume, instead of "Leave at zero…". The engine already
+  used 35% of the box (`manualGeometry` in `engine.js`); this just surfaces it.
+  Verified live: "≈ 22,497 mm³ (35% of the 64,277 mm³ box)".
+
 ## Bed layout: flag parts that don't fit, simpler labels (v1.0.24)
 
 - **Overflow parts drawn red** (`js/ui/svg/bed.js`): `OVERFLOW_FILL = var(--danger)`

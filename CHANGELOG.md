@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.25 — Bigger 3-D view, shown solid volume (2026-09-11)
+
+- **The 3-D view is much larger** and fills the space beside the top-down plates
+  (which now take only the room they need), with the "In 3-D" heading in the same
+  size and style as the "Beds & layout" heading.
+- **The estimated solid volume is shown.** With no model loaded, the Solid volume
+  field explains the figure it uses — 35% of the length × width × height box — with
+  the actual number, instead of a bare 0. Type a value to override it.
+
 ## 1.0.24 — Bed layout: flag parts that don't fit, simpler labels (2026-09-11)
 
 - **Parts that don't fit turn red.** A part too tall for the printer is drawn red on
