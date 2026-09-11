@@ -40,8 +40,11 @@ export function radarChart(ratings, { size = 200, max = 5, title = null, axes = 
   const R = (size - pad * 2) / 2;
   const cx = size / 2;
   const cy = size / 2;
+  // Extra room left and right so the side labels ("Aesthetics", "Cost") are never
+  // clipped. The viewBox is widened; the pentagon stays centred.
+  const hpad = 44;
   const root = svg('svg', {
-    viewBox: `0 0 ${size} ${size}`,
+    viewBox: `${-hpad} 0 ${size + hpad * 2} ${size}`,
     role: 'img',
     'aria-label': title || `How this print type scores on ${axes.map((a) => a.name.toLowerCase()).join(', ')}`,
   });

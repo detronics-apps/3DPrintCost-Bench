@@ -129,7 +129,8 @@ export function orderCsv(result, { includeInternal = true } = {}) {
     rows.push(['Demand multiplier', result.demand.multiplier]);
     for (const line of result.allocation.lines) {
       rows.push([`Category: ${line.name}`, money(line.adjusted),
-        `weight ${line.weight}`, money(line.addToPrice)]);
+        `${Math.round(line.percent)}% ${line.mode === 'total' ? 'of total' : 'of category'}`,
+        money(line.addToPrice)]);
     }
   }
   return rows;

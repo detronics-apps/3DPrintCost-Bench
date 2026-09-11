@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.31 — Commercial categories as percentages; profile fixes (2026-09-11)
+
+- **Categories now use a percentage, 100% = baseline** (110% adds 10%, 90% takes 10%
+  off, 200% doubles it) instead of the "weight 10" that read confusingly. Each row
+  carries a tag: **"of category"** (a calculated category — the % is of its own
+  amount) or **"of total"** (an added category — the % is of the whole order).
+- **Only added categories can be deleted**; the calculated ones are part of the model
+  and stay.
+- **Fixed the Aesthetics label being cut off** on the print-intent radar.
+- **The Fit profile is now correctly the dearest** — its calibration/reprint pass was
+  missing on older saved profiles and is filled back in, so its Cost score drops.
+
 ## 1.0.30 — Beds & layout: 3-D block pushed right, heading at its left edge (2026-09-11)
 
 - The 3-D view now sits as a block on the right of the panel, with the **"In 3D"

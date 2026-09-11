@@ -1230,13 +1230,9 @@ function allocationPanel(result) {
 
   const rows = table([
     { label: 'Category', key: 'name' },
-    { label: 'Calculated', align: 'right', mono: true, get: (r) => (r.mode === 'percent' ? '—' : fmtMoney(r.base, code)) },
-    {
-      label: 'Setting',
-      align: 'right',
-      mono: true,
-      get: (r) => (r.mode === 'percent' ? `${(r.pct * 100).toFixed(1)}% of total` : `weight ${r.weight}`),
-    },
+    { label: 'Calculated', align: 'right', mono: true, get: (r) => (r.mode === 'total' ? '—' : fmtMoney(r.base, code)) },
+    { label: 'Percentage', align: 'right', mono: true, get: (r) => `${Math.round(r.percent)}%` },
+    { label: 'Applies to', get: (r) => (r.mode === 'total' ? 'of total' : 'of category') },
     { label: 'Charged', align: 'right', mono: true, get: (r) => fmtMoney(r.adjusted, code) },
     {
       label: 'To the invoice',
@@ -1250,15 +1246,15 @@ function allocationPanel(result) {
   const added = result.allocation.addToPrice;
   return el('div', { class: 'panel' }, [
     el('h3', { text: 'Where the money in this order goes' }),
-    muted('Each category shows the amount worked out for it in this order and how it is set. '
-      + 'A calculated category is charged at its amount when its weight is 10 (11 adds 10%, 9 takes '
-      + '10% off); an added category is a percentage of the whole order. Adjust the weights, add or '
+    muted('Each category shows the amount worked out for it in this order and its percentage. '
+      + 'A calculated category is charged at 100% of its own amount (110% adds 10%, 90% takes 10% '
+      + 'off); an added category is a percentage of the whole order. Change the percentages, add or '
       + 'remove categories in Settings → Commercial categories.'),
     rows,
     muted(added > 0.005
-      ? `The weights and added categories put ${fmtMoney(added, code)} on top of this order.`
+      ? `The percentages and added categories put ${fmtMoney(added, code)} on top of this order.`
       : (added < -0.005
-        ? `The weights take ${fmtMoney(-added, code)} off this order.`
+        ? `The percentages take ${fmtMoney(-added, code)} off this order.`
         : 'At the current settings the price is exactly the calculated total — nothing added or removed.')),
   ]);
 }

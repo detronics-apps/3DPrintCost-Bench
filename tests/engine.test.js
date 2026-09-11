@@ -378,14 +378,15 @@ test('VAT is added once, at the end, over everything', () => {
   close(r.tax.tax, r.totals.net * 0.15, 1e-6, 'tax');
 });
 
-test('commercial categories at the baseline weight do not change the price', () => {
+test('commercial categories at 100% do not change the price', () => {
   const s = settings();
   const order = { lines: [{ ...bracket(), quantity: 3 }], shippingMethodId: 'collect' };
   const r = calculateOrder(order, s);
-  // Every default category ships at weight 10, so nothing is added or removed.
-  close(r.allocation.addToPrice, 0, 1e-6, 'no adjustment at the baseline weight');
+  // Every default category ships at 100%, so nothing is added or removed.
+  close(r.allocation.addToPrice, 0, 1e-6, 'no adjustment at the baseline percentage');
   close(r.totals.net, r.parts.total + r.orderExtras.total, 1e-6, 'invoice is just parts + extras');
-  assert.ok(r.allocation.lines.some((l) => l.id === 'profit'), 'profit is a category');
+  const profit = r.allocation.lines.find((l) => l.id === 'profit');
+  assert.ok(profit && profit.percent === 100 && profit.mode === 'category', 'profit is a 100%-of-category line');
 });
 
 test('an added (custom) category charges a percent of the order total', () => {
@@ -393,25 +394,30 @@ test('an added (custom) category charges a percent of the order total', () => {
   const order = { lines: [{ ...bracket(), quantity: 3 }] };
   const base = calculateOrder(order, s);
   const withCat = clone(s);
-  withCat.allocations = [...withCat.allocations, { id: 'charity', name: 'Charity', source: 'custom', pct: 0.05, weight: 10 }];
+  withCat.allocations = [...withCat.allocations, { id: 'charity', name: 'Charity', source: 'custom', percent: 5 }];
   const r = calculateOrder(order, withCat);
   const orderTotal = base.parts.total + base.orderExtras.total;
   close(r.totals.net - base.totals.net, orderTotal * 0.05, 1e-6, '5% of the order total added');
   const line = r.allocation.lines.find((l) => l.id === 'charity');
-  assert.equal(line.mode, 'percent', 'a sourceless category is a percent-of-total one');
+  assert.equal(line.mode, 'total', 'a sourceless category is a percent-of-total one');
 });
 
-test('raising a category weight adds that share of it to the price', () => {
+test('a category above 100% adds that share of it to the price', () => {
   const s = settings();
   const order = { lines: [{ ...bracket(), quantity: 3 }] };
   const base = calculateOrder(order, s);
   const profitBase = base.allocation.lines.find((l) => l.id === 'profit').base;
 
   const bumped = clone(s);
-  bumped.allocations = bumped.allocations.map((c) => (c.id === 'profit' ? { ...c, weight: 11 } : c));
+  bumped.allocations = bumped.allocations.map((c) => (c.id === 'profit' ? { ...c, percent: 110 } : c));
   const r = calculateOrder(order, bumped);
-  // Weight 11 on profit = +10% of the profit category, and nothing else moves.
+  // 110% on profit = +10% of the profit category, and nothing else moves.
   close(r.totals.net - base.totals.net, profitBase * 0.1, 1e-6, 'exactly 10% of profit added');
+  // And 90% takes 10% off.
+  const cut = clone(s);
+  cut.allocations = cut.allocations.map((c) => (c.id === 'profit' ? { ...c, percent: 90 } : c));
+  const r2 = calculateOrder(order, cut);
+  close(r2.totals.net - base.totals.net, -profitBase * 0.1, 1e-6, 'exactly 10% of profit removed');
 });
 
 test('an order with no lines does not produce NaN anywhere', () => {

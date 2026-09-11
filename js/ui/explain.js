@@ -372,23 +372,23 @@ export function explainOrder(result, settings) {
     title: 'Where the money in this order goes',
     source: `${money(alloc.adjustedTotal)} across the categories`,
     plain: 'Each category shows the amount already worked out for it in this order. The '
-      + 'weight dials it: 10 leaves it as calculated, 11 adds 10% of that category to the '
-      + 'price, 9 takes 10% off. So at weight 10 across the board the price is exactly the '
-      + 'calculated total — the categories only move it when a weight leaves 10.',
-    formula: 'adjusted = calculated × (weight ÷ 10)\n'
-      + 'added to the price = (built-in) calculated × (weight − 10) ÷ 10;  (custom) the whole adjusted amount',
+      + 'percentage dials it: 100% leaves it as calculated, 110% adds 10% of that category '
+      + 'to the price, 90% takes 10% off. So at 100% across the board the price is exactly '
+      + 'the calculated total — the categories only move it when a percentage leaves 100%.',
+    formula: 'of category:  adjusted = calculated × (percent ÷ 100);  added = calculated × (percent − 100) ÷ 100\n'
+      + 'of total:     added = order total × (percent ÷ 100)  (the whole amount is new money)',
     worked: [
       ...alloc.lines.map((line) => [
-        `${line.name} · weight ${line.weight}${line.custom ? ' (custom)' : ''}`,
+        `${line.name} · ${Math.round(line.percent)}% ${line.mode === 'total' ? 'of total' : 'of category'}`,
         money(line.adjusted),
       ]),
       ['Added to the client price', money(alloc.addToPrice)],
     ],
-    mistake: 'Treating a built-in category’s whole amount as extra on top. Machine, labour, '
-      + 'profit and the rest are already in the price — only the change from weight 10 is '
-      + 'added or removed. A custom category is the exception: it is new money.',
-    correction: 'Leave a category at weight 10 to charge it exactly as calculated. Move it to '
-      + 'add or shave a percentage, and add a custom category for anything new you want set aside.',
+    mistake: 'Treating a calculated category’s whole amount as extra on top. Machine, labour, '
+      + 'profit and the rest are already in the price — only the change from 100% is added or '
+      + 'removed. An added (“of total”) category is the exception: it is new money.',
+    correction: 'Leave a category at 100% to charge it exactly as calculated. Move it to add or '
+      + 'shave a percentage, and add a category (a percent of the order total) for anything new.',
   }));
 
   return cards;

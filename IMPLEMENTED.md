@@ -9,6 +9,29 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Commercial categories as percentages; profile fixes (v1.0.31)
+
+- **Percentage model** (`js/pricing.js`): categories carry `percent` (100 = baseline)
+  instead of `weight`. `commercialAdjustment` mode is structural — `source` → `'category'`
+  (`adjusted = base × percent/100`, adds `base × (percent−100)/100`); no source → `'total'`
+  (`added = percent/100 × bases.total`, all new money). `categoryPercent(c)` exported,
+  honours older `weight` (×10) and `pct` (×100). `DEFAULT_COMMERCIAL_CATEGORIES` all
+  `percent:100`. Settings migration normalises stored `weight`/`pct` → `percent` (resets
+  only the pre-`duplicates` shape).
+- **UI**: estimate `allocationPanel` read-only columns Category / Calculated / Percentage /
+  Applies to ("of category"/"of total") / Charged / To the invoice. Settings editor: a `%`
+  input + an "of category"/"of total" pill; **Delete only on added (custom) categories**;
+  Add a category defaults to 5% of total. `explain.js`/`export.js` updated to `percent`+`mode`.
+- **Radar** (`js/ui/svg/radar.js`): viewBox widened with `hpad` so the side labels
+  ("Aesthetics", "Cost") are not clipped.
+- **Profile backfill** (`js/settings.js` `migrateSettings`): any print-setting key present
+  on a shipped `DEFAULT_PROFILES` profile but absent on the stored one is filled in
+  (without touching user-changed values) — so an older saved **Fit** gains `calibrationPass`
+  and its Cost score drops to the lowest (dearest). Why: user — percentages clearer than
+  weights, calculated categories shouldn't be deletable, Aesthetics label clipped, Fit
+  should be worst on cost. Verified live: Fit cost 1.7, Aesthetics label full, delete only
+  on custom. Engine tests updated (100% no-op, 110%/90% ±10%, custom = % of total).
+
 ## Beds & layout: In 3D heading right, plates left (v1.0.29)
 
 - **`bedPlan` owns its title** (new `title` option, default 'Beds & layout'): renders a

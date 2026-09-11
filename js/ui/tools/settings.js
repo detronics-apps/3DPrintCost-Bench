@@ -22,7 +22,7 @@ import {
   LABOUR_SCOPES, SCOPE_IDS, labourCost, groupLabour, resolveLabourRate,
 } from '../../labour.js';
 import {
-  DEMAND_TARGETS, CHARGE_MODES, DEFAULT_COMMERCIAL_CATEGORIES, LABOUR_PLACEMENTS, thirdsPrice,
+  DEMAND_TARGETS, CHARGE_MODES, DEFAULT_COMMERCIAL_CATEGORIES, categoryPercent, LABOUR_PLACEMENTS, thirdsPrice,
 } from '../../pricing.js';
 import {
   INFILL_PATTERNS, FACTOR_LABELS, timeAdjustFor,
@@ -435,11 +435,12 @@ function pricingPanel(ctx) {
 
     el('div', { class: 'panel' }, [
       el('h3', { text: 'Commercial categories' }),
-      banner('info', 'Each category is charged at its calculated amount when its weight is 10. '
-        + 'Raise the weight to add that percentage on top (11 = +10%), lower it to take money '
-        + 'off; profit is a category too, and its weight only moves profit. Add your own for '
-        + 'anything else you want money set aside for. The amounts per order are shown on the '
-        + 'estimate under “Where the money in this order goes”.'),
+      banner('info', 'Each category is charged at 100% of its calculated amount. Raise the '
+        + 'percentage to add more (110% = +10%, 200% = double), lower it to take money off; '
+        + 'profit is a category too, and its percentage only moves profit. A calculated '
+        + 'category’s percentage is “of category” — of its own amount; an added category is '
+        + '“of total” — a percentage of the whole order. Add your own for anything else. The '
+        + 'amounts per order are shown on the estimate under “Where the money in this order goes”.'),
       table([
         {
           label: 'Category',
@@ -448,28 +449,32 @@ function pricingPanel(ctx) {
             : textField(`alloc-name-${b.id}`, '', b.name, (v) => { b.name = v || 'Category'; touch(rerender); })),
         },
         {
-          label: 'Setting',
+          label: 'Percentage',
           align: 'right',
-          // A calculated category is dialled with a weight (10 = as-is, 11 = +10%);
-          // an added category has no calculated amount, so it is a % of the order total.
-          get: (b) => (b.source && b.source !== 'custom'
-            ? numberField(`alloc-${b.id}`, '', num(b.weight, 10),
-              (v) => { b.weight = Math.max(0, num(v)); touch(rerender); }, { min: 0, step: 1 })
-            : numberField(`alloc-pct-${b.id}`, '', Math.round(num(b.pct ?? b.baseRate) * 100),
-              (v) => { b.pct = Math.max(0, num(v)) / 100; touch(rerender); }, { min: 0, step: 1, suffix: '% of total' })),
+          get: (b) => numberField(`alloc-${b.id}`, '', Math.round(categoryPercent(b)),
+            (v) => { b.percent = Math.max(0, num(v)); delete b.weight; delete b.pct; delete b.baseRate; touch(rerender); },
+            { min: 0, step: 5, suffix: '%' }),
+        },
+        {
+          label: 'Applies to',
+          get: (b) => (b.source && b.source !== 'custom' ? pill('of category', 'info') : pill('of total', 'warn')),
         },
         {
           label: '',
-          get: (b) => button('Delete', () => {
-            settings.allocations = settings.allocations.filter((x) => x.id !== b.id);
-            touch(rerender);
-          }, { key: `rm-alloc-${b.id}` }),
+          // Only added categories can be deleted; the calculated ones are part of the
+          // model and stay.
+          get: (b) => (b.source && b.source !== 'custom'
+            ? ''
+            : button('Delete', () => {
+              settings.allocations = settings.allocations.filter((x) => x.id !== b.id);
+              touch(rerender);
+            }, { key: `rm-alloc-${b.id}` })),
         },
       ], settings.allocations),
       buttonRow([
         button('Add a category', () => {
           settings.allocations = [...settings.allocations, {
-            id: `cat-${Date.now().toString(36)}`, name: 'New category', source: 'custom', baseKind: 'percent', baseRate: 0.05, weight: 10,
+            id: `cat-${Date.now().toString(36)}`, name: 'New category', source: 'custom', percent: 5,
           }];
           touch(rerender);
         }, { key: 'add-alloc' }),

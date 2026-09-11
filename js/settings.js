@@ -433,17 +433,39 @@ export function migrateSettings(stored) {
     if (!merged[key] || typeof merged[key] !== 'object') merged[key] = clone(defaults[key]);
   }
 
-  // Commercial categories were redesigned: the old `allocations` were fractional
-  // weights (0.2, 0.5) that only SPLIT the markup for display. The new model uses a
-  // weight of 10 as the baseline (10 = charge as calculated) and the weights change
-  // the price. An old blob's 0.2 would read as ÷10 = ×0.02 and gut every category,
-  // so a set that still looks old (fractional weights, or the old `duplicates` key,
-  // or no `source`) is reset to the new weight-10 defaults — which leaves the price
-  // exactly where it was.
+  // Commercial categories: the original `allocations` were fractional weights (0.2,
+  // 0.5) that only SPLIT the markup for display and carried a `duplicates` key. That
+  // shape is discarded for the new per-category percentages. Anything since is kept
+  // and normalised to a `percent` (100 = charge as calculated), honouring the interim
+  // `weight` (×10) and `pct` (×100) fields so no stored data is lost.
   const alloc = merged.allocations;
-  const looksOld = !Array.isArray(alloc) || alloc.length === 0
-    || alloc.some((b) => b && (b.duplicates !== undefined || b.source === undefined || num(b.weight) < 5));
-  if (looksOld) merged.allocations = clone(DEFAULT_COMMERCIAL_CATEGORIES);
+  if (!Array.isArray(alloc) || alloc.length === 0 || alloc.some((b) => b && b.duplicates !== undefined)) {
+    merged.allocations = clone(DEFAULT_COMMERCIAL_CATEGORIES);
+  } else {
+    merged.allocations = alloc.map((b) => {
+      const percent = b.percent != null ? Math.max(0, num(b.percent))
+        : (b.weight != null ? Math.max(0, num(b.weight) * 10)
+          : (b.pct != null ? Math.max(0, num(b.pct) * 100) : 100));
+      const out = { id: b.id, name: b.name, percent, source: (b.source && b.source !== 'custom') ? b.source : 'custom' };
+      if (b.enabled === false) out.enabled = false;
+      return out;
+    });
+  }
+
+  // Newly added print-setting keys (calibrationPass, adaptiveLayers, …) reach a
+  // stored built-in profile that predates them. Backfill any key the shipped profile
+  // has but the stored one lacks, without touching values the user has changed — so,
+  // for example, the Fit profile gets its calibration pass (and its dearer cost).
+  if (Array.isArray(merged.profiles)) {
+    for (const p of merged.profiles) {
+      const def = DEFAULT_PROFILES.find((d) => d.id === p.id);
+      if (def && p.settings && typeof p.settings === 'object') {
+        for (const [k, v] of Object.entries(def.settings)) {
+          if (p.settings[k] === undefined) p.settings[k] = v;
+        }
+      }
+    }
+  }
 
   // The growth split is newer than the thirds block, so a settings blob from
   // before it exists needs the default filled in rather than left undefined.

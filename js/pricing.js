@@ -289,62 +289,71 @@ export function doubleCountWarnings(allocationResult, currency = '') {
 
 /**
  * The money categories in an order, each shown with the amount already calculated
- * for it and a WEIGHT the company can dial. Weight 10 is the baseline (charge the
- * category exactly as calculated); weight 11 adds 10% of that category to the
- * client total, weight 9 removes 10%. So the weights are a per-category ± lever on
- * the final price — at weight 10 across the board nothing changes.
+ * for it and a PERCENTAGE the company can dial. 100% is the baseline (charge the
+ * category exactly as calculated); 110% adds 10% of it, 90% takes 10% off, 200%
+ * doubles it. At 100% across the board nothing changes.
  *
- * `source` names where the category's calculated amount comes from (a key in the
- * `bases` map the engine builds). A `custom` category is money the company invents
- * on top: its whole weighted amount is added (not just the change from baseline).
+ * Two kinds, distinguished by `mode` (derived from `source`):
+ *   - 'category': the percentage is of THIS category's calculated amount (the
+ *     built-in ones — machine, labour, profit, …). `source` names the base.
+ *   - 'total':    the percentage is of the whole order's calculated value, added
+ *     as new money (categories the company adds; nothing in the model feeds them).
  */
 export const DEFAULT_COMMERCIAL_CATEGORIES = [
-  { id: 'material', name: 'Material', source: 'material', weight: 10 },
-  { id: 'machine', name: 'Machine', source: 'machine', weight: 10 },
-  { id: 'electricity', name: 'Electricity', source: 'electricity', weight: 10 },
-  { id: 'labour', name: 'Labour', source: 'labour', weight: 10 },
-  { id: 'hardware', name: 'Hardware', source: 'hardware', weight: 10 },
-  { id: 'rejections', name: 'Rejections and scrap', source: 'scrap', weight: 10 },
-  { id: 'marketing', name: 'Marketing', source: 'marketing', weight: 10 },
-  { id: 'rnd', name: 'R&D and prototyping', source: 'rnd', weight: 10 },
-  { id: 'admin', name: 'Admin', source: 'admin', weight: 10 },
-  { id: 'storage', name: 'Storage', source: 'storage', weight: 10 },
-  { id: 'packaging', name: 'Packaging', source: 'packaging', weight: 10 },
-  { id: 'handling', name: 'Handling', source: 'handling', weight: 10 },
-  { id: 'profit', name: 'Profit', source: 'profit', weight: 10 },
+  { id: 'material', name: 'Material', source: 'material', percent: 100 },
+  { id: 'machine', name: 'Machine', source: 'machine', percent: 100 },
+  { id: 'electricity', name: 'Electricity', source: 'electricity', percent: 100 },
+  { id: 'labour', name: 'Labour', source: 'labour', percent: 100 },
+  { id: 'hardware', name: 'Hardware', source: 'hardware', percent: 100 },
+  { id: 'rejections', name: 'Rejections and scrap', source: 'scrap', percent: 100 },
+  { id: 'marketing', name: 'Marketing', source: 'marketing', percent: 100 },
+  { id: 'rnd', name: 'R&D and prototyping', source: 'rnd', percent: 100 },
+  { id: 'admin', name: 'Admin', source: 'admin', percent: 100 },
+  { id: 'storage', name: 'Storage', source: 'storage', percent: 100 },
+  { id: 'packaging', name: 'Packaging', source: 'packaging', percent: 100 },
+  { id: 'handling', name: 'Handling', source: 'handling', percent: 100 },
+  { id: 'profit', name: 'Profit', source: 'profit', percent: 100 },
 ];
 
-export const CATEGORY_BASELINE_WEIGHT = 10;
+export const CATEGORY_BASELINE_PERCENT = 100;
+
+/** The category's percentage, honouring the older `weight` (÷10 → ×100) and `pct`
+ *  (fraction → ×100) fields so stored data keeps working. */
+export function categoryPercent(c) {
+  if (c.percent != null) return Math.max(0, num(c.percent));
+  if (c.weight != null) return Math.max(0, num(c.weight) * 10);
+  if (c.pct != null) return Math.max(0, num(c.pct) * 100);
+  return CATEGORY_BASELINE_PERCENT;
+}
 
 /**
- * Apply the per-category weights to the calculated bases.
- * @param {Array} categories  the company's category list (weights, sources)
- * @param {object} bases  calculated amount for each source key (+ productionCost)
+ * Apply the per-category percentages to the calculated bases.
+ * @param {Array} categories  the company's category list (percent, source)
+ * @param {object} bases  calculated amount for each source key (+ `total`)
  * @returns {{lines, addToPrice, baseTotal, adjustedTotal}}
  */
 export function commercialAdjustment(categories = DEFAULT_COMMERCIAL_CATEGORIES, bases = {}) {
   const total = Math.max(0, num(bases.total));
   const lines = (categories || []).filter((c) => c.enabled !== false).map((c) => {
     const hasSource = Boolean(c.source) && c.source !== 'custom' && bases[c.source] != null;
-    const base = hasSource ? Math.max(0, num(bases[c.source])) : 0;
+    const percent = categoryPercent(c);
+    const factor = percent / 100;
     if (hasSource) {
-      // A category the model already calculates: the WEIGHT dials it. 10 leaves it
-      // as-is; only the change from 10 is added to the price (it is already in it).
-      const weight = Math.max(0, num(c.weight, CATEGORY_BASELINE_WEIGHT));
-      const factor = weight / CATEGORY_BASELINE_WEIGHT;
+      // The percentage is of this category's own calculated amount. 100% leaves it
+      // as-is; only the change from 100% is added (it is already in the price).
+      const base = Math.max(0, num(bases[c.source]));
       const adjusted = base * factor;
       return {
-        id: c.id, name: c.name, mode: 'weight', base, weight, pct: 0,
+        id: c.id, name: c.name, mode: 'category', base, percent,
         adjusted, delta: adjusted - base, addToPrice: base * (factor - 1),
       };
     }
-    // Nothing in the model feeds this category (R0), so a weight would do nothing.
-    // Instead it is a percentage of the whole order that gets ADDED as new money.
-    const pct = c.pct != null ? Math.max(0, num(c.pct)) : Math.max(0, num(c.baseRate, 0));
-    const added = pct * total;
+    // Nothing in the model feeds this category, so the percentage is of the whole
+    // order's calculated value, added as new money.
+    const added = factor * total;
     return {
-      id: c.id, name: c.name, mode: 'percent', base: 0, weight: num(c.weight, CATEGORY_BASELINE_WEIGHT),
-      pct, adjusted: added, delta: added, addToPrice: added,
+      id: c.id, name: c.name, mode: 'total', base: 0, percent,
+      adjusted: added, delta: added, addToPrice: added,
     };
   });
   return {
