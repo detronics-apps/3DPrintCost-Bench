@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.46 — Scheduler: start prints in working hours, numbered timeline (2026-09-12)
+
+- **A print only starts when someone is there to start it.** If a print finishes in the small
+  hours, the next one is no longer estimated to start at, say, 02:00 — it waits for the next
+  working-hours opening (08:00). The one print you can still kick off outside hours is the very
+  next one on the machine (you are at the scheduler, looking at it) — an overnight print started
+  at the end of the day still runs through the night as before.
+- **The timeline is numbered instead of labelled.** Project names on the Gantt bars overlapped
+  badly once the bars were short, so each job now shows a **number** on its bar, and the table
+  below has a matching **#** column — read the number off the bar, find it in the table.
+
 ## 1.0.45 — No production without the real slicer figures (2026-09-12)
 
 - **An order cannot move toward production until every part carries its real slicer figures —

@@ -220,6 +220,31 @@ function nextAttendedStart(from, hours, week) {
 }
 
 /**
+ * The next moment SOMEONE IS THERE TO START a print, at or after `from` — i.e.
+ * the next working-hours opening. If `from` already falls inside a working
+ * window it is returned unchanged; otherwise it jumps to the next window's
+ * start. A print can run unattended through the night, but nobody is there to
+ * START the following one at 02:00, so its start waits for the morning.
+ */
+function nextWorkingStart(from, week) {
+  let cursor = new Date(from);
+  for (let i = 0; i < 800; i += 1) {
+    const c = dayWindow(week, cursor);
+    if (c.working) {
+      const open = atHour(cursor, c.start);
+      const close = atHour(cursor, c.end);
+      if (cursor.getTime() < close.getTime()) {
+        return cursor.getTime() >= open.getTime() ? new Date(cursor) : open;
+      }
+    }
+    const next = new Date(cursor.getTime() + DAY_MS);
+    next.setHours(0, 0, 0, 0);
+    cursor = next;
+  }
+  return new Date(from);
+}
+
+/**
  * Order a printer's queue with an eye on the clock.
  *
  * Priority (running, then age) is never overridden. WITHIN a band, when the
@@ -310,11 +335,17 @@ export function liveSchedule(jobs, printers, {
       now: nowDate, week: cal, overnightAllowed,
     });
     let clock = new Date(nowDate);
+    // The FIRST job on the machine is the one you can start right now — you are
+    // looking at the schedule, so it may begin even outside working hours (kick
+    // off an overnight print at 23:00). Every LATER job needs a person to start
+    // it, so if the machine only frees up at 02:00 it waits for the next working
+    // opening — nobody is there to load it in the small hours.
+    let firstOnMachine = true;
     for (const job of ordered) {
       // A running job is on the machine now; it started in the past and its
-      // remaining hours run from now. An unattended job (or any job when
-      // overnight is on) may start as soon as the machine is free. An attended
-      // job must fit inside an attended window.
+      // remaining hours run from now. An unattended job may run overnight, but
+      // must still be STARTED by someone; an attended job must also fit inside a
+      // working window.
       const attended = job.needsAttendance || !overnightAllowed;
       let start;
       let overruns = false;
@@ -324,11 +355,14 @@ export function liveSchedule(jobs, printers, {
         const slot = nextAttendedStart(clock, job.machineHours, cal);
         start = slot.start;
         overruns = slot.overruns;
-      } else {
+      } else if (firstOnMachine) {
         start = new Date(clock);
+      } else {
+        start = nextWorkingStart(clock, cal);
       }
       const end = new Date(start.getTime() + job.machineHours * HOUR_MS);
       clock = new Date(end);
+      firstOnMachine = false;
       const runsOvernight = !inAttendedWindow(end, cal)
         || end.getDate() !== start.getDate();
       placed.push({

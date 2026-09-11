@@ -96,7 +96,7 @@ function workWeek(settings) {
 
 /* ----------------------------------------------------------------- gantt -- */
 
-function gantt(result) {
+function gantt(result, numberOf) {
   const rows = result.timelines.filter((t) => t.jobs.length > 0);
   if (!rows.length) return null;
 
@@ -143,10 +143,14 @@ function gantt(result) {
         fill: running ? 'var(--accent-strong)' : 'var(--accent-soft)',
         stroke: running ? 'var(--accent-strong)' : 'var(--border-strong)',
       }));
+      // Just the project's number on the bar — names overlap badly once the
+      // bars are short. The number is the key in the table below.
+      const label = numberOf && numberOf.get(job.id) ? `#${numberOf.get(job.id)}` : job.name;
       root.appendChild(svg('text', {
-        x: x + 6, y: y + rowH / 2 + 3, 'font-size': 10,
+        x: x + w / 2 + 1, y: y + rowH / 2 + 3, 'font-size': 11, 'font-weight': 700,
+        'text-anchor': 'middle',
         fill: running ? 'var(--accent-ink)' : 'var(--text)',
-      }, [job.name.length > 14 ? `${job.name.slice(0, 13)}…` : job.name]));
+      }, [label]));
     });
   });
 
@@ -319,12 +323,24 @@ export function main(ctx) {
       + 'they were set to has been archived or removed. Reassign the printer in Projects.'));
   }
 
-  const gnode = gantt(result);
+  // Number the jobs once, in start-time order, and use the SAME numbers on the
+  // Gantt bars and in the table — so a bar reads "#3" and the table says which
+  // project #3 is. Names on the bars overlapped once the bars were short.
+  const sortedPlaced = [...result.placed].sort((a, b) => {
+    const la = liveById.get(a.id);
+    const lb = liveById.get(b.id);
+    if (la && lb) return la.startAt - lb.startAt || la.endAt - lb.endAt;
+    return a.startDay - b.startDay || a.endDay - b.endDay;
+  });
+  const numberOf = new Map(sortedPlaced.map((j, i) => [j.id, i + 1]));
+
+  const gnode = gantt(result, numberOf);
   if (gnode) nodes.push(gnode);
 
   nodes.push(el('div', { class: 'panel' }, [
     el('h3', { text: 'Start times and promised lead times' }),
     table([
+      { label: '#', align: 'right', mono: true, get: (j) => String(numberOf.get(j.id) || '') },
       { label: 'Project', get: (j) => j.name },
       { label: 'Customer', get: (j) => j.customerName || '—' },
       { label: 'Printer', get: (j) => j.printerName },
@@ -340,15 +356,10 @@ export function main(ctx) {
           j.needsAttendance ? pill('attended', 'warn') : null,
         ].filter(Boolean)),
       },
-    ], [...result.placed].sort((a, b) => {
-      const la = liveById.get(a.id);
-      const lb = liveById.get(b.id);
-      if (la && lb) return la.startAt - lb.startAt || la.endAt - lb.endAt;
-      return a.startDay - b.startDay || a.endDay - b.endDay;
-    })),
-    muted('A planning floor, not a promise to the minute: jobs are queued whole onto one '
-      + 'machine each and run back to back. It does not split a job across printers or around '
-      + 'a part that fails and reprints.'),
+    ], sortedPlaced),
+    muted('The number is the bar’s label on the timeline above. A planning floor, not a '
+      + 'promise to the minute: jobs are queued whole onto one machine each and run back to '
+      + 'back. It does not split a job across printers or around a part that fails and reprints.'),
   ]));
 
   return nodes;

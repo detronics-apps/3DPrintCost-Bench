@@ -146,3 +146,19 @@ test('a short print during a working day is not mislabelled overnight', () => {
   assert.ok(short.startsNow, 'it starts now');
   assert.ok(!short.runsOvernight, 'and finishes within the day, so it is not overnight');
 });
+
+test('a job that frees the machine overnight — the next one waits for the morning', () => {
+  // Wed 20:00. Overnight allowed. A long print started now runs into the night;
+  // the second print cannot start at 04:00 (nobody is there) — it waits for 08:00.
+  const wedEvening = new Date(2026, 0, 7, 20, 0, 0, 0);
+  const r = liveSchedule([
+    { id: 'long', name: 'Long', printerId: 'snap', machineHours: 8, status: 'accepted', createdAt: '1' },
+    { id: 'next', name: 'Next', printerId: 'snap', machineHours: 2, status: 'accepted', createdAt: '2' },
+  ], printers, { now: wedEvening.getTime(), week: weekMonFri, overnightAllowed: true });
+  const long = r.placed.find((j) => j.id === 'long');
+  const next = r.placed.find((j) => j.id === 'next');
+  assert.ok(long.startsNow, 'the first print starts now, in the evening');
+  assert.equal(long.endAt.getHours(), 4, 'and finishes at 04:00, overnight');
+  assert.equal(next.startAt.getHours(), 8, 'the next print waits for the 08:00 opening');
+  assert.equal(next.startAt.getDate(), 8, 'the morning after (Thu)');
+});

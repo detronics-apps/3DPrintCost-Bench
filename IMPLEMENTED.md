@@ -9,6 +9,20 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Scheduler: start prints in working hours, numbered timeline (v1.0.46)
+
+- **Starts only in working hours** (`js/scheduler.js`): new `nextWorkingStart(from, week)` returns
+  `from` if it is inside a working window, else the next window opening. In `liveSchedule`'s
+  placement loop, a `firstOnMachine` flag lets ONLY the first job per printer begin at `clock`
+  (= now, the operator is present); every later unattended job uses `nextWorkingStart(clock)`, so a
+  machine that frees at 02:00 has its next job wait for 08:00. Attended jobs still use
+  `nextAttendedStart`; in-production still starts at now. +1 test (evening → long runs to 04:00,
+  next waits Thu 08:00).
+- **Numbered Gantt** (`js/ui/tools/scheduler.js`): `main` builds `numberOf` (job id → 1..N in
+  start-time order, the same order as the table); `gantt(result, numberOf)` draws `#N` centered on
+  each bar instead of the (overlapping) truncated name; the "Start times" table gained a leading
+  `#` column and shares `sortedPlaced`/`numberOf`.
+
 ## No production without the real slicer figures (v1.0.45)
 
 - **Domain** (`js/workflow.js`): `partHasSlicerGrams` (flat total or any head > 0),
