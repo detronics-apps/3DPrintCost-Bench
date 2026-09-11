@@ -40,7 +40,9 @@ export function configureSections(store) {
  * which needs the store's getter to report "never set" rather than filling in a
  * default of its own.
  */
-export function section(id, title, children, { open = true, info = null, actions = null } = {}) {
+export function section(id, title, children, {
+  open = true, info = null, actions = null, group = null,
+} = {}) {
   const remembered = sectionStore.get(id);
   const showing = remembered === undefined ? open : Boolean(remembered);
 
@@ -60,16 +62,37 @@ export function section(id, title, children, { open = true, info = null, actions
         button.setAttribute('aria-expanded', String(next));
         chevron.classList.toggle('is-closed', !next);
         sectionStore.set(id, next);
+        // In a group, opening one section collapses its siblings, so the flow stays
+        // a single focused column (one section open at a time).
+        if (next && group) collapseSiblings(root, group);
       },
     },
   }, [chevron, el('span', { text: title }), info ? infoIcon(info) : null]);
 
   if (!showing) chevron.classList.add('is-closed');
 
-  return el('section', { class: 'section' }, [
+  const root = el('section', {
+    class: 'section', 'data-section': id, 'data-group': group || undefined,
+  }, [
     el('div', { class: 'section__head' }, [button, actions ? el('div', { class: 'section__actions' }, actions) : null]),
     body,
   ]);
+  return root;
+}
+
+/** Collapse every other open section in the same group. */
+function collapseSiblings(root, group) {
+  const scope = root.ownerDocument || document;
+  for (const sib of scope.querySelectorAll(`.section[data-group="${group}"]`)) {
+    if (sib === root) continue;
+    const sbody = sib.querySelector(':scope > .section__body');
+    if (!sbody || sbody.hidden) continue;
+    sbody.hidden = true;
+    sib.querySelector(':scope > .section__head .section__toggle')?.setAttribute('aria-expanded', 'false');
+    sib.querySelector('.section__chevron')?.classList.add('is-closed');
+    const sid = sib.getAttribute('data-section');
+    if (sid) sectionStore.set(sid, false);
+  }
 }
 
 /** Quieter than a section on purpose, so the hierarchy reads at a glance. */

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.34 — One-part-at-a-time everywhere (2026-09-11)
+
+- **The client request form now collapses parts** the same way the estimate does —
+  each part folds to a header, only one is open at a time, and all can be closed;
+  adding a part opens it.
+- **On a project, clicking the open part again closes its editor**, so you can
+  minimise all and only ever have one part open.
+
 ## 1.0.33 — Tighter bed packing, mix balancing, fit-intent tidy-ups (2026-09-11)
 
 - **Bed layout packs tighter** — a tall part no longer wastes the space beside it, so

@@ -441,7 +441,9 @@ function partsPanel(ctx, project, result) {
         get: (r) => button(state.mode === 'simple'
           ? r.part.name
           : `${r.part.name} ${r.part.revision}`, () => {
-          state.activePartId = r.part.id;
+          // Toggle: click the open part again to close its editor, so all can be
+          // minimised and only one is ever open at a time.
+          state.activePartId = state.activePartId === r.part.id ? null : r.part.id;
           saveSoon();
           rerender();
         }, { key: `part-${r.part.id}`, pressed: state.activePartId === r.part.id }),

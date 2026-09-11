@@ -523,8 +523,33 @@ function addressBlock() {
 }
 
 /** One part's whole editor: model, what it is for, its colour mix and how many. */
-function partPanel(ctx, part, index, line) {
+function partPanel(ctx, part, index, line, open = true) {
   const { config, slots, materials, code, buffer, canRemove } = ctx;
+
+  // Accordion: with more than one part each collapses to a clickable header, so the
+  // customer works through one part at a time (only one open; all can be closed).
+  const collapsible = canRemove;
+  const head = el('div', { class: 'part-block__head' }, [
+    collapsible
+      ? el('button', {
+        class: 'part-block__toggle', type: 'button', 'aria-expanded': String(open),
+        on: { click: () => { state.ui = { ...(state.ui || {}), openPart: open ? null : part.id }; render(); } },
+      }, [
+        el('span', { class: 'part-block__chev', 'aria-hidden': 'true', text: open ? '▾' : '▸' }),
+        el('strong', { text: `Part ${index + 1}` }),
+      ])
+      : el('h2', { text: `Part ${index + 1}` }),
+    canRemove
+      ? button('Remove', () => {
+        state.parts.splice(index, 1);
+        if (state.ui?.openPart === part.id) state.ui.openPart = null;
+        render();
+      }, { key: `portal-remove-${part.id}`, danger: true })
+      : null,
+  ]);
+
+  if (collapsible && !open) return el('div', { class: 'panel part-block part-block--collapsed' }, [head]);
+
   const mixNodes = mixEditor({
     slots,
     materials,
@@ -534,14 +559,8 @@ function partPanel(ctx, part, index, line) {
     onMix: (next) => { part.mix = next; render(); },
   });
 
-  return el('div', { class: 'panel' }, [
-    el('div', { class: 'panel__head' }, [
-      el('h2', { text: `Part ${index + 1}` }),
-      canRemove
-        ? button('Remove', () => { state.parts.splice(index, 1); render(); },
-          { key: `portal-remove-${part.id}`, danger: true })
-        : null,
-    ]),
+  return el('div', { class: 'panel part-block' }, [
+    head,
     dropzone(part, render),
     part.geometry ? el('dl', { class: 'facts' }, [
       el('dt', { text: 'Size' }), el('dd', { class: 'value', text: fmtSize(part.geometry.size) }),
@@ -842,13 +861,19 @@ function render() {
       + 'each it is in that part below.'),
   ]));
 
+  // One part open at a time; `null` means all collapsed, `undefined` opens the first.
+  const rememberedPart = state.ui?.openPart;
+  const openPartId = rememberedPart === null ? null
+    : (state.parts.some((p) => p.id === rememberedPart) ? rememberedPart : state.parts[0]?.id);
   state.parts.forEach((part, i) => {
-    nodes.push(partPanel(partCtx, part, i, result.lines[i]));
+    nodes.push(partPanel(partCtx, part, i, result.lines[i], part.id === openPartId));
   });
 
   nodes.push(el('div', { class: 'panel' }, [
     buttonRow([button('Add another part', () => {
-      state.parts.push(makePortalPart({ profileId: config.profiles[0]?.id }));
+      const next = makePortalPart({ profileId: config.profiles[0]?.id });
+      state.parts.push(next);
+      state.ui = { ...(state.ui || {}), openPart: next.id }; // open the new one, collapse the rest
       render();
     }, { key: 'portal-add-part' })]),
   ]));

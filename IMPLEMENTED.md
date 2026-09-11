@@ -9,6 +9,22 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## One-part-at-a-time accordion across surfaces (v1.0.34)
+
+- **Portal parts accordion** (`js/ui/portal.js`): `partPanel(ctx, part, i, line, open)`
+  now collapses to a `.part-block__head` header (toggle + Remove) when not open,
+  mirroring the estimate. The main loop resolves `state.ui.openPart` (null = all
+  closed, undefined = first open, stale = first); Add-a-part opens the new one.
+- **Project part toggle** (`js/ui/tools/projects.js`): clicking the active part in the
+  parts table again sets `activePartId = null`, so the sidebar editor closes and all
+  parts can be minimised (one open at a time).
+- **`section({ group })`** (`js/ui/controls.js`): opt-in accordion infra — opening a
+  section in a group collapses its open siblings (`collapseSiblings`). Dormant until a
+  `group` is passed; ready for the stepped-flow "auto-minimise siblings" item. Why:
+  user asked to carry the estimate's one-open-at-a-time part behaviour to the client
+  form, project, and (future) employee form. 501 tests pass; portal live-verify limited
+  by its lack of the app cache-buster (needs a browser hard refresh).
+
 ## Tighter packing, mix balancing, fit-intent tidy-ups (v1.0.33)
 
 - **Guillotine bed packer** (`js/bedplan.js`): replaced the shelf packer with a
