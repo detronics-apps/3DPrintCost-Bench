@@ -385,14 +385,26 @@ function partBlock(ctx, part, index, canRemove, open = true) {
   ];
 
   const slicer = part.slicer || { grams: 0, minutes: 0 };
+  // Print time is entered as the slicer reports it — hours AND minutes — but
+  // stored as one total-minutes figure.
+  const slTotal = Math.max(0, Math.round(num(slicer.minutes, 0)));
+  const slHrs = Math.floor(slTotal / 60);
+  const slMins = slTotal % 60;
+  const setSlTime = (h, m) => {
+    part.slicer = { ...slicer, minutes: Math.max(0, Math.round(num(h, 0)) * 60 + Math.round(num(m, 0))) };
+    saveSoon();
+    rerender();
+  };
   const slicerBody = [
     muted('Paste what your slicer says for this part and the app will use it instead of '
       + 'its own geometry.'),
     el('div', { class: 'field-grid' }, [
       numberField(`slicer-grams-${key}`, 'Material', slicer.grams,
         (v) => { part.slicer = { ...slicer, grams: num(v) }; saveSoon(); rerender(); }, { min: 0, suffix: 'g' }),
-      numberField(`slicer-minutes-${key}`, 'Print time', slicer.minutes,
-        (v) => { part.slicer = { ...slicer, minutes: num(v) }; saveSoon(); rerender(); }, { min: 0, suffix: 'min' }),
+      numberField(`slicer-hours-${key}`, 'Print time — hours', slHrs,
+        (v) => setSlTime(v, slMins), { min: 0, step: 1, suffix: 'h' }),
+      numberField(`slicer-minutes-${key}`, 'and minutes', slMins,
+        (v) => setSlTime(slHrs, v), { min: 0, step: 1, suffix: 'min' }),
     ]),
     selectField(`estimate-method-${key}`, 'Which estimate to use',
       [{ value: 'auto', label: 'Best available (recommended)' },

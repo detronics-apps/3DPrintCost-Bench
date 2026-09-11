@@ -81,11 +81,54 @@ function removeDocument(project, doc) {
 
 function documentList(ctx) {
   const { rerender } = ctx;
-  const rows = allDocuments();
+  const allRows = allDocuments();
 
-  if (!rows.length) {
+  if (!allRows.length) {
     return [emptyState('No quotes or invoices yet. Open a project and create a quote from it.')];
   }
+
+  // Filters, so a long list stays workable: by kind, by customer, and by date.
+  const f = state.ui.docFilter || (state.ui.docFilter = { kind: 'all', customer: 'all', from: '', to: '' });
+  const customerKey = (r) => r.project.customerId || r.document.customer?.name || '—';
+  const customerName = (r) => r.document.customer?.name || r.project.customerName || 'No customer';
+  const customerOptions = [];
+  const seenCustomer = new Set();
+  for (const r of allRows) {
+    const key = customerKey(r);
+    if (!seenCustomer.has(key)) { seenCustomer.add(key); customerOptions.push({ value: key, label: customerName(r) }); }
+  }
+  customerOptions.sort((a, b) => a.label.localeCompare(b.label));
+
+  const fromMs = f.from ? new Date(`${f.from}T00:00:00`).getTime() : null;
+  const toMs = f.to ? new Date(`${f.to}T23:59:59`).getTime() : null;
+  const rows = allRows.filter((r) => {
+    if (f.kind !== 'all' && r.document.kind !== f.kind) return false;
+    if (f.customer !== 'all' && customerKey(r) !== f.customer) return false;
+    const at = new Date(r.document.issuedAt).getTime();
+    if (fromMs != null && at < fromMs) return false;
+    if (toMs != null && at > toMs) return false;
+    return true;
+  });
+  const filtersOn = f.kind !== 'all' || f.customer !== 'all' || f.from || f.to;
+
+  const filterBar = el('div', { class: 'filter-bar' }, [
+    selectField('doc-filter-kind', 'Kind', [
+      { value: 'all', label: 'All documents' },
+      { value: 'quote', label: 'Quotes only' },
+      { value: 'invoice', label: 'Invoices only' },
+    ], f.kind, (v) => { f.kind = v; touch(rerender); }),
+    selectField('doc-filter-customer', 'Customer',
+      [{ value: 'all', label: 'All customers' }, ...customerOptions],
+      f.customer, (v) => { f.customer = v; touch(rerender); }),
+    textField('doc-filter-from', 'From', f.from, (v) => { f.from = v; touch(rerender); }, { type: 'date' }),
+    textField('doc-filter-to', 'To', f.to, (v) => { f.to = v; touch(rerender); }, { type: 'date' }),
+    filtersOn
+      ? button('Clear filters', () => {
+        state.ui.docFilter = { kind: 'all', customer: 'all', from: '', to: '' };
+        touch(rerender);
+      }, { key: 'doc-filter-clear' })
+      : null,
+  ].filter(Boolean));
 
   const now = new Date();
   const owed = rows
@@ -94,11 +137,13 @@ function documentList(ctx) {
   const overdue = rows.filter((r) => r.document.kind === 'invoice' && isOverdue(r.document, now));
 
   return [
+    filterBar,
     el('div', { class: 'summary-grid' }, [
-      statTile('Documents', String(rows.length)),
+      statTile(filtersOn ? 'Shown' : 'Documents', `${rows.length}${filtersOn ? ` of ${allRows.length}` : ''}`),
       statTile('Outstanding', fmtMoney(owed, state.settings.currencyCode), { tone: owed ? 'warn' : null }),
       statTile('Overdue', String(overdue.length), { tone: overdue.length ? 'danger' : null }),
     ]),
+    rows.length ? null : muted('No documents match these filters.'),
     ...overdue.map((r) => banner('danger',
       `${r.document.number} for ${r.document.customer?.name || 'a customer'} is overdue: `
       + `${fmtMoney(outstanding(r.document), r.document.currencyCode)} outstanding.`)),
@@ -146,7 +191,7 @@ function documentList(ctx) {
     ], rows),
     muted('A status marked * is worked out from the date rather than stored, so it is '
       + 'never stale.'),
-  ];
+  ].filter(Boolean);
 }
 
 /* ------------------------------------------------------------- document -- */

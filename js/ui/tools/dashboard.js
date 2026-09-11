@@ -18,7 +18,6 @@ import { calibrate, samplesFrom, errorReport, correctionFor, CALIBRATION_SCOPES,
 import { demandMultiplier, utilisation, CAPACITY_SOURCES } from '../../demand.js';
 import { downloadCsv } from '../export.js';
 import { returnsOnMachines, surplusPool } from '../../roi.js';
-import { phaseTimeSummary, fmtSpan } from '../../phasetime.js';
 import { state, saveSoon } from '../../state.js';
 import { printsDueToday } from './scheduler.js';
 
@@ -119,20 +118,26 @@ export function main(ctx) {
       + `overdue, worth ${fmtMoney(d.money.overdue, code)}.`));
   }
 
-  // Revenue and profit trends, side by side, so a good month for the top line is
-  // not mistaken for a good month for the bottom line. Profit is what is left
-  // after the cost to company on each invoice that month.
-  const anyProfit = months.some((b) => b.revenue - b.cost !== 0);
-  nodes.push(el('div', { class: 'trend-grid' }, [
-    el('div', { class: 'viewport__stage' }, [
-      el('div', { class: 'trend__label', text: 'Revenue by month' }),
-      sparkline(months, (b) => b.revenue),
+  // One full-width monthly trend, with a toggle for which line to show — revenue
+  // or profit (what is left after the cost to company on each invoice that month).
+  const metric = state.ui.trendMetric === 'profit' ? 'profit' : 'revenue';
+  const trend = metric === 'profit'
+    ? { pick: (b) => b.revenue - b.cost, label: 'Profit by month', colour: 'var(--ok)' }
+    : { pick: (b) => b.revenue, label: 'Revenue by month', colour: 'var(--accent-strong)' };
+  nodes.push(el('div', { class: 'panel' }, [
+    el('div', { class: 'panel__head' }, [
+      el('h3', { text: trend.label }),
+      el('div', { class: 'btn-row' }, [
+        button('Revenue', () => { state.ui.trendMetric = 'revenue'; touch(rerender); },
+          { key: 'trend-revenue', primary: metric === 'revenue' }),
+        button('Profit', () => { state.ui.trendMetric = 'profit'; touch(rerender); },
+          { key: 'trend-profit', primary: metric === 'profit' }),
+      ]),
     ]),
-    anyProfit ? el('div', { class: 'viewport__stage' }, [
-      el('div', { class: 'trend__label', text: 'Profit by month' }),
-      sparkline(months, (b) => b.revenue - b.cost, { colour: 'var(--ok)', label: 'Profit by month' }),
-    ]) : null,
-  ].filter(Boolean)));
+    el('div', { class: 'viewport__stage' }, [
+      sparkline(months, trend.pick, { width: 1040, height: 150, colour: trend.colour, label: trend.label }),
+    ]),
+  ]));
 
   nodes.push(el('div', { class: 'summary-grid' }, [
     statTile('Printed', String(d.production.printed)),
@@ -286,39 +291,6 @@ export function main(ctx) {
       : muted('Nothing has paid for itself yet. Record production against each printer '
         + 'and this fills in from what the machines actually ran.'),
   ]));
-
-  /* --- where the time goes ------------------------------------------- */
-
-  const timing = phaseTimeSummary(state.projects, Date.now());
-  if (timing.rows.length) {
-    const worst = timing.slowest.averageMs;
-    nodes.push(el('div', { class: 'panel' }, [
-      el('h3', { text: 'Where the time goes' }),
-      muted('How long an order sits in each stage, on average, reconstructed from the '
-        + 'history of every order that passed through it. The slowest stage is at the top — '
-        + 'that is the one worth optimising first.'),
-      table([
-        { label: 'Stage', get: (r) => r.name },
-        {
-          label: 'Average time',
-          get: (r) => el('div', { class: 'roi' }, [
-            el('div', { class: 'roi__track' }, [
-              el('div', {
-                class: 'roi__fill',
-                style: { width: `${worst > 0 ? Math.round((r.averageMs / worst) * 100) : 0}%` },
-              }),
-            ]),
-            el('span', { class: 'roi__value value', text: fmtSpan(r.averageMs) }),
-          ]),
-        },
-        { label: 'Orders', align: 'right', mono: true, get: (r) => String(r.orders) },
-      ], timing.rows),
-      banner('info', `Across ${timing.orders} order${timing.orders === 1 ? '' : 's'}, the `
-        + `longest stage is ${timing.slowest.name} at about ${fmtSpan(timing.slowest.averageMs)} `
-        + 'each. Time spent Awaiting payment is usually the client, not you; time in Production '
-        + 'or Post-processing is where the workshop can win it back.'),
-    ]));
-  }
 
   /* --- the learning loop ---------------------------------------------- */
 

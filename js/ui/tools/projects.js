@@ -263,12 +263,19 @@ function phaseStrip(project, eff) {
   }));
 }
 
+/** Date and time of an event, e.g. "12 Sep 2026, 14:32" — the workshop's clock. */
+function fmtEventTime(at) {
+  return new Date(at).toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 /** The order's automatic event history, newest first. */
 function eventTimeline(project) {
   const events = [...(project.history || [])].reverse();
   if (!events.length) return muted('No events yet.');
   return el('ul', { class: 'doc-list' }, events.slice(0, 20).map((e) => el('li', {
-    text: `${new Date(e.at).toLocaleDateString()} — ${e.text || e.to || e.type || 'event'}`,
+    text: `${fmtEventTime(e.at)} — ${e.text || e.to || e.type || 'event'}`,
   })));
 }
 
@@ -433,7 +440,17 @@ function workflowPanel(ctx, project, result) {
       }, { key: 'wf-client-update' })]),
     ], { hint: 'A short progress note for the customer, from the current stage.' }),
 
-    subsection('Event history', [eventTimeline(project)]),
+    subsection('Event history', [
+      (project.history || []).length
+        ? buttonRow([button('Copy event history', () => {
+          const lines = [...(project.history || [])]
+            .map((e) => `${fmtEventTime(e.at)} — ${e.text || e.to || e.type || 'event'}`);
+          copyText(lines.join('\n'));
+          toast('Event history copied');
+        }, { key: 'wf-copy-history' })])
+        : null,
+      eventTimeline(project),
+    ].filter(Boolean)),
   ].filter(Boolean));
 }
 
@@ -817,13 +834,27 @@ function slicerFigures(part, liveSlots, settings, set) {
       headGrams(s.id), (v) => setHeadGrams(s.id, v), { min: 0, suffix: 'g' });
   });
 
+  // Print time is entered the way the slicer reports it — hours AND minutes
+  // (2 h 45 m, not 165 min) — but stored as one total-minutes figure the engine
+  // reads. Either field updates that total; the split re-normalises on redraw.
+  const totalMin = Math.max(0, Math.round(num(slicer.minutes, 0)));
+  const timeHrs = Math.floor(totalMin / 60);
+  const timeMins = totalMin % 60;
+  const setTime = (h, m) => set({
+    slicer: { ...slicer, minutes: Math.max(0, Math.round(num(h, 0)) * 60 + Math.round(num(m, 0))) },
+  });
+
   return subsection('Slicer figures', [
     muted(`Once you have sliced it, paste the slicer’s TOTALS for the whole print`
       + `${qty > 1 ? ` of all ${qty}` : ''} — the grams off each head and the total print `
       + 'time — not the figure per part. These outrank the app’s own geometry.'),
     ...gramFields,
-    numberField(`part-slicer-min-${part.id}`, 'Total print time', slicer.minutes ?? 0,
-      (v) => set({ slicer: { ...slicer, minutes: num(v) } }), { min: 0, suffix: 'min' }),
+    el('div', { class: 'field-grid' }, [
+      numberField(`part-slicer-h-${part.id}`, 'Print time — hours', timeHrs,
+        (v) => setTime(v, timeMins), { min: 0, step: 1, suffix: 'h' }),
+      numberField(`part-slicer-m-${part.id}`, 'and minutes', timeMins,
+        (v) => setTime(timeHrs, v), { min: 0, step: 1, suffix: 'min' }),
+    ]),
     // Which estimate to trust — the same control the estimator offers. Advanced+
     // only; Simple always uses the best available figure.
     state.mode !== 'simple'

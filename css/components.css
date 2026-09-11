@@ -403,16 +403,13 @@
   gap: var(--space-3);
 }
 
-/* Revenue and profit trend charts, side by side. */
-.trend-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-3);
+/* A row of filters above a list (quotes & invoices). */
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3);
+  align-items: flex-end; margin-bottom: var(--space-3);
 }
-.trend__label {
-  font-size: 0.8rem; color: var(--text-2); font-weight: 600;
-  margin-bottom: var(--space-1);
-}
+.filter-bar .field { margin: 0; }
+.filter-bar .btn { min-height: 34px; }
 
 .stat {
   background: var(--panel);

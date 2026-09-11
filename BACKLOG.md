@@ -170,8 +170,6 @@ _Extends the existing filament cluster; the CSV items tie inventory to real usag
   revenue (v1.0.42) already show on the Dashboard. Remaining: a what-to-buy /
   reinvestment trend, and longer-horizon trend lines. (Raised 2026-09-10; most-used
   + profit + ROI + profit trend shipped.)
-- **Where the time goes** — average time an order spends in each phase, from the
-  history trail, slowest first (`js/phasetime.js`, Dashboard, v1.0.42). Done.
 - **Inflation on stock and labour** — apply a yearly inflation rate (South Africa
   especially) to both bought-in stock cost and the salary behind the labour rate,
   so older figures don't understate today's cost. (Tool depreciation is already

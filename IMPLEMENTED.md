@@ -9,6 +9,31 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Event-history times, h:m slicer time, trend toggle, document filters (v1.0.44)
+
+Same workshop session; corrections and follow-ups.
+
+- **Removed “Where the time goes”** (the phase-time analytics from v1.0.42) — a misread of the
+  user's request. Deleted `js/phasetime.js` + `tests/phasetime.test.js`, the dashboard panel and
+  its import, the guide how-to and the backlog note. The v1.0.42 profit-trend sparkline stayed
+  (then reworked into the toggle below).
+- **Event history date+time**: `js/ui/tools/projects.js` `fmtEventTime(at)` →
+  `toLocaleString` with month/day/year + hour/minute; `eventTimeline` uses it; a **Copy event
+  history** button (`copyText`, chronological) copies the timestamped list for a client email.
+- **Slicer print time as h + m**: both `js/ui/tools/projects.js` `slicerFigures` and
+  `js/ui/tools/estimate.js` slicer body now render two fields (hours, minutes) that read/write
+  the single stored `slicer.minutes` total (`Math.floor(total/60)` / `total % 60`; `setTime(h,m)`
+  → `h*60+m`). No engine change — the stored figure is unchanged.
+- **Full-width trend toggle**: `js/ui/tools/dashboard.js` replaced the two side-by-side
+  sparklines with one panel — a header with Revenue/Profit `button`s (primary = active,
+  `state.ui.trendMetric`) and a single full-width `sparkline` (1040×150). Removed `.trend-grid`
+  CSS.
+- **Document filters**: `js/ui/tools/documents.js` `documentList` gained a `.filter-bar` —
+  `state.ui.docFilter { kind, customer, from, to }`; kind (all/quote/invoice) and customer
+  selects (customers present in the docs), and two `type: 'date'` `textField`s for a date
+  range on `document.issuedAt`; a Clear button and a “Shown X of Y” tile appear when a filter
+  is on. `textField` gained a `type` option (`js/ui/controls.js`); `.filter-bar` CSS.
+
 ## Per-day working hours, click-to-select catalogues, auto-record on completion (v1.0.43)
 
 Follow-up from the same workshop test session.

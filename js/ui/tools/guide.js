@@ -122,12 +122,6 @@ const HOWTOS = [
     'If the project is still in Quotation or Awaiting payment, it moves to Production automatically — you record the payment once, not twice.',
     'A project already in production or beyond is left where it is.',
   ] },
-  { id: 'time-per-stage', title: 'See where orders spend their time', category: 'Production', steps: [
-    'Open the Dashboard and find “Where the time goes”.',
-    'Each stage shows the average time an order sat in it, slowest first, from the real history of every order.',
-    'Time in Awaiting payment is usually the client; time in Production or Post-processing is where the workshop can win it back.',
-    'The revenue and profit trends above it show whether a busy month was also a profitable one.',
-  ] },
   { id: 'fallen-behind', title: 'Catch up when prints went un-logged', category: 'Housekeeping', steps: [
     'It happens: the person who logs prints is out, and the machines keep running. Nothing is lost — the app can be caught up.',
     'For each un-logged print, open its project, pick the part, and use Production → “Record a print”, correcting the accepted, rejected, minutes and grams to what really happened.',

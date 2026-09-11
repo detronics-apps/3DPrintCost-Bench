@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.44 — Event-history times, h:m slicer time, trend toggle, document filters (2026-09-12)
+
+- **Event history shows the time, not just the date.** Each entry in a project’s history now
+  reads e.g. “12 Sep 2026, 14:32”, and a **Copy event history** button copies the whole
+  timestamped list for pasting into a client update or feedback email.
+- **Slicer print time is entered as hours and minutes.** The slicer reports 2 h 45 m, so that
+  is what you type now (two fields), instead of converting to 165 minutes — on both the
+  project part editor and the estimate. It is still stored as one total underneath.
+- **One monthly trend with a Revenue / Profit toggle.** The two half-width charts are replaced
+  by a single full-width graph and two buttons above it — pick Revenue or Profit and it fills
+  the width for the whole year by month.
+- **Filters on Quotes & invoices.** Filter the list by kind (quotes or invoices), by customer,
+  and by a date range — so it stays workable as it grows. A “Shown X of Y” count and a Clear
+  button show when a filter is on.
+- Removed the “Where the time goes” dashboard panel added in 1.0.42 — it was a misread of the
+  request (which was about times in the event history, above).
+
 ## 1.0.43 — Per-day working hours, click-to-select catalogues, auto-record on completion (2026-09-12)
 
 - **Working hours per day of the week.** The schedule treated every day the same, so it

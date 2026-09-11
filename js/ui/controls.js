@@ -160,14 +160,16 @@ export function numberField(key, label, value, onChange, options = {}) {
 }
 
 export function textField(key, label, value, onChange, options = {}) {
-  const { info, hint, placeholder, multiline = false, rows = 3 } = options;
+  const {
+    info, hint, placeholder, multiline = false, rows = 3, type = 'text',
+  } = options;
   const input = el(multiline ? 'textarea' : 'input', {
     class: multiline ? 'input input--area' : 'input',
     'data-field': key,
     value: value ?? '',
     placeholder: placeholder || null,
     rows: multiline ? rows : null,
-    type: multiline ? null : 'text',
+    type: multiline ? null : type,
     on: { change: (e) => onChange(e.target.value) },
   });
   if (multiline) input.value = value ?? '';
