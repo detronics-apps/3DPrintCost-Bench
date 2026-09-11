@@ -77,10 +77,14 @@ export const DEFAULT_SCORE_MODEL = {
     lo: 0.2, hi: 0.75,
   },
   precision: {
+    // Fine layers and a small nozzle help accuracy; shrinkage comp and an
+    // iterative calibration pass help most. Fuzzy skin deliberately roughens the
+    // surface, so it costs precision heavily.
     layerWeight: 0.35, layerMax: 0.3,
     nozzleWeight: 0.25, nozzleMax: 0.8,
     shrinkage: 0.28, calibrationPass: 0.2,
-    lo: 0.12, hi: 0.75,
+    fuzzySkin: 0.2,
+    lo: 0.1, hi: 0.85,
   },
   aesthetics: {
     layerWeight: 0.3, layerMax: 0.3,
@@ -153,7 +157,8 @@ export function scoresFor(settings = {}, model = DEFAULT_SCORE_MODEL) {
   const precisionRaw = num(pr.layerWeight, 0.35) * (1 - clamp01(layer / num(pr.layerMax, 0.3)))
     + num(pr.nozzleWeight, 0.25) * (1 - clamp01(nozzle / num(pr.nozzleMax, 0.8)))
     + num(pr.shrinkage, 0.28) * on(settings.shrinkage)
-    + num(pr.calibrationPass, 0.2) * on(settings.calibrationPass);
+    + num(pr.calibrationPass, 0.2) * on(settings.calibrationPass)
+    - num(pr.fuzzySkin, 0.2) * on(settings.fuzzySkin);
   const precision = band(precisionRaw, pr.lo, pr.hi);
 
   /* -- aesthetics: fine layer + fine nozzle + ironing + fuzzy + material ---- */

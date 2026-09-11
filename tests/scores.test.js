@@ -51,12 +51,17 @@ test('speed and cost fall as the part gets heavier and slower', () => {
   assert.ok(fuzzy < plain, 'fuzzy skin is slower');
 });
 
-test('precision rewards fine layers and shrinkage/calibration', () => {
+test('precision rewards fine layers and shrinkage/calibration, and fuzzy skin hurts it', () => {
   assert.ok(byId.fit.precision >= byId.display.precision, 'the Fit profile is at least as precise as a display shape');
   const base = { infill: 15, wallLoops: 2, layerHeight: 0.2, materialType: 'PLA' };
   assert.ok(scoresFor({ ...base, shrinkage: true }).precision > scoresFor(base).precision, 'shrinkage helps');
   assert.ok(scoresFor({ ...base, shrinkage: true, calibrationPass: true }).precision
     > scoresFor({ ...base, shrinkage: true }).precision, 'a calibration reprint helps more');
+  assert.ok(scoresFor({ ...base, layerHeight: 0.12 }).precision > scoresFor(base).precision, 'finer layers help');
+  assert.ok(scoresFor({ ...base, fuzzySkin: true }).precision < scoresFor(base).precision, 'fuzzy skin roughens the surface, hurting precision');
+  // Fit is the precision winner; Visual (fine but fuzzy) must not out-precise Function.
+  assert.ok(byId.fit.precision > byId.function.precision, 'Fit is the precision winner');
+  assert.ok(byId.visual.precision < byId.function.precision, 'fuzzy Visual is less precise than Function');
 });
 
 test('aesthetics rewards finish settings and penalises messy plastics', () => {
