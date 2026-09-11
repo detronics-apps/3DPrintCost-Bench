@@ -9,7 +9,7 @@
 import { el, toast } from '../dom.js';
 import {
   section, subsection, numberField, textField, selectField, checkField, button,
-  buttonRow, banner, statTile, table, muted, emptyState, pill, costRow,
+  buttonRow, banner, statTile, table, muted, emptyState, pill, costRow, noticeStack,
   sliderField, moneyField,
 } from '../controls.js';
 import { moneyDiagram } from '../svg/money.js';
@@ -1249,7 +1249,14 @@ export function main(ctx) {
 
   nodes.push(workflowPanel(ctx, project, result));
 
-  for (const note of result.notes) nodes.push(banner(note.level, note.text));
+  nodes.push(...noticeStack(result.notes, {
+    dismissed: state.ui.dismissedNotices || {},
+    onDismiss: (k) => {
+      state.ui.dismissedNotices = { ...(state.ui.dismissedNotices || {}), [k]: true };
+      saveSoon();
+      ctx.rerender();
+    },
+  }));
 
   // What this job needs off the shelf, and what has to be bought. Silent about
   // any material the workshop does not track.

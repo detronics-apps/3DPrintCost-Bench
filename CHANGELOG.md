@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.15 — Notes fold into one dismissible line (2026-09-11)
+
+- **The stack of notes at the top is now one expandable line** — instead of a wall
+  of banners, the estimate and project show a single "N notes" line you expand to
+  read them, each with a × to dismiss it (dismissals stick until the note changes).
+  A serious warning (a part that will not fit) still shows on its own, always
+  visible — that one is not something to fold away.
+
 ## 1.0.14 — Estimate parts collapse to an accordion (2026-09-11)
 
 - **One part open at a time on the estimate** — with several parts, each collapses

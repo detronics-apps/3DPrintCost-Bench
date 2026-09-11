@@ -17,7 +17,7 @@ import { el, toast } from '../dom.js';
 import {
   section, subsection, numberField, textField, selectField, checkField, sliderField,
   percentField, moneyField, chips, button, buttonRow, banner, statTile, table,
-  costRow, muted, emptyState, pill,
+  costRow, muted, emptyState, pill, noticeStack,
 } from '../controls.js';
 import { moneyDiagram, thirdsDiagram } from '../svg/money.js';
 import { bedPlan, bedTowerFootprint } from '../svg/bed.js';
@@ -1321,10 +1321,15 @@ export function main(ctx) {
 
   const nodes = [threeNumbers(result)];
 
-  const allNotes = result.notes.concat(result.lines.flatMap((l) => l.notes || []));
-  for (const note of dedupe(allNotes)) {
-    nodes.push(banner(note.level, note.text));
-  }
+  const allNotes = dedupe(result.notes.concat(result.lines.flatMap((l) => l.notes || [])));
+  nodes.push(...noticeStack(allNotes, {
+    dismissed: state.ui.dismissedNotices || {},
+    onDismiss: (k) => {
+      state.ui.dismissedNotices = { ...(state.ui.dismissedNotices || {}), [k]: true };
+      saveSoon();
+      rerender();
+    },
+  }));
 
   nodes.push(stockFlags(result, state.inventory));
   nodes.push(partsTable(result));

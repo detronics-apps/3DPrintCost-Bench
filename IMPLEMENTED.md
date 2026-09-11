@@ -9,6 +9,20 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Notes fold into one dismissible line (v1.0.15)
+
+- **`noticeStack` — collapse the banner pile, keep danger visible** — new
+  `noticeStack(notes, { dismissed, onDismiss })` in `js/ui/controls.js`: danger
+  notes render as their own always-visible banners; everything else folds into a
+  `<details>` "N notes" line (native expand) whose items each carry a × that calls
+  `onDismiss(noteKey)`. `noteKey` is `note.id` or a hash of its text, so a dismissal
+  sticks until the text changes. CSS `.notices*` in `components.css`. Wired into the
+  estimate main (which had concatenated result.notes + every line's notes — info
+  included — into a wall of banners) and the project main, both storing dismissals in
+  `state.ui.dismissedNotices`. Why: the owner's screenshot showed ~8 stacked banners;
+  they wanted one expandable line with closes. Verified live: 1 danger banner + a "3
+  notes" collapsed line with 3 × buttons. (2026-09-11, <commit>)
+
 ## Estimate parts accordion (v1.0.14)
 
 - **One estimate part open at a time** — `partBlock` (`js/ui/tools/estimate.js`)

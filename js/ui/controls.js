@@ -299,6 +299,51 @@ export function banner(level, text, options = {}) {
 
 export const bannerLevels = () => Object.keys(BANNER_LEVELS);
 
+/** A stable key for a note, so a dismissal sticks until the note's text changes. */
+function noteKey(n) {
+  if (n.id) return n.id;
+  let h = 0;
+  const s = String(n.text || '');
+  for (let i = 0; i < s.length; i += 1) { h = (h * 31 + s.charCodeAt(i)) | 0; }
+  return `n${h}`;
+}
+
+/**
+ * A tidy home for a pile of notes. A danger note is shown on its own, always
+ * visible — it is not something to fold away. Everything else collapses into one
+ * "N notes" line that expands to the list, each with a × to dismiss it. Returns an
+ * array of nodes to spread into the page (empty when there is nothing to show).
+ *
+ * @param {Array<{level,text,id?}>} notes
+ * @param {object} [opts] — `dismissed` (map of keys), `onDismiss(key)`, `title`
+ */
+export function noticeStack(notes, { dismissed = {}, onDismiss = null, title = 'notes' } = {}) {
+  const list = Array.isArray(notes) ? notes : [];
+  const dangers = list.filter((n) => n.level === 'danger');
+  const rest = list.filter((n) => n.level !== 'danger' && !dismissed[noteKey(n)]);
+  const out = dangers.map((n) => banner('danger', n.text));
+  if (!rest.length) return out;
+
+  const worst = rest.some((n) => n.level === 'warn') ? 'warn' : 'info';
+  const items = rest.map((n) => el('div', { class: `notices__item notices__item--${n.level}` }, [
+    el('span', { class: 'notices__dot', 'aria-hidden': 'true' }),
+    el('span', { class: 'notices__text', text: n.text }),
+    onDismiss
+      ? el('button', {
+        class: 'notices__x', type: 'button', 'aria-label': 'Dismiss this note',
+        on: { click: () => onDismiss(noteKey(n)) },
+      }, ['×'])
+      : null,
+  ].filter(Boolean)));
+
+  return [...out, el('details', { class: `notices notices--${worst}` }, [
+    el('summary', { class: 'notices__summary' }, [
+      `${rest.length} ${rest.length === 1 ? title.replace(/s$/, '') : title}`,
+    ]),
+    el('div', { class: 'notices__list' }, items),
+  ])];
+}
+
 /* -------------------------------------------------------------- readouts -- */
 
 export function statTile(label, value, options = {}) {
