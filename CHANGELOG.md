@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.19 — How-to search understands everyday words (2026-09-11)
+
+- **Search the How-to in your own words** — the guide search now maps everyday
+  phrases to the app's terms, so "local save" or "cloud" finds Team sync, "ran out
+  of filament" finds Reorder points, "client form" finds the portal, and so on. If
+  you don't know what the app calls something, search what you'd call it.
+
 ## 1.0.18 — Inventory reorders section (2026-09-11)
 
 - **A Reorders section at the bottom of Inventory** — every stock line at or below

@@ -233,11 +233,6 @@ _Extends the existing filament cluster; the CSV items tie inventory to real usag
 
 ## How-to / guide additions
 
-- **Semantic / user-language search** — the How-to search currently matches only
-  headings containing the typed word. Add a layer that maps **user language to app
-  terminology** so a search like "local save" still finds "team sync / Google
-  Drive" — a mediator between how users describe things and what the app calls them.
-  (Raised 2026-09-10.)
 - **"What to do when you've fallen behind" guide** — document the CSV-import backfill
   story (someone was out, prints piled up un-logged) so operators know how to catch
   the app up. (Raised 2026-09-10.)

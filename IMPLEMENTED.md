@@ -9,6 +9,17 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Semantic How-to search (v1.0.19)
+
+- **User language → app terms** — `js/ui/tools/guide.js` gained `SEARCH_ALIASES`
+  (app term → everyday phrases), `searchText(text)` (folds the phrases for any app
+  term present in an item into that item's searchable text), and `guideMatches` (the
+  old AND-substring match over the enriched text). `matches` now delegates to it, so
+  both the how-tos and FAQs benefit. Why: a reader who doesn't know the app's words
+  ("team sync") searches what they'd say ("local save", "cloud"). Locked with
+  `tests/guide-search.test.js` (local save→team sync, ran out of filament→reorder,
+  client form→portal, unrelated stays unmatched). (2026-09-11, <commit>)
+
 ## Inventory reorders section + closable alerts (v1.0.18)
 
 - **Reorders panel with Reordered/Reject; alerts consolidated** — new

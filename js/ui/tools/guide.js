@@ -181,10 +181,48 @@ const FAQS = [
       + 'browser’s own storage, sync or no sync.' },
 ];
 
-function matches(text, q) {
+/**
+ * User language → app terminology. A reader who has never seen the app's words
+ * searches for what they'd call the thing ("local save", "run out of filament"),
+ * so each app term carries the everyday phrases that mean it. When an item's text
+ * contains the app term, those phrases are folded into what it matches — so the
+ * search finds the right page even when the words on it are not the words typed.
+ */
+export const SEARCH_ALIASES = {
+  'team sync': ['local save', 'cloud', 'onedrive', 'google drive', 'auto save', 'autosave', 'shared file', 'sync', 'save to cloud'],
+  backup: ['save all', 'export my data', 'download my data', 'safety copy'],
+  estimate: ['quote', 'quotation', 'pricing', 'costing', 'how much', 'get a price'],
+  reorder: ['low stock', 'ran out', 'run out', 'buy more', 'restock', 'out of filament', 'running low'],
+  portal: ['client form', 'customer form', 'request link', 'share a link', 'let the client'],
+  internal: ['staff print', 'company print', 'employee print', 'cost only', 'for ourselves', 'in house'],
+  'post-processing': ['finishing', 'support removal', 'deburr', 'resin coat', 'cleanup', 'sanding'],
+  colour: ['multicolour', 'multi-colour', 'multicolor', 'colour change', 'colour by height', 'two colours'],
+  movement: ['stock in', 'stock out', 'used up', 'scrapped', 'purchased', 'stock adjustment'],
+  bed: ['plate', 'build plate', 'layout', 'nesting', 'arrange parts', 'fit on the bed'],
+  invoice: ['bill', 'payment', 'paid', 'receipt'],
+  scheduler: ['schedule', 'queue', 'when will it print', 'planning', 'gantt'],
+  printer: ['machine', 'which printer', 'snapmaker', 'bambu'],
+};
+
+/** Fold an item's text together with the everyday phrases for any app term in it. */
+export function searchText(text) {
+  const low = String(text || '').toLowerCase();
+  let extra = '';
+  for (const [term, syns] of Object.entries(SEARCH_ALIASES)) {
+    if (low.includes(term)) extra += ` ${syns.join(' ')}`;
+  }
+  return text + extra;
+}
+
+/** Does `text` (with its user-language aliases folded in) match every query word? */
+export function guideMatches(text, q) {
   if (!q) return true;
-  const hay = text.toLowerCase();
+  const hay = searchText(text).toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w));
+}
+
+function matches(text, q) {
+  return guideMatches(text, q);
 }
 
 function howtoSection(rerender) {
