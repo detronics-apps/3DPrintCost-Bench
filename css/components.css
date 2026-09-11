@@ -609,6 +609,7 @@
 .bedplan { display: flex; flex-direction: column; gap: var(--space-3); }
 .bedplan__legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: 13px; }
 .bedplan__key { display: inline-flex; align-items: center; gap: 6px; }
+.bedplan__key--over { color: var(--danger); font-weight: 600; }
 .bedplan__swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
 .bedplan__cols { display: grid; grid-template-columns: 1fr minmax(260px, 360px); gap: var(--space-4); align-items: start; }
 @media (max-width: 720px) { .bedplan__cols { grid-template-columns: 1fr; } }

@@ -9,6 +9,27 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Bed layout: flag parts that don't fit, simpler labels (v1.0.24)
+
+- **Overflow parts drawn red** (`js/ui/svg/bed.js`): `OVERFLOW_FILL = var(--danger)`
+  and `fitsHeight(p, buildZ)` (a placed part fails only on height — footprint
+  overflow is caught in `arrangeBed` and never placed). `topSvg` and the iso box
+  loop paint the box (and the top-view label) red when `!fitsHeight`. The legend
+  builds an `unfitReason(it)` — "too big for the bed" (`plan.overflow`) or "too
+  tall" (`size.z > build.z`) — and flags the key with `bedplan__key--over` (red,
+  CSS in `components.css`) plus a red swatch and the reason suffix.
+- **Cage is the true build volume** again: iso `cageZ = build.z` (was `contentZ*1.15`);
+  fit uses `spanZ = max(cageZ, maxPartZ)` so a too-tall part is not clipped and rises
+  above the dashed cage. Tower height capped at `min(maxPartZ, cageZ)`.
+- **Short box + header labels**: `bedPlan` passes `labelFor = id => 'Part '+(ids.indexOf(id)+1)`
+  to `topSvg`, so boxes read "Part 1"/"Part 2" not the model file name (which
+  overflowed). Legend leads with the short label then the full name. Estimate
+  `partBlock` header (`js/ui/tools/estimate.js`) is now `Part ${index+1}` only;
+  project `partSidebar` section title (`js/ui/tools/projects.js`) is `Part ${n}` from
+  the part's index. Why: user — full names swamped the picture and duplicated the
+  name field below the header. Verified live: red faces/labels, legend "too tall",
+  part top above cage, short headers.
+
 ## 3-D bed: solid parts, bigger and centred (v1.0.23)
 
 - **Near-face rendering fix** in `isoBox` (`js/ui/svg/bed.js`): the box drew its +x

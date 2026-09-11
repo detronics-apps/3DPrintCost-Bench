@@ -19,6 +19,15 @@ const PALETTE = [
 ];
 
 const TOWER_FILL = 'var(--text-dim)';
+// A part that will not fit the machine (too tall for the build height) is drawn in
+// this colour everywhere it appears, so the warning above the notes has a face.
+const OVERFLOW_FILL = 'var(--danger)';
+
+// Does a placed part fit the build height? (Footprint overflow is caught earlier and
+// the part is never placed, so a placed part only fails by being too tall.)
+function fitsHeight(p, buildZ) {
+  return !buildZ || (Number(p.z) || 0) <= buildZ + 1e-6;
+}
 
 /**
  * Does THIS plate need a purge tower? A tower is only needed where a plate
@@ -49,7 +58,7 @@ export function bedTowerFootprint(settings, slots) {
 
 /* ------------------------------------------------------------- top view -- */
 
-function topSvg(plate, area, reserve, { colourById }) {
+function topSvg(plate, area, reserve, { colourById, buildZ = 0, labelFor = null }) {
   const gutter = 8;
   const scale = Math.min(360 / Math.max(1, area.w), 240 / Math.max(1, area.h));
   const W = area.w * scale + gutter * 2;
@@ -77,13 +86,18 @@ function topSvg(plate, area, reserve, { colourById }) {
     const y = gutter + p.y * scale;
     const w = Math.max(2, p.w * scale);
     const h = Math.max(2, p.h * scale);
-    const fill = p.colour || colourById(p.id);
-    node.appendChild(svg('rect', { x, y, width: w, height: h, rx: 2, fill, 'fill-opacity': 0.55, stroke: fill, 'stroke-width': 1 }));
-    if (w > 22 && h > 12) {
+    const bad = !fitsHeight(p, buildZ);
+    const fill = bad ? OVERFLOW_FILL : (p.colour || colourById(p.id));
+    node.appendChild(svg('rect', {
+      x, y, width: w, height: h, rx: 2, fill, 'fill-opacity': bad ? 0.7 : 0.55,
+      stroke: fill, 'stroke-width': bad ? 1.5 : 1,
+    }));
+    const label = labelFor ? labelFor(p.id) : String(p.label || '');
+    if (label && w > 22 && h > 12) {
       node.appendChild(svg('text', {
-        x: x + w / 2, y: y + h / 2, 'font-size': 9, fill: 'var(--text)', 'font-family': 'inherit',
+        x: x + w / 2, y: y + h / 2, 'font-size': 9, fill: bad ? 'var(--danger)' : 'var(--text)', 'font-family': 'inherit',
         'text-anchor': 'middle', 'dominant-baseline': 'central',
-      }, [String(p.label || '')]));
+      }, [label]));
     }
   }
   return node;
@@ -134,21 +148,23 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName, showTowe
   const by = area.w;
   const placements = plate.placements.map((p) => ({ ...p, ...rot90(p, area.w) }));
   const towerRect = showTower && reserve ? rot90(reserve, area.w) : null;
-  // The tower is only as tall as the tallest part on this bed, not the whole cage.
-  const towerZ = Math.max(1, ...placements.map((p) => Number(p.z) || 0));
 
-  // The cage is only as tall as the parts (plus a little headroom), not the whole
-  // build volume — a full-height empty cage just wastes the frame with flat parts.
-  const contentZ = Math.max(1, towerZ, ...placements.map((p) => Number(p.z) || 0));
-  const bz = contentZ * 1.15;
+  // The cage is always the real printer build volume, so a part that is too tall
+  // for the machine visibly pokes out past the dashed lines (and is drawn red).
+  const cageZ = Math.max(1, Number(build?.z) || Math.max(bx, by));
+  const maxPartZ = Math.max(1, ...placements.map((p) => Number(p.z) || 0));
+  // The purge tower matches the tallest printable part, never above the build height.
+  const towerZ = Math.min(maxPartZ, cageZ);
+  // Fit must include a part taller than the cage, so overflow is never clipped.
+  const spanZ = Math.max(cageZ, maxPartZ);
 
   // Fit and centre the whole drawing in the frame. The projected bounding box is
-  // (bx+by)·AX wide and (bx+by)·AY + bz tall; scale to fill, leaving room at the
+  // (bx+by)·AX wide and (bx+by)·AY + spanZ tall; scale to fill, leaving room at the
   // top for the printer name, then place the origin so the box is centred.
   const topPad = printerName ? 26 : 14;
   const pad = 14;
   const widthUnit = (bx + by) * AX;
-  const heightUnit = (bx + by) * AY + bz;
+  const heightUnit = (bx + by) * AY + spanZ;
   const s = Math.min((W - pad * 2) / Math.max(1, widthUnit), (H - topPad - pad) / Math.max(1, heightUnit));
   const cx = W / 2 + (by - bx) * AX * s / 2;
   const cy = topPad + (H - topPad - pad + heightUnit * s) / 2;
@@ -162,19 +178,22 @@ function isoSvg(plate, area, reserve, build, { colourById, printerName, showTowe
     points: f.map((q) => `${q.sx.toFixed(1)},${q.sy.toFixed(1)}`).join(' '),
     fill: 'var(--surface-2, #eef1f5)', stroke: 'var(--border)', 'stroke-width': 1,
   }));
-  // The cage (back edges), so height reads without swamping the frame.
-  const cage = [[P(0, 0, 0), P(0, 0, bz)], [P(bx, 0, 0), P(bx, 0, bz)], [P(0, by, 0), P(0, by, bz)],
-    [P(0, 0, bz), P(bx, 0, bz)], [P(0, 0, bz), P(0, by, bz)]];
+  // The cage (back edges) drawn to the real build height, so a too-tall part rises
+  // above it.
+  const cage = [[P(0, 0, 0), P(0, 0, cageZ)], [P(bx, 0, 0), P(bx, 0, cageZ)], [P(0, by, 0), P(0, by, cageZ)],
+    [P(0, 0, cageZ), P(bx, 0, cageZ)], [P(0, 0, cageZ), P(0, by, cageZ)]];
   for (const [a, b] of cage) {
     node.appendChild(svg('line', {
       x1: a.sx, y1: a.sy, x2: b.sx, y2: b.sy, stroke: 'var(--border)', 'stroke-width': 0.75, 'stroke-dasharray': '3 3',
     }));
   }
 
-  // Farthest parts first, so nearer parts paint over the ones behind them.
+  // Farthest parts first, so nearer parts paint over the ones behind them. A part
+  // too tall for the build height is drawn red, matching the warning above the notes.
   const boxes = placements.map((p) => ({ ...p, key: p.x + p.y })).sort((a, b) => b.key - a.key);
   for (const p of boxes) {
-    node.appendChild(isoBox(P, { x: p.x, y: p.y, w: p.w, d: p.h, z: p.z }, p.colour || colourById(p.id)));
+    const fill = fitsHeight(p, cageZ) ? (p.colour || colourById(p.id)) : OVERFLOW_FILL;
+    node.appendChild(isoBox(P, { x: p.x, y: p.y, w: p.w, d: p.h, z: p.z }, fill));
   }
   // The purge tower, thin and as tall as the tallest part, in its reserved corner.
   if (towerRect) {
@@ -205,18 +224,42 @@ export function bedPlan(items, build, { gap = 8, margin = 10, tower = null, prin
   const ids = [...new Set(live.map((it) => it.id))];
   const colourFor = new Map(ids.map((id, i) => [id, PALETTE[i % PALETTE.length]]));
   const colourById = (id) => colourFor.get(id) || 'var(--accent)';
+  // Boxes are labelled by position ("Part 1", "Part 2") — a full model file name
+  // overflows the little rectangles and swamps the picture. The full name stays in
+  // the legend.
+  const shortLabelFor = (id) => `Part ${ids.indexOf(id) + 1}`;
   const sel = Math.max(0, Math.min(selectedIndex, plan.plates.length - 1));
+  const buildZ = Math.max(0, Number(build.z) || 0);
 
-  const legend = el('div', { class: 'bedplan__legend' }, live.map((it) => el('span', { class: 'bedplan__key' }, [
-    el('span', { class: 'bedplan__swatch', style: `background:${it.colour || colourById(it.id)}`, 'aria-hidden': 'true' }),
-    el('span', { text: `${it.label} ×${Math.round(it.count)}` }),
-  ])));
+  // Why a part will not fit — too big to lie on the bed at all (never placed), or
+  // too tall for the build height (placed, but drawn red). Used to flag the legend.
+  const overflowSet = new Set(plan.overflow);
+  const unfitReason = (it) => {
+    if (overflowSet.has(it.id)) return 'too big for the bed';
+    if (buildZ && Number(it.size?.z || 0) > buildZ + 1e-6) return 'too tall';
+    return null;
+  };
+
+  const legend = el('div', { class: 'bedplan__legend' }, live.map((it) => {
+    const reason = unfitReason(it);
+    // The legend carries the full name, led by the box's short label so the two link.
+    const short = shortLabelFor(it.id);
+    const name = it.label && it.label !== short ? `${short} — ${it.label}` : short;
+    return el('span', { class: `bedplan__key${reason ? ' bedplan__key--over' : ''}` }, [
+      el('span', {
+        class: 'bedplan__swatch',
+        style: `background:${reason ? 'var(--danger)' : (it.colour || colourById(it.id))}`,
+        'aria-hidden': 'true',
+      }),
+      el('span', { text: `${name} ×${Math.round(it.count)}${reason ? ` — ${reason}` : ''}` }),
+    ]);
+  }));
 
   const towerOn = (plate) => (plan.reserve ? plateNeedsTower(plate) : false);
 
   const plates = plan.plates.map((plate, i) => {
     const fig = el('figure', { class: `bedplan__plate${i === sel ? ' is-selected' : ''}` }, [
-      topSvg(plate, plan.area, towerOn(plate) ? plan.reserve : null, { colourById }),
+      topSvg(plate, plan.area, towerOn(plate) ? plan.reserve : null, { colourById, buildZ, labelFor: shortLabelFor }),
       el('figcaption', { class: 'bedplan__cap', text: `Bed ${i + 1} — ${plate.placements.length} part${plate.placements.length === 1 ? '' : 's'}` }),
     ]);
     if (onSelectBed && plan.plates.length > 1) {

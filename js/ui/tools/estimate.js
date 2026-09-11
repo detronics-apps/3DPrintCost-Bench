@@ -407,7 +407,7 @@ function partBlock(ctx, part, index, canRemove, open = true) {
         on: { click: () => { state.ui.openEstimatePart = open ? null : part.id; saveSoon(); rerender(); } },
       }, [
         el('span', { class: 'part-block__chev', 'aria-hidden': 'true', text: open ? '▾' : '▸' }),
-        el('strong', { text: `Part ${index + 1}${part.name ? ` — ${part.name}` : ''}` }),
+        el('strong', { text: `Part ${index + 1}` }),
       ])
       : el('strong', { text: `Part ${index + 1}` }),
     canRemove ? button('Remove this part', () => {

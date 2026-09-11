@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.24 — Bed layout: flag parts that don't fit, simpler labels (2026-09-11)
+
+- **Parts that don't fit turn red.** A part too tall for the printer is drawn red on
+  both the top-down plan and the 3-D view, and its legend entry goes red with the
+  reason ("too tall" / "too big for the bed"). The warning above the notes now has a
+  matching visual on the actual part.
+- **The 3-D cage is the real printer.** The dashed build-volume outline is always the
+  machine's true size, so a part taller than the printer visibly rises past it.
+- **Simpler labels.** Boxes on the bed show the short "Part 1" / "Part 2" (the full
+  model name overflowed and swamped the picture); the full name stays in the legend.
+  The part editor heading is just "Part 1" / "Part 2" too — the name is in the field
+  right below it.
+
 ## 1.0.23 — 3-D bed: solid parts, bigger and centred (2026-09-11)
 
 - **Parts render solid, the right way round.** The 3-D view was drawing each part's

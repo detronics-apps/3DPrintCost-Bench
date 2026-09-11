@@ -1097,7 +1097,10 @@ function partSidebar(ctx, project, part) {
     fileInput,
   ], { open: true });
 
-  return section('part', `Part — ${part.name}`, [
+  // Heading stays a simple position ("Part 1", "Part 2") — the name lives in the
+  // Part name field below, so repeating it here just overflows the header.
+  const partNo = project.parts.findIndex((p) => p.id === part.id) + 1;
+  return section('part', `Part ${partNo > 0 ? partNo : ''}`.trim(), [
     modelSection,
     textField('part-name', 'Name', part.name, (v) => set({ name: v })),
     // Part number and revision are shop-drawing bookkeeping, not something a
