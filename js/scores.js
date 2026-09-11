@@ -75,7 +75,8 @@ export const DEFAULT_SCORE_MODEL = {
     fillWeight: 0.4, timeWeight: 0.35,
     // A calibration pass reprints the part to dial in the fit, so it is the
     // dearest thing a profile can carry — more than the plastic of a solid part.
-    ironing: 0.06, fuzzySkin: 0.14, calibrationPass: 0.42,
+    // Shrinkage compensation is slicing prep effort, so it costs a little too.
+    ironing: 0.06, fuzzySkin: 0.14, calibrationPass: 0.42, shrinkage: 0.05,
     lo: 0.2, hi: 0.78,
   },
   precision: {
@@ -150,7 +151,8 @@ export function scoresFor(settings = {}, model = DEFAULT_SCORE_MODEL) {
     + num(c.timeWeight, 0.35) * clamp01(timeIndex / 2)
     + on(settings.ironing) * num(c.ironing, 0.06)
     + on(settings.fuzzySkin) * num(c.fuzzySkin, 0.14)
-    + on(settings.calibrationPass) * num(c.calibrationPass, 0.2);
+    + on(settings.calibrationPass) * num(c.calibrationPass, 0.2)
+    + on(settings.shrinkage) * num(c.shrinkage, 0.05);
   // Higher cost index = more plastic and more time = dearer = a worse score.
   const costScore = 6 - band(costIndex, c.lo, c.hi);
 

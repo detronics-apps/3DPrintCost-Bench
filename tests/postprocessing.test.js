@@ -50,7 +50,7 @@ test('a perArea operation scales labour, consumable and grams with top area', ()
     ops: ops(), selected: { 'resin-coat': true }, areaCm2: 20, rate: 120,
   });
   assert.equal(pp.labourMinutes, 10); // 0.5 min/cm² × 20
-  assert.equal(pp.materialGrams, 40); // 2 g/cm² × 20
+  assert.ok(Math.abs(pp.materialGrams - 0.088 * 20) < 1e-9); // 0.088 g/cm² (measured) × 20
   assert.equal(pp.stationMinutes, 15); // curing, once
 });
 

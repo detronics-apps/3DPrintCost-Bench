@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.32 — Measured resin rate; shrinkage adds a little cost (2026-09-11)
+
+- **Resin coat now uses a measured rate** — 0.088 g/cm² (from 0.81 g over a 27 × 34 mm
+  tag), replacing the old placeholder; existing setups on the placeholder are corrected.
+- **Shrinkage compensation now nudges cost up a little** on the profiles that use it
+  (Function, Fit), reflecting the extra slicing effort to adjust the model.
+
 ## 1.0.31 — Commercial categories as percentages; profile fixes (2026-09-11)
 
 - **Categories now use a percentage, 100% = baseline** (110% adds 10%, 90% takes 10%

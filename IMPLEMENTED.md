@@ -9,6 +9,17 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Measured resin rate; shrinkage cost (v1.0.32)
+
+- **Resin coat `materialGrams` 2 → 0.088 g/cm²** (`js/postprocessing.js`), from the
+  measurement 0.81 g over a 27 × 34 mm tag (9.18 cm²). `migratePostProcessing` corrects
+  an existing op still on the placeholder 2 without touching a tuned value. Test in
+  `tests/postprocessing.test.js` updated.
+- **Shrinkage adds a small cost** (`js/scores.js` cost model `shrinkage: 0.05`), so
+  Function (and Fit) read a little dearer for the slicing prep to compensate shrinkage.
+  Verified: Function cost 4.4 → 4.1. Why: user's testing figure + note that shrinkage
+  is extra slicing effort.
+
 ## Commercial categories as percentages; profile fixes (v1.0.31)
 
 - **Percentage model** (`js/pricing.js`): categories carry `percent` (100 = baseline)

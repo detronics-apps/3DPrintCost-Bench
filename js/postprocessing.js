@@ -50,9 +50,10 @@ export const DEFAULT_POST_OPS = [
     gate: { kind: 'always' }, perComponent: false, archived: false,
   },
   {
+    // Measured: 0.81 g of resin over a 27 × 34 mm tag (9.18 cm²) ≈ 0.088 g/cm².
     id: 'resin-coat', name: 'Resin coat (top surface)',
     hint: 'Resin over the top face, priced by top area with a curing time.',
-    basis: 'perArea', minutes: 0.5, materialCost: 0, materialGrams: 2, stationMinutes: 15,
+    basis: 'perArea', minutes: 0.5, materialCost: 0, materialGrams: 0.088, stationMinutes: 15,
     gate: { kind: 'always' }, perComponent: false, archived: false,
   },
   {
@@ -253,6 +254,11 @@ export function migratePostProcessing(old, { supportMinutes = null, deburrMinute
     const ops = old.ops.map((o) => ({ ...o, gate: { ...(o.gate || { kind: 'always' }) } }));
     const have = new Set(ops.map((o) => o.id));
     for (const def of seed()) if (!have.has(def.id)) ops.push(def);
+    // The shipped resin-coat grams was a placeholder (2 g/cm²); a real measurement
+    // gives ≈0.088 g/cm². Correct the untouched placeholder without disturbing a
+    // value the company has since tuned.
+    const resinOp = ops.find((o) => o.id === 'resin-coat');
+    if (resinOp && num(resinOp.materialGrams) === 2) resinOp.materialGrams = 0.088;
     return { ops };
   }
 
