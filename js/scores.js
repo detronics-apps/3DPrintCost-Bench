@@ -73,8 +73,10 @@ export const DEFAULT_SCORE_MODEL = {
   // a light Visual or Fit part is still expensive.
   cost: {
     fillWeight: 0.4, timeWeight: 0.35,
-    ironing: 0.06, fuzzySkin: 0.14, calibrationPass: 0.2,
-    lo: 0.2, hi: 0.75,
+    // A calibration pass reprints the part to dial in the fit, so it is the
+    // dearest thing a profile can carry — more than the plastic of a solid part.
+    ironing: 0.06, fuzzySkin: 0.14, calibrationPass: 0.42,
+    lo: 0.2, hi: 0.78,
   },
   precision: {
     // Fine layers and a small nozzle help accuracy; shrinkage comp and an

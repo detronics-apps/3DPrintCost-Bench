@@ -51,6 +51,15 @@ test('speed and cost fall as the part gets heavier and slower', () => {
   assert.ok(fuzzy < plain, 'fuzzy skin is slower');
 });
 
+test('an iterative calibration pass makes Fit the dearest profile', () => {
+  // Reprinting to dial in the fit is the most expensive thing a profile carries,
+  // so Fit has the lowest cost score of all the shipped profiles.
+  const cheapest = Math.min(...Object.values(byId).map((s) => s.cost));
+  assert.equal(byId.fit.cost, cheapest, 'Fit loses on cost');
+  const base = { infill: 15, wallLoops: 2, layerHeight: 0.2, materialType: 'PLA' };
+  assert.ok(scoresFor({ ...base, calibrationPass: true }).cost < scoresFor(base).cost, 'a calibration pass makes a part dearer');
+});
+
 test('precision rewards fine layers and shrinkage/calibration, and fuzzy skin hurts it', () => {
   assert.ok(byId.fit.precision >= byId.display.precision, 'the Fit profile is at least as precise as a display shape');
   const base = { infill: 15, wallLoops: 2, layerHeight: 0.2, materialType: 'PLA' };
