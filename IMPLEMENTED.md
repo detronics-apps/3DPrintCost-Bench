@@ -9,6 +9,19 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Inventory reorders section + closable alerts (v1.0.18)
+
+- **Reorders panel with Reordered/Reject; alerts consolidated** — new
+  `reordersPanel(ctx, low)` in `js/ui/tools/inventory.js` at the bottom of the list
+  (on-hand → recent movements → reorders): lists `lowStock()` items minus any in
+  `state.ui.rejectedReorders`. "Reordered" books a `purchase` movement of
+  `restockTo − onHand` (restockTo = 2× reorder point) and clears any rejection;
+  "Reject" adds the item to `rejectedReorders`. The stacked top low-stock banners
+  were replaced by one `noticeStack` "stock alerts" line (dismissible). The reorder-
+  point editor already existed (the `stock-reorder` numberField). Why: the owner
+  wanted actionable reorders at the bottom and closable alerts, not a wall of
+  banners. 482 tests green. (2026-09-11, <commit>)
+
 ## Adaptive layers (v1.0.17)
 
 - **Adaptive layers as a flag factor** — added `adaptiveLayers` to the factor model

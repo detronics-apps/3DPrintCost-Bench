@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.18 — Inventory reorders section (2026-09-11)
+
+- **A Reorders section at the bottom of Inventory** — every stock line at or below
+  its reorder point is listed with two actions: **Reordered** (books the purchase
+  and restocks it to twice the reorder point) and **Reject** (clears it from the
+  list until it drops again). The low-stock alerts at the top are now one
+  dismissible line instead of a stack of banners. (Reorder points were already
+  editable per line.)
+
 ## 1.0.17 — Adaptive layers (2026-09-11)
 
 - **Adaptive layers print setting** — tick it on a part (Advanced/Expert, on the

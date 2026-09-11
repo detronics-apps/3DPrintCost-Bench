@@ -99,13 +99,6 @@ _Movement signs-by-reason shipped v1.0.11. Remaining:_
   book the stock movements automatically; confirm whether this already happens and
   make it so if not, and ensure it pulls through to the Dashboard. (Raised
   2026-09-10.)
-- **Reorder points, top popups, and a reorders section** — let a material carry a
-  reorder point. When stock crosses it (e.g. "PLA white is down to 0 g"), show a
-  **dismissible** banner at the top ("Add a reorder point" / "reorder now") — and
-  give **all** top popups a close (×). List **reorders** in their own section at the
-  bottom of the inventory screen (order: on-hand → recent movements → reorders),
-  each with **Reject** and **Completed** buttons that action it (completing a
-  reorder books the purchase movement). (Raised 2026-09-10.)
 - **Keep large dropdowns usable (cascading / filtered pickers)** — as the catalogue
   grows, single long dropdowns for material/colour and stock items become unusable
   (endless scrolling). Break them down: pick **material first, then colour** filtered

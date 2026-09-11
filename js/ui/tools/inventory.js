@@ -9,7 +9,7 @@
 import { el, toast } from '../dom.js';
 import {
   section, subsection, numberField, textField, selectField, button, buttonRow,
-  table, muted, statTile, pill, banner, emptyState, chips,
+  table, muted, statTile, pill, banner, emptyState, chips, noticeStack,
 } from '../controls.js';
 import { fmtMoney, num } from '../../money.js';
 import {
@@ -96,9 +96,14 @@ export function main(ctx) {
         `${(rows.filter((r) => r.item.kind === 'filament').reduce((t, r) => t + r.quantity, 0) / 1000).toFixed(2)} kg`),
     ]),
 
-    ...low.map((b) => banner('warn',
-      `${nameOf(b.item)} is down to ${qtyWithUnit(b.quantity, b.item)} `
-      + `against a reorder point of ${num(b.item.reorderAt)}.`)),
+    ...noticeStack(low.map((b) => ({
+      level: 'warn', id: `reorder-${b.item.id}`,
+      text: `${nameOf(b.item)} is down to ${qtyWithUnit(b.quantity, b.item)} (reorder point ${num(b.item.reorderAt)}). See Reorders below.`,
+    })), {
+      dismissed: state.ui.dismissedNotices || {},
+      onDismiss: (k) => { state.ui.dismissedNotices = { ...(state.ui.dismissedNotices || {}), [k]: true }; touch(ctx.rerender); },
+      title: 'stock alerts',
+    }),
 
     el('div', { class: 'panel' }, [
       el('div', { class: 'panel__head' }, [
@@ -166,7 +171,52 @@ export function main(ctx) {
       muted('Deleting a movement recalculates the balance from what is left — use it for a '
         + 'mistaken entry. A production movement can be deleted too, but its print record stays.'),
     ]) : null,
+
+    reordersPanel(ctx, low),
   ];
+}
+
+/**
+ * The reorders to act on: every line at or below its reorder point, minus any the
+ * operator has rejected this session. Each row can be marked **Reordered** — which
+ * books a purchase movement that restocks it to twice the reorder point — or
+ * **Reject**, which drops it from the list until it needs attention again.
+ */
+function reordersPanel(ctx, low) {
+  const rejected = state.ui.rejectedReorders || {};
+  const active = (low || []).filter((b) => !rejected[b.item.id]);
+  if (!active.length) return null;
+
+  const rows = active.map((b) => ({ b, restockTo: Math.max(num(b.item.reorderAt) * 2, num(b.item.reorderAt) + 1) }));
+  return el('div', { class: 'panel' }, [
+    el('h3', { text: `Reorders (${active.length})` }),
+    muted('Lines at or below their reorder point. “Reordered” books the purchase and restocks '
+      + 'to twice the reorder point; “Reject” clears it from the list until it drops again.'),
+    table([
+      { label: 'Item', get: (r) => nameOf(r.b.item) },
+      { label: 'On hand', align: 'right', mono: true, get: (r) => qtyWithUnit(r.b.quantity, r.b.item) },
+      { label: 'Reorder at', align: 'right', mono: true, get: (r) => qtyWithUnit(num(r.b.item.reorderAt), r.b.item) },
+      { label: 'Restock to', align: 'right', mono: true, get: (r) => qtyWithUnit(r.restockTo, r.b.item) },
+      {
+        label: '',
+        get: (r) => el('div', { class: 'btn-row' }, [
+          button('Reordered', () => {
+            const qty = Math.max(1, Math.round(r.restockTo - r.b.quantity));
+            state.inventory.movements.push(makeMovement({
+              itemId: r.b.item.id, reason: 'purchase', quantity: qty, note: 'Reorder received',
+            }));
+            if (state.ui.rejectedReorders) delete state.ui.rejectedReorders[r.b.item.id];
+            toast(`Restocked ${nameOf(r.b.item)} (+${qty})`);
+            touch(ctx.rerender);
+          }, { primary: true, key: `reorder-done-${r.b.item.id}` }),
+          button('Reject', () => {
+            state.ui.rejectedReorders = { ...(state.ui.rejectedReorders || {}), [r.b.item.id]: true };
+            touch(ctx.rerender);
+          }, { key: `reorder-reject-${r.b.item.id}` }),
+        ]),
+      },
+    ], rows, { compact: true }),
+  ]);
 }
 
 function printSpoolLabels() {
