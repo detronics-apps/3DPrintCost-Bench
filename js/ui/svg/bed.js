@@ -276,18 +276,21 @@ export function bedPlan(items, build, { gap = 8, margin = 10, tower = null, prin
   });
 
   const isoWrap = el('div', { class: 'bedplan__isowrap' }, [
-    el('div', { class: 'bedplan__isohead', text: plan.plates.length > 1 ? `Bed ${sel + 1}, in 3-D` : 'In 3-D' }),
+    el('h3', { class: 'bedplan__isohead', text: plan.plates.length > 1 ? `Bed ${sel + 1}, in 3D` : 'In 3D' }),
     isoSvg(plan.plates[sel], plan.area, plan.reserve, build, {
       colourById, printerName, showTower: towerOn(plan.plates[sel]),
     }),
   ]);
 
+  // Two columns, packed left: the legend and top-down plates on the left, the "In
+  // 3D" heading and isometric view on the right, both top-aligned so the heading
+  // sits level with the panel's own heading.
   const body = el('div', { class: 'bedplan__cols' }, [
-    el('div', { class: 'bedplan__grid' }, plates),
+    el('div', { class: 'bedplan__left' }, [legend, el('div', { class: 'bedplan__grid' }, plates)]),
     isoWrap,
   ]);
 
-  const nodes = [legend, body];
+  const nodes = [body];
   if (plan.overflow.length) {
     const names = plan.overflow.map((id) => live.find((it) => it.id === id)?.label || id);
     nodes.push(el('p', { class: 'muted', text: `Too big for this bed in this orientation: ${names.join(', ')}.` }));
