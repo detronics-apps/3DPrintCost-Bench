@@ -1014,10 +1014,14 @@ function render() {
     printerName: printer?.name || '',
     selectedIndex: state.ui?.selectedBed || 0,
     onSelectBed: (i) => { state.ui = { ...(state.ui || {}), selectedBed: i }; render(); },
-    title: 'On the bed',
+    title: '',
   });
   if (bedNode) {
-    nodes.push(el('div', { class: 'panel' }, [bedNode]));
+    // Tucked away by default — the bed picture is extra detail, not something the
+    // customer needs to see to order, so it only opens if they ask for it.
+    nodes.push(el('div', { class: 'panel' }, [
+      section('portal-bed', 'See how your parts sit on the printer bed', [bedNode], { open: false }),
+    ]));
   }
 
   // Only couriers that can actually carry the parcel (by size) are offered; the

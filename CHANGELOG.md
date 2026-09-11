@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.40 — Client form: bed picture hidden until asked for (2026-09-11)
+
+- The bed layout (top-down + 3-D) on the client form is now **collapsed by default**
+  behind "See how your parts sit on the printer bed" — it's extra detail, not something
+  a customer needs to place an order, in keeping with showing only the essentials.
+
 ## 1.0.39 — Remove-model button on the client form (2026-09-11)
 
 - The client form now has a red **Remove model** button once a model is loaded (it was

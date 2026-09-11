@@ -9,6 +9,14 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Client form: bed picture collapsed by default (v1.0.40)
+
+- `js/ui/portal.js`: the bed layout panel wraps `bedNode` in
+  `section('portal-bed', 'See how your parts sit on the printer bed', […], { open: false })`,
+  so it's collapsed by default; `bedPlan` is called with `title: ''` to avoid a duplicate
+  heading inside the fold. Guiding principle (from the user): the client form shows only
+  what's needed to order and never overwhelms — the bed picture is optional detail.
+
 ## Remove-model button on the client form (v1.0.39)
 
 - `js/ui/portal.js` `partPanel`: a red `button('Remove model', …, { danger: true })`
