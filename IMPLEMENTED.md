@@ -9,6 +9,16 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Estimate: money breakdown moved up, table renamed (v1.0.22)
+
+- **Order-wide `moneyDiagram` moved** in estimate `main()` (`js/ui/tools/estimate.js`)
+  to just after `stockFlags` (under the `noticeStack` notes) and before
+  `partsTable`, wrapped in `if (line)` with its own local `sumOver`. Previously it
+  sat after the part selector and thirds bar. The per-part `thirdsDiagram` stays
+  under the selector; the whole-bed breakdown now reads first.
+- **`partsTable` heading renamed** "Parts on this bed" → "Part breakdown". Why: both
+  requested directly. Verified live (money top < table top; heading text).
+
 ## Bed layout polish and per-part thirds bar (v1.0.21)
 
 - **Iso view: coloured blocks only, shorter tower, rotated.** In `js/ui/svg/bed.js`,

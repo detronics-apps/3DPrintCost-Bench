@@ -779,7 +779,7 @@ function partsTable(result) {
   if (result.lines.length < 2) return null;
   const code = result.currencyCode;
   return el('div', { class: 'panel' }, [
-    el('h3', { text: 'Parts on this bed' }),
+    el('h3', { text: 'Part breakdown' }),
     table([
       { label: 'Part', key: 'name' },
       { label: 'Qty', align: 'right', mono: true, get: (l) => String(l.quantity) },
@@ -1351,6 +1351,61 @@ export function main(ctx) {
   }));
 
   nodes.push(stockFlags(result, state.inventory));
+
+  // The whole-bed money breakdown (production, part price, invoice) sits right
+  // under the notes and above the part-by-part breakdown table, so the totals for
+  // the bed read first, then the split by part.
+  if (line) {
+    const sumOver = (pick) => result.lines.reduce((t, l) => t + pick(l) * l.quantity, 0);
+    nodes.push(el('div', { class: 'viewport__stage' }, [
+      moneyDiagram({
+        currencyCode: code,
+        title: result.lines.length > 1
+          ? `Production, part price and invoice — each bar to its own total, for the whole bed `
+            + `(${result.unitCount} parts)`
+          : `Production, part price and invoice — each bar to its own total, for all `
+            + `${line.quantity} part${line.quantity === 1 ? '' : 's'}`,
+        rows: [
+          {
+            name: 'Production',
+            rows: [
+              { label: 'Material', amount: sumOver((l) => l.production.material) },
+              { label: 'Machine', amount: sumOver((l) => l.production.machine) },
+              { label: 'Electricity', amount: sumOver((l) => l.production.electricity) },
+              ...(line.production.labourInCtc
+                ? [{ label: 'Labour', amount: sumOver((l) => l.production.labour) }] : []),
+              { label: 'Hardware', amount: sumOver((l) => l.production.hardware) },
+              { label: 'Other direct', amount: sumOver((l) => l.production.other) },
+              { label: 'Rejection allowance', amount: sumOver((l) => l.production.scrapAllowance) },
+              { label: 'General allowance', amount: sumOver((l) => l.production.generalAllowance) },
+            ],
+          },
+          {
+            name: 'Part price',
+            rows: [
+              { label: 'Cost recovery', amount: sumOver((l) => l.price.recovery) },
+              { label: 'Labour', amount: sumOver((l) => l.price.labour) },
+              { label: 'Growth', amount: sumOver((l) => l.price.commercial) },
+              { label: 'Profit + capital', amount: sumOver((l) => l.price.profit) },
+            ],
+          },
+          {
+            name: 'Invoice',
+            rows: [
+              { label: 'Parts', amount: result.parts.total },
+              { label: 'Packaging', amount: result.orderExtras.packaging },
+              { label: 'Shipping', amount: result.orderExtras.shipping },
+              { label: 'Handling', amount: result.orderExtras.handling },
+              { label: 'Storage', amount: result.orderExtras.storage },
+              { label: 'Other services', amount: result.orderExtras.extrasTotal },
+              { label: settings.tax.name || 'Tax', amount: result.tax.tax },
+            ],
+          },
+        ],
+      }),
+    ]));
+  }
+
   nodes.push(partsTable(result));
 
   if (result.lines.length > 1) {
@@ -1372,58 +1427,6 @@ export function main(ctx) {
   // clear it belongs to the chosen part and updates as the selection changes.
   nodes.push(el('div', { class: 'viewport__stage' }, [
     thirdsDiagram({ price: line.price, currencyCode: code }),
-  ]));
-
-  // Production and part-price bars sum across every part sharing the bed;
-  // the invoice bar already is order-wide.
-  const sumOver = (pick) => result.lines.reduce((t, l) => t + pick(l) * l.quantity, 0);
-
-  nodes.push(el('div', { class: 'viewport__stage' }, [
-    moneyDiagram({
-      currencyCode: code,
-      title: result.lines.length > 1
-        ? `Production, part price and invoice — each bar to its own total, for the whole bed `
-          + `(${result.unitCount} parts)`
-        : `Production, part price and invoice — each bar to its own total, for all `
-          + `${line.quantity} part${line.quantity === 1 ? '' : 's'}`,
-      rows: [
-        {
-          name: 'Production',
-          rows: [
-            { label: 'Material', amount: sumOver((l) => l.production.material) },
-            { label: 'Machine', amount: sumOver((l) => l.production.machine) },
-            { label: 'Electricity', amount: sumOver((l) => l.production.electricity) },
-            ...(line.production.labourInCtc
-              ? [{ label: 'Labour', amount: sumOver((l) => l.production.labour) }] : []),
-            { label: 'Hardware', amount: sumOver((l) => l.production.hardware) },
-            { label: 'Other direct', amount: sumOver((l) => l.production.other) },
-            { label: 'Rejection allowance', amount: sumOver((l) => l.production.scrapAllowance) },
-            { label: 'General allowance', amount: sumOver((l) => l.production.generalAllowance) },
-          ],
-        },
-        {
-          name: 'Part price',
-          rows: [
-            { label: 'Cost recovery', amount: sumOver((l) => l.price.recovery) },
-            { label: 'Labour', amount: sumOver((l) => l.price.labour) },
-            { label: 'Growth', amount: sumOver((l) => l.price.commercial) },
-            { label: 'Profit + capital', amount: sumOver((l) => l.price.profit) },
-          ],
-        },
-        {
-          name: 'Invoice',
-          rows: [
-            { label: 'Parts', amount: result.parts.total },
-            { label: 'Packaging', amount: result.orderExtras.packaging },
-            { label: 'Shipping', amount: result.orderExtras.shipping },
-            { label: 'Handling', amount: result.orderExtras.handling },
-            { label: 'Storage', amount: result.orderExtras.storage },
-            { label: 'Other services', amount: result.orderExtras.extrasTotal },
-            { label: settings.tax.name || 'Tax', amount: result.tax.tax },
-          ],
-        },
-      ],
-    }),
   ]));
 
   // Every part on the shared bed, positioned together on each plate — a top-down

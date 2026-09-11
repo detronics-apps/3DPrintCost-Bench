@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.22 — Estimate: money breakdown moved up, table renamed (2026-09-11)
+
+- **The whole-bed money breakdown (production, part price, invoice) moved up** to
+  sit right under the notes and above the part table, so the bed's totals read
+  first, then the split by part.
+- **"Parts on this bed" is now "Part breakdown."**
+
 ## 1.0.21 — Bed layout polish and per-part thirds bar (2026-09-11)
 
 - **The 3-D bed reads cleaner.** The isometric view now shows the coloured blocks
