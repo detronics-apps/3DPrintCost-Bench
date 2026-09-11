@@ -223,9 +223,10 @@ function partBlock(ctx, part, index, canRemove, open = true) {
       }, { key: `clear-model-${key}` }),
     ]));
   } else {
+    const fill = Math.min(1, Math.max(0, num(state.settings.estimate?.assumptions?.spaceClaimFill, 0.6)));
+    const fillPct = Math.round(fill * 100);
     modelBody.push(muted('No model loaded, so this part is measured from the dimensions '
-      + 'below. Enter a volume if you know it — a bounding box alone assumes it fills '
-      + '35% of it.'));
+      + `below. Enter a volume if you know it — a bounding box alone assumes it fills ${fillPct}% of it.`));
     const m = part.manual;
     const setManual = (field) => (value) => { m[field] = num(value); saveSoon(); rerender(); };
     modelBody.push(el('div', { class: 'field-grid' }, [
@@ -234,15 +235,15 @@ function partBlock(ctx, part, index, canRemove, open = true) {
       numberField(`manual-z-${key}`, 'Height', m.z, setManual('z'), { min: 0, suffix: 'mm' }),
     ]));
     // With no model the solid volume is worked out from the three measurements —
-    // 35% of the length × width × height box. Show that figure so it is never a
-    // blank 0; a real number typed here overrides it.
+    // the space-claim fill (default 60%) of the length × width × height box. Show
+    // that figure so it is never a blank 0; a real number typed here overrides it.
     const boxVol = num(m.x) * num(m.y) * num(m.z);
-    const estVol = num(m.volume, 0) > 0 ? num(m.volume) : Math.round(boxVol * 0.35);
+    const estVol = num(m.volume, 0) > 0 ? num(m.volume) : Math.round(boxVol * fill);
     modelBody.push(numberField(`manual-volume-${key}`, 'Solid volume', m.volume, setManual('volume'), {
       min: 0, suffix: 'mm³',
       hint: boxVol > 0
         ? `Left at zero, it is calculated from the measurements: ≈ ${estVol.toLocaleString()} mm³ `
-          + `(35% of the ${Math.round(boxVol).toLocaleString()} mm³ box). Type a value to override it.`
+          + `(${fillPct}% of the ${Math.round(boxVol).toLocaleString()} mm³ box). Type a value to override it.`
         : 'Enter the length, width and height above, or a solid volume if you know it.',
     }));
   }

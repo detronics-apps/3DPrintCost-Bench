@@ -154,7 +154,7 @@ export function calculateLine(line, settings, context = {}) {
 
   const geometry = line.geometry
     || (line.mesh ? analyse(line.mesh) : null)
-    || manualGeometry(line.manual);
+    || manualGeometry(line.manual, num(settings.estimate?.assumptions?.spaceClaimFill, 0.6));
 
   const orientedSize = line.orientedSize || geometry.size;
   const fit = fitsBuildVolume(printer, orientedSize);
@@ -557,7 +557,7 @@ export function calculateLine(line, settings, context = {}) {
 }
 
 /** A part entered by hand rather than measured from a model. */
-function manualGeometry(manual) {
+function manualGeometry(manual, spaceClaimFill = 0.6) {
   const m = manual || {};
   const size = {
     x: Math.max(0, num(m.x, 50)),
@@ -565,7 +565,10 @@ function manualGeometry(manual) {
     z: Math.max(0, num(m.z, 50)),
   };
   const boxVolume = size.x * size.y * size.z;
-  const volume = num(m.volume, 0) > 0 ? num(m.volume) : boxVolume * 0.35;
+  // No model: assume the object fills this share of its space-claim box. The
+  // shell and infill are then computed from this volume, so plastic never exceeds it.
+  const fill = Math.min(1, Math.max(0, num(spaceClaimFill, 0.6)));
+  const volume = num(m.volume, 0) > 0 ? num(m.volume) : boxVolume * fill;
   const area = num(m.area, 0) > 0
     ? num(m.area)
     : 2 * (size.x * size.y + size.x * size.z + size.y * size.z);
@@ -631,7 +634,7 @@ export function calculateOrder(order, settings, context = {}) {
     const resolved = rawLines.map((line) => {
       const geometry = line.geometry
         || (line.mesh ? analyse(line.mesh) : null)
-        || manualGeometry(line.manual);
+        || manualGeometry(line.manual, num(settings.estimate?.assumptions?.spaceClaimFill, 0.6));
       return {
         orientedSize: line.orientedSize || geometry.size,
         mix: normaliseMix(line.mix, bedSlots),

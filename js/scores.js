@@ -61,14 +61,21 @@ export const DEFAULT_SCORE_MODEL = {
   // (thinner layers, ironing, and fuzzy skin — which is slow — and adaptive
   // layers). The score is the inverse: faster = higher.
   speed: {
-    base: 0.3, layerRef: 0.2,
-    ironing: 0.1, fuzzySkin: 0.35, adaptiveLayers: 0.15,
+    base: 0.2, layerRef: 0.2, layerSpeed: 0.5,
+    ironing: 0.05, fuzzySkin: 0.2, adaptiveLayers: 0.1,
     // An iterative calibration pass (print, measure, adjust, reprint) roughly
     // doubles the time. It buys precision, so it costs speed and money, not plastic.
     calibrationPass: 1.0,
-    lo: 1.0, hi: 2.0,
+    lo: 1.0, hi: 2.4,
   },
-  cost: { fillWeight: 0.6, timeWeight: 0.4, lo: 0.15, hi: 0.78 },
+  // Cost leans on time, and the finish/precision extras (ironing, fuzzy skin, an
+  // iterative pass) are dear machine time out of proportion to their plastic — so
+  // a light Visual or Fit part is still expensive.
+  cost: {
+    fillWeight: 0.4, timeWeight: 0.35,
+    ironing: 0.06, fuzzySkin: 0.14, calibrationPass: 0.2,
+    lo: 0.2, hi: 0.75,
+  },
   precision: {
     layerWeight: 0.35, layerMax: 0.3,
     nozzleWeight: 0.25, nozzleMax: 0.8,
@@ -115,7 +122,10 @@ export function scoresFor(settings = {}, model = DEFAULT_SCORE_MODEL) {
 
   /* -- speed: plastic volume + time-adders, inverted ----------------------- */
   const sp = m.speed;
-  const layerTime = Math.max(0.2, num(sp.layerRef, 0.2) / layer); // thinner = more layers = slower
+  // Thinner layers mean more layers and more time, but softened: halving the layer
+  // does not halve the speed of a whole job. `layerSpeed` scales how much it bites.
+  const layerRatio = num(sp.layerRef, 0.2) / layer;
+  const layerTime = Math.max(0.5, 1 + num(sp.layerSpeed, 0.5) * (layerRatio - 1));
   const timeMult = layerTime
     * (1 + on(settings.ironing) * num(sp.ironing, 0.1))
     * (1 + on(settings.fuzzySkin) * num(sp.fuzzySkin, 0.35))
@@ -130,8 +140,11 @@ export function scoresFor(settings = {}, model = DEFAULT_SCORE_MODEL) {
 
   /* -- cost: driven by material (fill) and time ---------------------------- */
   const c = m.cost;
-  const costIndex = num(c.fillWeight, 0.6) * structural
-    + num(c.timeWeight, 0.4) * clamp01(timeIndex / 2);
+  const costIndex = num(c.fillWeight, 0.4) * structural
+    + num(c.timeWeight, 0.35) * clamp01(timeIndex / 2)
+    + on(settings.ironing) * num(c.ironing, 0.06)
+    + on(settings.fuzzySkin) * num(c.fuzzySkin, 0.14)
+    + on(settings.calibrationPass) * num(c.calibrationPass, 0.2);
   // Higher cost index = more plastic and more time = dearer = a worse score.
   const costScore = 6 - band(costIndex, c.lo, c.hi);
 

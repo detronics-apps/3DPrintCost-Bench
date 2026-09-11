@@ -183,8 +183,9 @@ export const DEFAULT_PROFILES = [
       layerHeight: 0.2,
     }, { speed: 3, cost: 3, strength: 4, precision: 3 }),
   profile('fit', 'Fit',
-    'Dimensional accuracy first. Shrinkage compensation on, everything else left '
-    + 'alone so the part measures what the model says.', {
+    'Dimensional accuracy first. Shrinkage compensation on and an iterative '
+    + 'measure-and-reprint pass, so the part measures what the model says — a '
+    + 'slow, dear profile bought for precision.', {
       infill: 15,
       infillPattern: 'rectilinear',
       wallLoops: 2,
@@ -195,6 +196,7 @@ export const DEFAULT_PROFILES = [
       ironing: false,
       fuzzySkin: false,
       adaptiveLayers: false,
+      calibrationPass: true,
       layerHeight: 0.2,
     }, { speed: 4, cost: 3, strength: 2, precision: 5 }),
   profile('function', 'Function',

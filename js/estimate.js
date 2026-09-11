@@ -96,6 +96,14 @@ export const DEFAULT_ESTIMATE_ASSUMPTIONS = {
   nozzle: 0.4,
   lineWidthRatio: 1.05,
   skinLayers: 4,
+  /**
+   * With no model, the part's solid volume is taken as this fraction of its
+   * length × width × height space claim (the box it occupies on the bed). Most
+   * parts are well under a solid block; the shell and infill are then worked out
+   * from THIS volume, so the plastic can never exceed it. Company-adjustable up to
+   * 1.0 (a solid block).
+   */
+  spaceClaimFill: 0.6,
   flowEfficiency: 0.55,
   layerOverheadSeconds: 2.0,
   /** Toolhead travel between objects on a shared plate: seconds per extra object,

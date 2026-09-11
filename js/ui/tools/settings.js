@@ -972,6 +972,13 @@ function estimatorPanel(ctx) {
       ]),
       numberField('skin-layers', 'Solid top and bottom layers', a.skinLayers, set('skinLayers'),
         { min: 0, step: 1 }),
+      sliderField('space-claim-fill', 'No-model fill of the space claim', a.spaceClaimFill ?? 0.6,
+        set('spaceClaimFill'), {
+          min: 0.1, max: 1, step: 0.05, format: (v) => fmtRate(v),
+          info: 'With no model uploaded, the part’s solid volume is taken as this share of its '
+            + 'length × width × height box. Shell and infill are then worked out from that '
+            + 'volume, so the plastic can never exceed it. Set 100% for a solid block.',
+        }),
       sliderField('flow-efficiency', 'Sustained share of the rated flow', a.flowEfficiency,
         set('flowEfficiency'), {
           min: 0.1, max: 1, step: 0.05, format: (v) => fmtRate(v),
