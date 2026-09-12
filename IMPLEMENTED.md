@@ -9,6 +9,15 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Coffee icon: palette-only side-view cup, not the emoji (v1.0.57)
+
+The `☕` emoji renders in its own multicolour glyph, off-palette. Replaced it with an inline SVG
+line-drawing of a side-view cup (`js/main.js`, via the `svg()` helper): `fill="none"
+stroke="currentColor"` so it inherits the button's text colour (`--text`, a palette token) and
+follows the theme like the theme glyph. Body `M6 7 H16 V14 A5 5 0 0 1 6 14 Z` + handle. Verified:
+stroke resolves to `#1f2d3d` (navy), no emoji in the DOM. Skill `brand.md` updated to make
+palette/`currentColor`-only icons (no multicolour emoji) the rule.
+
 ## Brand chrome: logo links to the site, Buy Me a Coffee button + footer link (v1.0.56)
 
 `js/main.js` header/footer, `css/layout.css`, `css/components.css`. Also written into the

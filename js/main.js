@@ -9,7 +9,7 @@
  * every control to carry a stable `data-field` name.
  */
 
-import { el, clear, toast, download, confirmModal } from './ui/dom.js';
+import { el, svg, clear, toast, download, confirmModal } from './ui/dom.js';
 import { capDiagramScale, captureFocus, restoreFocus, dualLabel } from './ui/patterns.js';
 import { configureSections } from './ui/controls.js';
 import {
@@ -34,7 +34,7 @@ import * as settingsTool from './ui/tools/settings.js';
 
 /** Read this before investigating anything: a stale cache wastes more time
  *  than any bug in this app has. "Reload the app" in the footer clears it. */
-export const APP_VERSION = '1.0.56';
+export const APP_VERSION = '1.0.57';
 
 const TOOLS = [estimate, projects, catalogues, inventory, documents, dashboard, scheduler, guide, settingsTool];
 
@@ -166,7 +166,18 @@ function buildHeader() {
         rel: 'noopener noreferrer',
         title: 'Buy me a coffee — support Detronics',
         'aria-label': 'Buy me a coffee (opens in a new tab)',
-      }, [el('span', { 'aria-hidden': 'true', text: '☕' })]),
+        // A side-view cup drawn as a line icon in currentColor (a palette token),
+        // so it follows the theme like the theme glyph — no off-palette emoji colours.
+      }, [svg('svg', {
+        viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none',
+        stroke: 'currentColor', 'stroke-width': '1.8',
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true',
+      }, [
+        // Mug body: straight sides with a rounded bottom.
+        svg('path', { d: 'M6 7 H16 V14 A5 5 0 0 1 6 14 Z' }),
+        // Handle on the right.
+        svg('path', { d: 'M16 9 h2 a3 3 0 0 1 0 6 h-2' }),
+      ])]),
       el('button', {
         class: 'btn btn-icon',
         type: 'button',
