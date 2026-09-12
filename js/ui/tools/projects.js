@@ -366,20 +366,24 @@ function workflowPanel(ctx, project, result) {
       return;
     }
     if (id === 'inspection-pass') {
-      // Completing production records the prints too: any part with no print yet
-      // is auto-recorded from the estimate (one plate each), so the hours and the
-      // stock draw are booked without a second manual step. Parts already recorded
-      // are left alone, so nothing is double-counted.
+      // Completing production finishes the record: for every part, one entry tops
+      // the recorded prints up to the WHOLE job — full quantity, full sliced time
+      // and grams, minus anything already logged plate by plate. So the Dashboard,
+      // which sums recorded prints, sees the real print (e.g. 100 parts / 27.5 h /
+      // 1.59 kg), not just the last plate. A part already fully recorded is left be.
       let p = project;
-      const unrecorded = p.parts.filter((pt) => (pt.attempts || []).length === 0);
-      for (const pt of unrecorded) {
-        const idx = p.parts.findIndex((x) => x.id === pt.id);
-        p = recordOnePrint(p, p.parts[idx], result.lines[idx]);
+      let topped = 0;
+      const ids = p.parts.map((pt) => pt.id);
+      for (const partId of ids) {
+        const idx = p.parts.findIndex((x) => x.id === partId);
+        const before = p;
+        p = recordCompletion(p, p.parts[idx], result.lines[idx]);
+        if (p !== before) topped += 1;
       }
       commit(advance(p, 'inspection-pass'));
-      toast(unrecorded.length
-        ? `Production complete — ${unrecorded.length} print${unrecorded.length === 1 ? '' : 's'} `
-          + 'auto-recorded from the estimate; correct the actuals in Production if needed'
+      toast(topped
+        ? 'Production complete — the record is topped up to the whole job; correct the '
+          + 'actuals in Production if they differ'
         : 'Production complete');
       rerender();
       return;
@@ -543,49 +547,8 @@ function partsPanel(ctx, project, result) {
   ]);
 }
 
-/**
- * Record one plate of `part` from the estimate, and book the stock it drew.
- *
- * The single source of truth for "a print happened", used by the manual Record
- * button and by completing production (which auto-records any part that has no
- * print yet). It records ONE plate — the same figures the manual button uses —
- * so it never over-states the hours the ROI reads; more plates are added by hand.
- *
- * Pure on the project (returns the next one); the stock draw is the one side
- * effect, exactly as recording a print has always been.
- */
-function recordOnePrint(project, part, line) {
-  const q = Math.max(1, num(part.quantity, 1));
-  const onPlate = Math.min(q, line?.perPlate || 1);
-  const share = onPlate / q; // this plate's share of the whole print
-  // Record the REAL sliced figures the operator entered — the whole-print totals
-  // (grams off every head, and the print time) — not the app's own estimate.
-  // Those are exactly what they typed, and why the gate made them type them. The
-  // estimate is only a fallback for a part with no slice, and stays on the
-  // `estimated*` fields for the estimate-versus-actual comparison.
-  const hasSlicer = partHasSlicerGrams(part) && partHasSlicerTime(part);
-  const slicerGrams = Math.max(
-    num(part.slicer?.grams),
-    (part.slicer?.heads || []).reduce((t, h) => t + num(h.grams), 0),
-  );
-  const actualMinutes = hasSlicer
-    ? Math.round(num(part.slicer.minutes) * share)
-    : Math.round((line?.estimate.minutes || 0) * onPlate);
-  const actualGrams = hasSlicer
-    ? Number((slicerGrams * share).toFixed(1))
-    : Number(((line?.estimate.grams || 0) * onPlate).toFixed(1));
-  const attempt = {
-    printerId: part.printerOverride ? part.printerId : project.printerId,
-    materialId: part.materialId,
-    quantity: onPlate,
-    accepted: onPlate,
-    rejected: 0,
-    minutes: actualMinutes,
-    grams: actualGrams,
-    estimatedMinutes: Math.round((line?.estimate.minutes || 0) * onPlate),
-    estimatedGrams: Number(((line?.estimate.grams || 0) * onPlate).toFixed(1)),
-    costPerAttempt: line?.ctc || 0,
-  };
+/** Book a recorded attempt: log it and draw the stock (filament, parts, resin). */
+function bookAttempt(project, part, line, attempt) {
   const withRun = recordAttempt(project, part.id, attempt);
   const created = withRun.parts.find((p) => p.id === part.id).attempts.at(-1);
   const next = logEvent(withRun, 'print-recorded',
@@ -610,6 +573,77 @@ function recordOnePrint(project, part, line) {
     }));
   }
   return next;
+}
+
+/**
+ * The whole-print sliced totals for a part — the grams across every head and the
+ * print time the operator entered. Falls back to the app's estimate (×quantity)
+ * only for a part with no slice.
+ */
+function slicerTotals(part, line) {
+  const q = Math.max(1, num(part.quantity, 1));
+  const hasSlicer = partHasSlicerGrams(part) && partHasSlicerTime(part);
+  const grams = hasSlicer
+    ? Math.max(num(part.slicer.grams), (part.slicer.heads || []).reduce((t, h) => t + num(h.grams), 0))
+    : (line?.estimate.grams || 0) * q;
+  const minutes = hasSlicer ? num(part.slicer.minutes) : (line?.estimate.minutes || 0) * q;
+  return { minutes, grams };
+}
+
+/**
+ * Record ONE plate of `part`, prefilled from the real sliced figures scaled to
+ * the plate's share of the whole print. This is the manual "Record a print"
+ * button — one bed at a time; more plates are added by clicking again.
+ */
+function recordOnePrint(project, part, line) {
+  const q = Math.max(1, num(part.quantity, 1));
+  const onPlate = Math.min(q, line?.perPlate || 1);
+  const share = onPlate / q;
+  const total = slicerTotals(part, line);
+  const attempt = {
+    printerId: part.printerOverride ? part.printerId : project.printerId,
+    materialId: part.materialId,
+    quantity: onPlate,
+    accepted: onPlate,
+    rejected: 0,
+    minutes: Math.round(total.minutes * share),
+    grams: Number((total.grams * share).toFixed(1)),
+    estimatedMinutes: Math.round((line?.estimate.minutes || 0) * onPlate),
+    estimatedGrams: Number(((line?.estimate.grams || 0) * onPlate).toFixed(1)),
+    costPerAttempt: line?.ctc || 0,
+  };
+  return bookAttempt(project, part, line, attempt);
+}
+
+/**
+ * Complete the record for `part`: add ONE entry that tops the recorded prints up
+ * to the WHOLE job — the full quantity, and the full sliced time and grams, MINUS
+ * whatever was already recorded plate by plate. So "production complete" always
+ * leaves the recorded prints summing to the real print (the Dashboard reads
+ * these), whether or not a plate or two was logged along the way. Records nothing
+ * for a part already fully accounted for.
+ */
+function recordCompletion(project, part, line) {
+  const q = Math.max(1, num(part.quantity, 1));
+  const prior = partStats(part);
+  const remaining = Math.max(0, q - Math.round(num(prior.accepted)));
+  if (remaining <= 0) return project;
+  const total = slicerTotals(part, line);
+  const minutes = Math.max(0, Math.round(total.minutes - num(prior.actualMinutes)));
+  const grams = Math.max(0, Number((total.grams - num(prior.actualGrams)).toFixed(1)));
+  const attempt = {
+    printerId: part.printerOverride ? part.printerId : project.printerId,
+    materialId: part.materialId,
+    quantity: remaining,
+    accepted: remaining,
+    rejected: 0,
+    minutes,
+    grams,
+    estimatedMinutes: Math.round((line?.estimate.minutes || 0) * remaining),
+    estimatedGrams: Number(((line?.estimate.grams || 0) * remaining).toFixed(1)),
+    costPerAttempt: line?.ctc || 0,
+  };
+  return bookAttempt(project, part, line, attempt);
 }
 
 function productionPanel(ctx, project, result) {

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.48 — Completing production records the whole job (2026-09-12)
+
+- **"Production complete" now logs the whole print, not one plate.** It adds a single entry that
+  tops the recorded prints up to the full job — the full quantity, and the full sliced time and
+  grams — minus anything you already logged plate by plate. So a 100-part order that took 27.5 h
+  and 1.59 kg is recorded as exactly that, and the Dashboard (which sums recorded prints) stops
+  under-reading it as one 15-part plate. Record a print by hand and it still logs one bed at a
+  time; completing the order fills in the rest.
+- To make the per-plate figure right on the manual button, set **Parts per plate** in the part's
+  Advanced section (e.g. 12) — the record button and the estimate both use it.
+
 ## 1.0.47 — To-scale timeline, longer-print-first at night, sliced figures on record, chart scale (2026-09-12)
 
 - **Recorded prints now use your slicer figures, not the estimate.** Completing production (and

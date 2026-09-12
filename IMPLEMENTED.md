@@ -9,6 +9,23 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Completing production records the whole job (v1.0.48)
+
+- `js/ui/tools/projects.js`: extracted `bookAttempt(project, part, line, attempt)` (recordAttempt +
+  logEvent + filament/part/resin movements) and `slicerTotals(part, line)` (whole-print grams =
+  max of `slicer.grams` and the head sum; minutes = `slicer.minutes`; estimate×qty fallback).
+  `recordOnePrint` now builds a per-plate attempt (share = `onPlate/quantity`) and calls
+  `bookAttempt` — unchanged behaviour for the manual button. New `recordCompletion(project, part,
+  line)`: `remaining = quantity − partStats.accepted`; if ≤0 records nothing, else books one
+  attempt of `remaining` accepted, `slicerTotals.minutes − prior.actualMinutes` and
+  `slicerTotals.grams − prior.actualGrams` — so the recorded prints always SUM to the whole sliced
+  job. The `inspection-pass` handler now calls `recordCompletion` for every part (topping up, not
+  only auto-recording parts with none). Verified live (fresh port): a 100-part / 27.5 h / 1.59 kg
+  job with no prior logs one 100 / 1650 min / 1590 g entry; with a prior 12-part plate it adds
+  88 / 1452 min / 1399.2 g so the totals are 100 / 1650 / 1590. Per-plate accuracy on the manual
+  button comes from the existing `partsPerPlateOverride` ("Parts per plate", part Advanced), which
+  `engine` already honours in `line.perPlate`.
+
 ## To-scale timeline, longer-print-first at night, sliced figures on record, chart scale (v1.0.47)
 
 - **Record uses slicer figures** (`js/ui/tools/projects.js` `recordOnePrint`): actual `minutes`/
