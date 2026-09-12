@@ -9,6 +9,23 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Portal: compile-email downloads + attach checklist, big-file nudge, link button removed (v1.0.55)
+
+The client form's send step (`js/ui/portal.js`), three requests shipped together.
+
+- **Compile the email** (was "Open in your email"): now downloads `quote-request.json` first, THEN opens the
+  mailto — so the file is in Downloads ready to attach (mailto can't attach). Made the leftmost, primary
+  (dark-blue) button; verified in-browser: order `[Compile, Download]`, class `btn btn-primary`, bg
+  rgb(47,110,148). "Copy a request link" button removed (the link still rides in the email body for one-tap
+  import). When no company email is set, Download falls back to primary.
+- **Attach checklist** — a "Please send us:" list in the send step (request .json, model file(s), proof of
+  payment when expedited), mirrored as a "Please attach:" block in the email body (`requestText`).
+- **Big files** — `loadModel` records `file.size`; a model over ~20 MB shows a warn banner to send it via a
+  transfer link (WeTransfer/Drive/Dropbox) or zip it, since it will bounce from email. (Backlog asked for
+  options first: option A shipped; B = zip-for-them and C = server/upload deferred — B needs a lib + holding
+  raw bytes, C contradicts the no-server design.)
+- How-to: new FAQ "How does a client actually send us their request?".
+
 ## Dashboard: imported history + internal prints count toward CTC, hours and filament (v1.0.54)
 
 Two dashboard bugs (`js/analytics.js` `dashboard()`, `js/ui/tools/dashboard.js`).

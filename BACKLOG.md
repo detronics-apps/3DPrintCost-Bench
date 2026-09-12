@@ -18,18 +18,8 @@ settings, nav and the smaller polish. Say the word to re-rank.
 
 **Bugs** — all cleared; see IMPLEMENTED.md (v1.0.52–v1.0.54).
 
-**Features**
+**Features** — compile-email + checklist + big-file guidance shipped v1.0.55 (IMPLEMENTED.md). Remaining:
 
-- **Portal "compile email" attaches the files** — the compile-email button should download the
-  request `.json` and attach it to the email, and (minor) prompt/remind to attach the STL/model
-  files. (mailto: can't attach programmatically — likely: download the JSON, open the mail draft
-  with a body that lists what to attach, and make the attach step obvious.)
-- **Big STL files → how to get them to the company** — investigate options for when the model
-  file is too large to email: e.g. a size check with guidance, a share-link/upload path, or
-  compression. Produce options, not an implementation, first.
-- **Client emailing checklist** — a short checklist shown to the client for what to send the
-  company: (1) the code `.json` file, (2) the STL / model file(s), (3) proof of payment IF
-  expedited. Tie into the compile-email flow above.
 - **Failed print: partial-height failure → real material loss** — when logging a failed print,
   besides accepted/rejected counts, capture WHERE the rejected part(s) failed — as a % of the
   print, or a Z height (e.g. "failed at 55%"). Then compute the material actually consumed on the

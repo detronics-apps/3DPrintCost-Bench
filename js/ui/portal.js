@@ -193,6 +193,9 @@ async function loadModel(file, part, rerender) {
     const mesh = await readMesh(file.name, await file.arrayBuffer(), { inflate: platformInflate });
     part.geometry = analyse(mesh);
     part.modelName = file.name;
+    // Kept only to warn when a model is too big to email (see the send step); the
+    // file bytes never leave the browser, only its size.
+    part.modelBytes = file.size || 0;
     toast(`${file.name} measured`);
     rerender();
   } catch (error) {
@@ -806,7 +809,44 @@ function requestText(result) {
     '',
     'This price was worked out in my browser from the form you sent and is',
     'subject to your confirmation.');
+
+  // What the company needs in the email. mailto cannot attach files, so the body
+  // spells it out and the button downloads the .json ready to attach by hand.
+  const expedited = !state.config?.internal
+    && ((state.config?.expediteMode || 'off') === 'only' || state.expedite);
+  out.push('', 'Please attach to this email:',
+    '  1. quote-request.json (just downloaded to your device)',
+    '  2. your model file(s) — .stl, .3mf or .obj',
+    expedited ? '  3. proof of payment' : '');
+
   return out.filter((l) => l !== '').join('\n');
+}
+
+/** ~20 MB — most inboxes bounce a mail bigger than this, model file included. */
+const EMAIL_SIZE_LIMIT = 20 * 1024 * 1024;
+
+/**
+ * The "what to send" list, shown at the send step and mirrored in the email body,
+ * plus a nudge to a transfer link when a model is too big to email.
+ */
+function sendChecklist() {
+  const expedited = !state.config?.internal
+    && ((state.config?.expediteMode || 'off') === 'only' || state.expedite);
+  const big = (state.parts || []).filter((p) => num(p.modelBytes) > EMAIL_SIZE_LIMIT);
+  const items = [
+    'The request file (quote-request.json) — “Compile the email” downloads it for you',
+    'Your model file(s) — .stl, .3mf or .obj',
+  ];
+  if (expedited) items.push('Proof of payment');
+  return el('div', { class: 'panel--steplead', 'data-field': 'portal-checklist' }, [
+    el('strong', { text: 'Please send us:' }),
+    el('ul', { class: 'checklist' }, items.map((t) => el('li', { text: t }))),
+    big.length
+      ? banner('warn', `${big.length === 1 ? 'Your model file is' : 'Some model files are'} `
+        + 'larger than 20 MB and may bounce from email — send the model with a free transfer '
+        + 'link (WeTransfer, Google Drive or Dropbox) instead, or zip it first.')
+      : null,
+  ].filter(Boolean));
 }
 
 /** The intent a new part starts on: Display Only where the shop offers it (it is the
@@ -1347,27 +1387,26 @@ function render() {
     state.submitAttempted && needed.length
       ? banner('danger', `Before you can send, we still need: ${needed.join('; ')}.`)
       : null,
+    sendChecklist(),
     buttonRow([
-      button('Copy a request link', () => sanityChecked(() => {
-        const link = requestLink();
-        if (navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(link)
-            .then(() => toast('Link copied — send it to us, and attach your model file'))
-            .catch(() => toast('Could not copy the link'));
-        } else toast('Copying is not available here; use Download instead');
-      }), { primary: true, key: 'portal-link' }),
+      // The email button is the main path: it downloads the request file ready to
+      // attach, then opens the draft. mailto cannot attach, so the download is how
+      // the file gets there. Left as the primary (dark blue) action.
+      config.company.email
+        ? button('Compile the email', () => sanityChecked(() => {
+          download(new Blob([JSON.stringify(makePayload(), null, 2)], { type: 'application/json' }),
+            'quote-request.json');
+          window.location.href = `mailto:${config.company.email}?subject=${encodeURIComponent('Quote request')}`
+            + `&body=${encodeURIComponent(`${requestText(result)}\n\nRequest link (open to import):\n${requestLink()}`)}`;
+          toast('Request downloaded — attach it and your model file(s) to the email');
+        }), { primary: true, key: 'portal-email-link' })
+        : null,
       button('Download the request', () => sanityChecked(() => {
         download(new Blob([JSON.stringify(makePayload(), null, 2)], { type: 'application/json' }),
           'quote-request.json');
         toast('Saved — email this file to us with your models');
-      }), { key: 'portal-download' }),
-      config.company.email
-        ? button('Open in your email', () => sanityChecked(() => {
-          window.location.href = `mailto:${config.company.email}?subject=${encodeURIComponent('Quote request')}`
-            + `&body=${encodeURIComponent(`${requestText(result)}\n\nRequest link (open to import):\n${requestLink()}`)}`;
-        }), { key: 'portal-email-link' })
-        : null,
-    ]),
+      }), { primary: !config.company.email, key: 'portal-download' }),
+    ].filter(Boolean)),
   ]));
 
   nodes.push(goodToKnow());

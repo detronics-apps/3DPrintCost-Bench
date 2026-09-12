@@ -860,6 +860,8 @@
 }
 .stephead__num--done { background: var(--ok); }
 .panel--steplead { background: var(--panel-2); }
+.checklist { margin: var(--space-1) 0 0; padding-left: var(--space-4); font-size: 13px; color: var(--text-dim); }
+.checklist li { margin: var(--space-1) 0; }
 
 /* Banking details on the client form (expedite): keep the typed line breaks. */
 .banking { white-space: pre-line; font-family: var(--mono, monospace); margin: var(--space-1) 0; }

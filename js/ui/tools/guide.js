@@ -157,6 +157,13 @@ const FAQS = [
       + 'high will tend to fail every time; layer lines on a shallow top curve look the same on every '
       + 'print. Where that is likely, flag it up front and suggest a design or setting change rather '
       + 'than reprinting the same outcome. The client form states this under “Good to know”.' },
+  { q: 'How does a client actually send us their request?',
+    a: 'At the end of the client form, “Compile the email” downloads their quote-request.json and opens an email to '
+      + 'you with a “Please attach” list in the body. The page has no server, so it cannot attach the file itself — '
+      + 'the client attaches the downloaded .json and their model file(s) (.stl/.3mf/.obj), plus proof of payment if '
+      + 'they expedited. A “Download the request” button is there too if they would rather attach it to their own '
+      + 'message. If a model file is over ~20 MB the form warns them to send it with a transfer link (WeTransfer, '
+      + 'Drive, Dropbox) or zip it, since it will bounce from most inboxes. You import whatever arrives with “Upload project”.' },
   { q: 'How does the newsletter opt-in on the client form work?',
     a: 'Turn it on in Settings → the customer-form section. The form then shows an unticked “Keep me posted” box; '
       + 'because it is consent, a client is only added when they tick it themselves, and their choice arrives on '
