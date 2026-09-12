@@ -14,6 +14,62 @@ project blocker; then the big unifying "step-by-step flow" for the three estimat
 surfaces; then inventory/movements and per-roll identity; then analytics, print
 settings, nav and the smaller polish. Say the word to re-rank.
 
+## Batch raised 2026-09-13 (bugs first, then features)
+
+**Bugs**
+
+- **Estimate → project loses the POD section until reselect** — saving an estimate as a
+  project navigates to the project, but the right-hand editor shows only Printer / Project /
+  Orders, NOT the part POD section (quantity, hardware, etc). It only appears after "back to
+  list" then reopening the project. Fix: show the full part editor immediately after save-as-
+  project (likely set/refresh `state.activePartId` and the open-part state on that transition).
+- **Import loses printer + heads/colours** — importing a project (from the estimate's save AND
+  from "Upload project") does not carry the printer type, the number of heads, the colour of
+  each head, or the material per head. Example: an estimate with 3 heads (yellow/white/brown PLA
+  + percentages) imported as one head "PETG black"; heads/colours had to be re-added by hand.
+  Fix: carry `printerId`, `slots` (per-head materialId), and per-part `mix`/percentages through
+  the import. (Some of this was touched in v1.0.42 for the portal request — re-verify BOTH the
+  estimate save-as-project path and the file upload path actually transfer heads + colours.)
+- **Portal: "Collect" still charges delivery** — choosing Collect (pickup) as the delivery
+  option still shows R19.70 in the delivery & packaging section. Pickup should zero the delivery
+  (courier) cost; packaging may still apply, but the courier/shipping line should be R0.
+- **Dashboard top tiles ignore imported history** — the CSV printer-history import DOES feed the
+  "has the machine paid for itself" ROI (shows 79 of 7 200 h on the Snapmaker), but the top-of-
+  dashboard "Machine hours" (5.8) and "Filament used" (0.19 kg) tiles only count the app's own
+  projects, not the imported prior runs. Make those totals include `priorRuns` too.
+- **Dashboard Cost to Company shows zero** — CTC reads 0 even though there are two projects (both
+  with a CTC) plus all the imported prior runs. Two parts: (1) the two projects are company-
+  internal, but a company-internal print still costs the company (material/machine) — that CTC
+  should count, not be zeroed; (2) estimate a CTC for the imported prior runs from their material
+  (grams) + machine hours, so imported history contributes to CTC too.
+- **Estimate quote disclaimer wrong for expedited** — the portal note "…The confirmed invoice is
+  usually at or below the quote." Its LAST sentence must NOT show for an expedited order (the
+  client pays the estimated amount up front, so it is not "just a quote" and it is not going to
+  come in cheaper). For expedite, drop that sentence (arguably the whole quote-caveat message,
+  since the estimate IS the price being paid).
+
+**Features**
+
+- **Portal "compile email" attaches the files** — the compile-email button should download the
+  request `.json` and attach it to the email, and (minor) prompt/remind to attach the STL/model
+  files. (mailto: can't attach programmatically — likely: download the JSON, open the mail draft
+  with a body that lists what to attach, and make the attach step obvious.)
+- **Big STL files → how to get them to the company** — investigate options for when the model
+  file is too large to email: e.g. a size check with guidance, a share-link/upload path, or
+  compression. Produce options, not an implementation, first.
+- **Client emailing checklist** — a short checklist shown to the client for what to send the
+  company: (1) the code `.json` file, (2) the STL / model file(s), (3) proof of payment IF
+  expedited. Tie into the compile-email flow above.
+- **Failed print: partial-height failure → real material loss** — when logging a failed print,
+  besides accepted/rejected counts, capture WHERE the rejected part(s) failed — as a % of the
+  print, or a Z height (e.g. "failed at 55%"). Then compute the material actually consumed on the
+  failed parts (only up to that height/percentage), instead of assuming the full print's grams.
+  Per rejected part: its failure %/height. E.g. qty 2, 1 accepted + 1 rejected — ask the rejected
+  one's failure %. Feeds the scrap/material-loss figure honestly.
+- **Purge tower infill** — decide whether the purge tower is costed as a solid block of material
+  or at an infill % (it's mostly hollow, ~15% infill). Currently likely treated as solid; add an
+  infill assumption for the tower's material so its grams aren't overstated.
+
 ## Pricing model: clarity and correctness
 
 _The confusion here touches every quote, so it ranks high. Display + internal-
