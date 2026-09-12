@@ -1409,8 +1409,18 @@ function bedLayoutPanel(ctx, project, result) {
       materials: materialsOf(p), perPlate: perPlateOf(p),
     }))
     .filter((it) => it.size && it.size.x && it.size.y);
+  // A purge tower is needed when the bed actually runs more than one colour — a
+  // part that is multi-colour on its own, or two parts in different colours sharing
+  // the plate. Read that from the PARTS (what really prints), the same basis the
+  // estimate uses, not just the spools currently loaded on the project.
+  const bedColours = new Set();
+  for (const it of planItems) for (const m of (it.materials || [])) bedColours.add(m);
+  const bedNeedsTower = planItems.some((it) => (it.materials || []).length > 1) || bedColours.size > 1;
+  const tower = bedNeedsTower
+    ? (bedTowerFootprint(settings, project.slots) || settings.estimate?.assumptions?.purgeTower || { x: 30, y: 30 })
+    : null;
   const plan = bedPlan(planItems, printer.build, {
-    tower: bedTowerFootprint(settings, project.slots),
+    tower,
     printerName: printer.name,
     selectedIndex: num(state.ui.selectedBed, 0),
     onSelectBed: (i) => { state.ui.selectedBed = i; rerender(); },

@@ -50,10 +50,11 @@ test('placements carry height, and a reserved tower keeps its strip clear', () =
   const all = plan.plates.flatMap((p) => p.placements);
   assert.ok(all.every((pl) => pl.z === 22), 'height rides through to every placement for the 3-D view');
   assert.ok(plan.reserve && plan.reserve.w === 30 && plan.reserve.h === 30, 'the tower rect is reported');
-  // No part sits inside the tower strip along the back.
+  // No part overlaps the reserved tower, wherever on the plate it sits.
+  const t = plan.reserve;
   for (const pl of all) {
-    const inStrip = pl.y < plan.reserve.h && pl.x < plan.reserve.w;
-    assert.ok(!inStrip, 'no part overlaps the reserved tower corner');
+    const overlaps = pl.x < t.x + t.w && pl.x + pl.w > t.x && pl.y < t.y + t.h && pl.y + pl.h > t.y;
+    assert.ok(!overlaps, 'no part overlaps the reserved tower');
   }
 });
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.50 — Bed picture: no parts off the plate, and the purge tower is shown (2026-09-12)
+
+- **Parts no longer render below the plate.** The bed picture now draws the exact grid the
+  estimate counts (positions and all), so the layout can never place more rows than physically
+  fit — the bottom row that was spilling off the plate is gone.
+- **The purge tower is drawn whenever the bed runs two or more colours** (a multi-colour part, or
+  two parts in different colours on the same plate), and it correctly costs a spot — the per-plate
+  count drops by one to make room, matching the estimate. Previously the tower was only detected
+  from the spools loaded on the project, so it could go missing even on a two-colour job.
+- Net effect: the plate picture, the estimate's parts-per-plate, and a recorded print all show the
+  same number, tower included.
+
 ## 1.0.49 — Plate counts line up everywhere; the app stops serving stale code (2026-09-12)
 
 - **The bed picture now shows the same parts-per-plate the estimate uses.** The layout packer

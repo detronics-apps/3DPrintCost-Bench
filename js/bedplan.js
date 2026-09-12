@@ -21,6 +21,7 @@
  */
 
 import { num } from './money.js';
+import { plateLayout } from './geometry.js';
 
 /**
  * @param {Array<{id, label, colour?, size:{x,y,z?}, count}>} items  oriented footprints
@@ -45,46 +46,44 @@ export function arrangeBed(items, build, { gap = 8, margin = 10, reserve = null 
   // Placements are offset down by the tower strip, so parts never sit under it.
   const yOffset = stripH;
 
-  // A SINGLE part type packs as a clean grid of exactly the count the estimate
-  // uses — its `perPlate`, which already honours the operator's "parts per plate"
-  // override. Drawing that grid keeps the picture and the numbers in step, rather
-  // than letting the guillotine packer under-fill the plate. Mixed part types fall
-  // through to the guillotine below.
+  // A SINGLE part type is drawn as the EXACT grid `partsPerPlate`/`plateLayout`
+  // counts — the same number the estimate and the recorded prints use, tower and
+  // all. Reusing that one calculation (rather than a second packer here) is what
+  // keeps the picture, the estimate and the record in step, and it cannot spill a
+  // row off the plate because the positions come from the fit itself. Mixed part
+  // types fall through to the guillotine packer below.
   const positive = (items || []).filter((it) => Math.max(0, Math.round(num(it.count, 0))) > 0);
-  if (positive.length === 1 && num(positive[0].perPlate, 0) > 0) {
+  if (positive.length === 1) {
     const it = positive[0];
-    const uw = Math.max(0, num(it.size?.x));
-    const uh = Math.max(0, num(it.size?.y));
-    const uz = Math.max(0, num(it.size?.z));
     const total = Math.max(0, Math.round(num(it.count, 0)));
-    const fitsSomehow = (uw <= w && uh <= packH) || (uh <= w && uw <= packH);
-    if (!fitsSomehow || w <= 0 || packH <= 0) {
+    const reservedArea = reserve ? Math.max(0, num(reserve.x)) * Math.max(0, num(reserve.y)) : 0;
+    const gl = plateLayout(it.size, build, { gap, margin, reservedArea });
+    const capacity = Math.max(0, gl.count);
+    if (!gl.fits || capacity < 1) {
       return { plates: [], plateCount: 0, area, reserve: reserveRect, overflow: [it.id] };
     }
-    // The better of the two orientations for gridding the pack area — the same
-    // choice the estimate's grid makes, so cols/orientation line up.
-    const cellsFor = (cw, ch) => Math.max(0, Math.floor((w + gap) / (cw + gap)))
-      * Math.max(0, Math.floor((packH + gap) / (ch + gap)));
-    const rot = cellsFor(uh, uw) > cellsFor(uw, uh);
-    const cellW = rot ? uh : uw;
-    const cellH = rot ? uw : uh;
-    const cols = Math.max(1, Math.floor((w + gap) / (cellW + gap)));
-    const per = Math.max(1, Math.round(num(it.perPlate)));
+    // Honour a "parts per plate" override (passed as it.perPlate) but never draw
+    // more than physically fit — so the picture can never overflow the plate.
+    const per = Math.min(capacity, Math.max(1, Math.round(num(it.perPlate, capacity))));
     const materials = Array.isArray(it.materials) ? it.materials.filter(Boolean) : [];
+    const uz = Math.max(0, num(it.size?.z));
+    // plateLayout gives build-absolute positions (with the margin); this view works
+    // margin-relative, so shift them back by the margin.
+    const toPlacement = (pos) => ({
+      id: it.id, label: it.label, colour: it.colour || null, materials, z: uz,
+      x: pos.x - margin, y: pos.y - margin, w: pos.w, h: pos.d,
+    });
     const grid = [];
     let placed = 0;
     while (placed < total) {
-      const placements = [];
-      for (let idx = 0; idx < per && placed < total; idx += 1, placed += 1) {
-        placements.push({
-          id: it.id, label: it.label, colour: it.colour || null, materials,
-          w: cellW, h: cellH, z: uz,
-          x: (idx % cols) * (cellW + gap), y: yOffset + Math.floor(idx / cols) * (cellH + gap),
-        });
-      }
-      grid.push({ w, h, placements });
+      const n = Math.min(per, total - placed);
+      grid.push({ w, h, placements: gl.positions.slice(0, n).map(toPlacement) });
+      placed += n;
     }
-    return { plates: grid, plateCount: grid.length, area, reserve: reserveRect, overflow: [] };
+    const tower = gl.tower
+      ? { x: gl.tower.x - margin, y: gl.tower.y - margin, w: gl.tower.w, h: gl.tower.d }
+      : reserveRect;
+    return { plates: grid, plateCount: grid.length, area, reserve: tower, overflow: [] };
   }
 
   const units = [];

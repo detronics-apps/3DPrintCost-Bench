@@ -9,6 +9,15 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Bed picture: no overflow, purge tower shown (v1.0.50)
+
+Follows v1.0.49, which aligned the numbers but drew a second grid that could still spill and mis-place the tower. Root cause: three different tower models (packBed area-fraction, partsPerPlate lost-cell, arrangeBed full-strip) and my v1.0.49 grid drew the engine's `perPlate` over a strip-reduced area → the bottom row overflowed.
+
+- **`js/bedplan.js` single-type branch now delegates to `plateLayout`** (geometry) — the SAME grid `partsPerPlate` counts, with positions + tower placement. Converts plateLayout's build-absolute coords to the view's margin-relative space (`pos.x - margin`). `perPlate` (override) is capped at the real `capacity` so it can never overflow; count/positions come from the fit itself. A single type also drives this whether or not `perPlate` is passed (portal/estimate benefit too).
+- **`js/ui/tools/projects.js`**: the tower is now decided from the PARTS' colours (any shared part multi-colour, or the bed's parts span 2+ materials), matching the engine's rule — not just `project.slots`. So a two-colour job draws the tower even when the loaded spools don't show two.
+- Single-type beds have no `bedPlacement` in the engine (only computed for `rawLines.length > 1`), so the engine's per-plate is already `partsPerPlate(reservedArea)` — identical to `plateLayout`, hence exact alignment.
+- Test updated: the tower-clearance test now asserts no placement overlaps the reported tower rect wherever it sits (plateLayout puts it bottom-right / beside, not a back strip). Verified: picture perPlate == estimate perPlate, overflowX/Y false, tower drawn and −1 count, across beds with and without a tower.
+
 ## Plate counts align everywhere; no-cache dev server (v1.0.49)
 
 - **Bed picture matches the estimate's per-plate.** Root cause: `partsPerPlate`/`bestGrid`
