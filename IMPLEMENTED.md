@@ -9,6 +9,12 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Coffee icon: saucer + steam lines added (v1.0.58)
+
+Extended the side-view cup (`js/main.js`) with a saucer beneath (`M4 19.5 Q 11 21.8 18 19.5`) and
+two steam lines rising from the rim — same `currentColor` line style, still palette-only. Skill
+`brand.md` reference paths updated. Verified in-browser: 5 paths, navy stroke.
+
 ## Coffee icon: palette-only side-view cup, not the emoji (v1.0.57)
 
 The `☕` emoji renders in its own multicolour glyph, off-palette. Replaced it with an inline SVG

@@ -34,7 +34,7 @@ import * as settingsTool from './ui/tools/settings.js';
 
 /** Read this before investigating anything: a stale cache wastes more time
  *  than any bug in this app has. "Reload the app" in the footer clears it. */
-export const APP_VERSION = '1.0.57';
+export const APP_VERSION = '1.0.58';
 
 const TOOLS = [estimate, projects, catalogues, inventory, documents, dashboard, scheduler, guide, settingsTool];
 
@@ -173,10 +173,15 @@ function buildHeader() {
         stroke: 'currentColor', 'stroke-width': '1.8',
         'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true',
       }, [
+        // Two steam lines rising from the cup.
+        svg('path', { d: 'M9.3 5.2 q -1.4 -1.1 0 -2.2 q 1.4 -1.1 0 -2.2' }),
+        svg('path', { d: 'M12.7 5.2 q 1.4 -1.1 0 -2.2 q -1.4 -1.1 0 -2.2' }),
         // Mug body: straight sides with a rounded bottom.
-        svg('path', { d: 'M6 7 H16 V14 A5 5 0 0 1 6 14 Z' }),
+        svg('path', { d: 'M6.5 8 H15.5 V13 A4.5 4.5 0 0 1 6.5 13 Z' }),
         // Handle on the right.
-        svg('path', { d: 'M16 9 h2 a3 3 0 0 1 0 6 h-2' }),
+        svg('path', { d: 'M15.5 9.5 h1.8 a2.6 2.6 0 0 1 0 5.2 h-1.8' }),
+        // Saucer/plate beneath, in side view.
+        svg('path', { d: 'M4 19.5 Q 11 21.8 18 19.5' }),
       ])]),
       el('button', {
         class: 'btn btn-icon',
