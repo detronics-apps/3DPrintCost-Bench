@@ -1311,6 +1311,12 @@ function exportSection(ctx) {
         let project = makeProject({
           name: state.quick.name || 'New project',
           order: { ...state.quick.order },
+          // The bed's printer and loaded spools are a PROJECT-level fact (one bed
+          // for the whole job) — the editor reads heads/colours from here, not the
+          // per-part copies, so set them or the project opens on the default
+          // printer with no heads (the "3 heads became one" import bug).
+          printerId: state.quick.printerId,
+          slots: (state.quick.slots || []).map((s) => ({ ...s })),
         });
         for (const part of state.quick.parts) {
           project = addPart(project, makePart({
@@ -1363,6 +1369,10 @@ function exportSection(ctx) {
           slots: Array.isArray(state.quick.slots) ? state.quick.slots.map((s) => ({ ...s })) : null,
         };
         state.activeProjectId = project.id;
+        // Open the first part straight away so its POD editor (quantity, hardware,
+        // post-processing) shows on arrival — without this the project opens with
+        // only Printer/Project/Orders until the operator reselects a part.
+        state.activePartId = project.parts[0]?.id || null;
         state.tool = 'projects';
         toast(`Saved as “${project.name}” with ${savedCount} part`
           + `${savedCount === 1 ? '' : 's'} — estimator cleared`);

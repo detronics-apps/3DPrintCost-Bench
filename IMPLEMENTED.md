@@ -9,6 +9,29 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Estimate → project carries the printer + heads, and opens the part editor (v1.0.52)
+
+Two bugs on the estimate save-as-project transition (`js/ui/tools/estimate.js`, "Save this bed as a project").
+
+- **Heads/printer lost on save** — the editor reads the bed's printer and loaded spools from the
+  PROJECT-level `project.printerId`/`project.slots` (`js/ui/tools/projects.js:604,773,784`; a part only
+  overrides with `printerOverride`). The handler set those per part but never on the project, so
+  `makeProject` kept its defaults (`bambu-x1e`, `slots:null`) and a 3-head bed opened as one default
+  head — the "yellow/white/brown became one PETG black" report. Fix: pass `printerId: state.quick.printerId`
+  and `slots: state.quick.slots` into the `makeProject({...})` call. The per-part `mix` slotIds already
+  match those slots, so the colour split survives. Verified with a data-layer check: a project built the
+  new way yields `orderFromProject().plate.slots.length === 3`; the old way yields `null`.
+- **POD section missing until reselect** — the handler set `state.activeProjectId` but not
+  `state.activePartId`, so the project opened showing only Printer/Project/Orders until the operator
+  clicked a part. Fix: `state.activePartId = project.parts[0]?.id || null` on the transition — the same
+  pattern the request-import path already uses (`js/ui/tools/projects.js:157`).
+
+_Upload-project path: files saved AFTER this fix carry heads correctly (they now hold project-level
+slots that `migrateProject` preserves and round-trips). Files saved by the OLD buggy handler still hold
+the heads only on `parts[0]`, and `migrateProject`'s recovery net (`js/projects.js:628`) only fires when
+`printerId == null` — a pre-fix file has the non-null default, so it won't auto-recover. Left as-is
+(pre-existing data, not worth speculative recovery); can add a targeted recover if any such file matters._
+
 ## Project money bars flow like the estimate + estimate-vs-actual (v1.0.51)
 
 - **Flow fix** (`js/ui/tools/projects.js` `bedLayoutPanel`/money diagram): the project's `moneyDiagram`

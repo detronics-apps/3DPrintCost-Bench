@@ -18,18 +18,6 @@ settings, nav and the smaller polish. Say the word to re-rank.
 
 **Bugs**
 
-- **Estimate → project loses the POD section until reselect** — saving an estimate as a
-  project navigates to the project, but the right-hand editor shows only Printer / Project /
-  Orders, NOT the part POD section (quantity, hardware, etc). It only appears after "back to
-  list" then reopening the project. Fix: show the full part editor immediately after save-as-
-  project (likely set/refresh `state.activePartId` and the open-part state on that transition).
-- **Import loses printer + heads/colours** — importing a project (from the estimate's save AND
-  from "Upload project") does not carry the printer type, the number of heads, the colour of
-  each head, or the material per head. Example: an estimate with 3 heads (yellow/white/brown PLA
-  + percentages) imported as one head "PETG black"; heads/colours had to be re-added by hand.
-  Fix: carry `printerId`, `slots` (per-head materialId), and per-part `mix`/percentages through
-  the import. (Some of this was touched in v1.0.42 for the portal request — re-verify BOTH the
-  estimate save-as-project path and the file upload path actually transfer heads + colours.)
 - **Portal: "Collect" still charges delivery** — choosing Collect (pickup) as the delivery
   option still shows R19.70 in the delivery & packaging section. Pickup should zero the delivery
   (courier) cost; packaging may still apply, but the courier/shipping line should be R0.
