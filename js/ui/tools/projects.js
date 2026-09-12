@@ -1500,6 +1500,15 @@ export function main(ctx) {
   if (result.lines.length) nodes.push(bedLayoutPanel(ctx, project, result));
 
   if (result.lines.length) {
+    // The three bars tell ONE story, exactly as the estimate does: Production
+    // builds the cost to company; the Part price bar opens with that same total
+    // as "Cost recovery" and adds labour, growth and profit; the Invoice bar
+    // opens with the parts total and adds packaging and the rest. So each bar's
+    // first block is the previous bar's total — nothing is re-based. Labour sits
+    // in Production only when the settings recover it there, otherwise in the
+    // Part price bar, matching the estimate so the two read the same.
+    const over = (pick) => sum(result.lines, (l) => num(pick(l)) * l.quantity);
+    const labourInCtc = !!result.lines[0]?.production?.labourInCtc;
     nodes.push(el('div', { class: 'viewport__stage' }, [
       moneyDiagram({
         currencyCode: code,
@@ -1508,21 +1517,23 @@ export function main(ctx) {
           {
             name: 'Production',
             rows: [
-              { label: 'Material', amount: sum(result.lines, (l) => l.production.material * l.quantity) },
-              { label: 'Machine', amount: sum(result.lines, (l) => l.production.machine * l.quantity) },
-              { label: 'Electricity', amount: sum(result.lines, (l) => l.production.electricity * l.quantity) },
-              { label: 'Labour', amount: sum(result.lines, (l) => l.production.labour * l.quantity) },
-              { label: 'Hardware', amount: sum(result.lines, (l) => l.production.hardware * l.quantity) },
-              { label: 'Rejection allowance', amount: sum(result.lines, (l) => l.production.scrapAllowance * l.quantity) },
-              { label: 'General allowance', amount: sum(result.lines, (l) => l.production.generalAllowance * l.quantity) },
+              { label: 'Material', amount: over((l) => l.production.material) },
+              { label: 'Machine', amount: over((l) => l.production.machine) },
+              { label: 'Electricity', amount: over((l) => l.production.electricity) },
+              ...(labourInCtc ? [{ label: 'Labour', amount: over((l) => l.production.labour) }] : []),
+              { label: 'Hardware', amount: over((l) => l.production.hardware) },
+              { label: 'Other direct', amount: over((l) => l.production.other) },
+              { label: 'Rejection allowance', amount: over((l) => l.production.scrapAllowance) },
+              { label: 'General allowance', amount: over((l) => l.production.generalAllowance) },
             ],
           },
           {
             name: 'Part price',
             rows: [
-              { label: 'Cost recovery', amount: sum(result.lines, (l) => l.price.recovery * l.quantity) },
-              { label: 'Labour + growth', amount: sum(result.lines, (l) => l.price.commercial * l.quantity) },
-              { label: 'Profit + capital', amount: sum(result.lines, (l) => l.price.profit * l.quantity) },
+              { label: 'Cost recovery', amount: over((l) => l.price.recovery) },
+              { label: 'Labour', amount: over((l) => l.price.labour) },
+              { label: 'Growth', amount: over((l) => l.price.commercial) },
+              { label: 'Profit + capital', amount: over((l) => l.price.profit) },
             ],
           },
           {
@@ -1531,6 +1542,8 @@ export function main(ctx) {
               { label: 'Parts', amount: result.parts.total },
               { label: 'Packaging', amount: result.orderExtras.packaging },
               { label: 'Shipping', amount: result.orderExtras.shipping },
+              { label: 'Handling', amount: result.orderExtras.handling },
+              { label: 'Storage', amount: result.orderExtras.storage },
               { label: 'Other services', amount: result.orderExtras.extrasTotal },
               { label: state.settings.tax.name || 'Tax', amount: result.tax.tax },
             ],
@@ -1538,6 +1551,36 @@ export function main(ctx) {
         ],
       }),
     ]));
+
+    // Estimate vs actual — the one thing the project shows that the estimate does
+    // not. What this order would have cost on the app's own geometry estimate,
+    // against what it works out to now the parts are sliced. The slice is almost
+    // always the smaller figure, and that gap is money that could be handed back
+    // to the customer as a coupon on a future order at no cost to the company.
+    const anySliced = project.parts.some((p) => partFullySliced(p));
+    if (anySliced) {
+      const asEstimate = { ...project, parts: project.parts.map((p) => ({ ...p, slicer: null })) };
+      const estResult = priceProject(asEstimate, state.settings);
+      const estInvoice = num(estResult.totals.finalInvoice);
+      const actInvoice = num(result.totals.finalInvoice);
+      const diff = estInvoice - actInvoice;
+      if (Math.abs(diff) >= 0.01) {
+        nodes.push(el('div', { class: 'panel' }, [
+          el('h3', { text: 'Estimated vs actual' }),
+          el('div', { class: 'summary-grid' }, [
+            statTile('Estimated', fmtMoney(estInvoice, code), { hint: 'before slicing' }),
+            statTile('Actual', fmtMoney(actInvoice, code), { hint: 'from the sliced figures' }),
+            statTile(diff >= 0 ? 'Came in under' : 'Came in over', fmtMoney(Math.abs(diff), code),
+              { tone: diff >= 0 ? 'ok' : 'warn' }),
+          ]),
+          diff > 0
+            ? muted(`The sliced job came in ${fmtMoney(diff, code)} under the estimate. You could `
+              + 'offer that to the customer as a coupon on their next order — it costs the company '
+              + 'nothing, since it was never part of the real cost.')
+            : muted(`The sliced job came in ${fmtMoney(-diff, code)} over the estimate.`),
+        ]));
+      }
+    }
   }
 
   nodes.push(productionPanel(ctx, project, result));

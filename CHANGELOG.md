@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.51 — Project money bars flow like the estimate, plus estimate-vs-actual (2026-09-12)
+
+- **The project's three money bars now tell one story, like the estimate's do.** Production builds
+  the cost to company; the Part-price bar opens with that same total as "Cost recovery" and adds
+  labour, growth and profit; the Invoice bar opens with the parts total and adds packaging and the
+  rest. Each bar's first block is the previous bar's total — nothing is re-based. (Before, the
+  project shoved labour into Production and re-based every bar, so nothing lined up.)
+- **New "Estimated vs actual" section on a project.** It shows what the order would have cost on
+  the app's geometry estimate versus what it works out to now the parts are sliced, and the gap
+  between them. The sliced job is almost always the smaller figure — that difference is money you
+  can hand back to the customer as a coupon on a future order at no cost to the company. (This is
+  the one thing the project shows that the estimate does not.)
+
 ## 1.0.50 — Bed picture: no parts off the plate, and the purge tower is shown (2026-09-12)
 
 - **Parts no longer render below the plate.** The bed picture now draws the exact grid the

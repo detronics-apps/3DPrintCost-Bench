@@ -9,6 +9,23 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Project money bars flow like the estimate + estimate-vs-actual (v1.0.51)
+
+- **Flow fix** (`js/ui/tools/projects.js` `bedLayoutPanel`/money diagram): the project's `moneyDiagram`
+  rows now mirror the estimate's (`js/ui/tools/estimate.js`) exactly — Production = material, machine,
+  electricity, (labour only when `labourInCtc`), hardware, other, rejection, general; Part price =
+  cost recovery, labour, growth, profit; Invoice = parts, packaging, shipping, handling, storage,
+  other, tax. Because `price.recovery` == the Production total and `parts.total` == the Part-price
+  total, each bar's first block equals the previous bar's total (verified live: 91.16 → cost
+  recovery 91.16 → 664.74 → parts 664.74). The old rows dumped labour into Production and mislabelled
+  commercial, breaking the flow.
+- **Estimated vs actual**: re-prices the project with every part's `slicer` nulled (`priceProject`
+  on a shallow clone) to get the geometry-estimate invoice, compares to the sliced actual
+  (`result.totals.finalInvoice`), and shows an "Estimated vs actual" panel (three stat tiles +
+  a note) whenever any part is fully sliced and the two differ. The under-estimate gap is framed as
+  a coupon the customer could be given. Verified: estimate R1223.46 vs actual R850.94 → R372.53 under.
+  Groundwork for later coupon logging.
+
 ## Bed picture: no overflow, purge tower shown (v1.0.50)
 
 Follows v1.0.49, which aligned the numbers but drew a second grid that could still spill and mis-place the tower. Root cause: three different tower models (packBed area-fraction, partsPerPlate lost-cell, arrangeBed full-strip) and my v1.0.49 grid drew the engine's `perPlate` over a strip-reduced area → the bottom row overflowed.
