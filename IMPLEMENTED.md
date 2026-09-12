@@ -9,6 +9,22 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Brand chrome: logo links to the site, Buy Me a Coffee button + footer link (v1.0.56)
+
+`js/main.js` header/footer, `css/layout.css`, `css/components.css`. Also written into the
+`detronics-app` skill (`references/brand.md` + the reuse checklist) as a standard for every app.
+
+- **Logo → website** — the brand logo is wrapped in an anchor to `https://www.detronics.co.za/`
+  (new tab, `rel="noopener noreferrer"`), class `.brand__home` so it does not inherit link styling.
+- **Buy Me a Coffee button** — a round `btn btn-icon` anchor with a `☕` glyph, placed immediately
+  left of the theme toggle in the header, linking to `https://buymeacoffee.com/detronics` (new tab).
+  A real `aria-label` since the glyph is decorative.
+- **Footer link** — a `.linkish` "Buy me a coffee" anchor beside the version number, same URL.
+- `.btn` now sets `text-decoration: none` — the coffee button is an `<a>`, which otherwise
+  underlines the glyph. Anchors (not JS `window.open`) so the links are real: middle-click, copy,
+  open-in-new-tab all work. Verified in-browser: logo href, order `[…, donate, theme, …]`, round
+  (border-radius 50%), no underline, footer link present.
+
 ## Portal: compile-email downloads + attach checklist, big-file nudge, link button removed (v1.0.55)
 
 The client form's send step (`js/ui/portal.js`), three requests shipped together.

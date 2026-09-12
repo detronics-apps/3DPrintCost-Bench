@@ -74,6 +74,8 @@
   cursor: pointer;
   white-space: nowrap;
   min-height: 32px;
+  /* A .btn may be an <a> (e.g. the coffee link): keep it from being underlined. */
+  text-decoration: none;
 }
 .btn:hover { background: var(--panel-3); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }

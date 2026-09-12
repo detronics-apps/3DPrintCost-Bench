@@ -34,7 +34,7 @@ import * as settingsTool from './ui/tools/settings.js';
 
 /** Read this before investigating anything: a stale cache wastes more time
  *  than any bug in this app has. "Reload the app" in the footer clears it. */
-export const APP_VERSION = '1.0.55';
+export const APP_VERSION = '1.0.56';
 
 const TOOLS = [estimate, projects, catalogues, inventory, documents, dashboard, scheduler, guide, settingsTool];
 
@@ -113,7 +113,14 @@ function buildHeader() {
 
   return el('header', { class: 'app-header' }, [
     el('div', { class: 'brand' }, [
-      el('img', { class: 'brand__logo', src: 'assets/logo.png', alt: 'Detronics' }),
+      el('a', {
+        class: 'brand__home',
+        href: 'https://www.detronics.co.za/',
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        title: 'Detronics — visit our website',
+        'aria-label': 'Detronics website (opens in a new tab)',
+      }, [el('img', { class: 'brand__logo', src: 'assets/logo.png', alt: 'Detronics' })]),
       el('span', { class: 'brand__sep', 'aria-hidden': 'true' }),
       el('span', { class: 'brand__tool', text: '3DPrintCost Bench' }),
     ]),
@@ -148,6 +155,18 @@ function buildHeader() {
           },
         },
       }, dualLabel('Save all', 'Save')),
+      // Round coffee button beside the theme toggle — a link to the Detronics
+      // Buy Me a Coffee page (opens in a new tab). An anchor, not a button, so it
+      // is a real link the browser can open, middle-click or copy.
+      el('a', {
+        class: 'btn btn-icon',
+        'data-field': 'donate',
+        href: 'https://buymeacoffee.com/detronics',
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        title: 'Buy me a coffee — support Detronics',
+        'aria-label': 'Buy me a coffee (opens in a new tab)',
+      }, [el('span', { 'aria-hidden': 'true', text: '☕' })]),
       el('button', {
         class: 'btn btn-icon',
         type: 'button',
@@ -272,6 +291,14 @@ function buildFooter() {
             toast('Reset to defaults');
           },
         },
+      }),
+      el('a', {
+        class: 'linkish',
+        href: 'https://buymeacoffee.com/detronics',
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        text: 'Buy me a coffee',
+        title: 'Support Detronics — buymeacoffee.com/detronics',
       }),
       el('span', { class: 'muted', text: `v${APP_VERSION}` }),
     ]),
