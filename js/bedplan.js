@@ -42,6 +42,51 @@ export function arrangeBed(items, build, { gap = 8, margin = 10, reserve = null 
   const packH = Math.max(0, h - stripH);
   const reserveRect = reserve && towerW > 0 && towerH > 0 ? { x: 0, y: 0, w: towerW, h: towerH } : null;
 
+  // Placements are offset down by the tower strip, so parts never sit under it.
+  const yOffset = stripH;
+
+  // A SINGLE part type packs as a clean grid of exactly the count the estimate
+  // uses — its `perPlate`, which already honours the operator's "parts per plate"
+  // override. Drawing that grid keeps the picture and the numbers in step, rather
+  // than letting the guillotine packer under-fill the plate. Mixed part types fall
+  // through to the guillotine below.
+  const positive = (items || []).filter((it) => Math.max(0, Math.round(num(it.count, 0))) > 0);
+  if (positive.length === 1 && num(positive[0].perPlate, 0) > 0) {
+    const it = positive[0];
+    const uw = Math.max(0, num(it.size?.x));
+    const uh = Math.max(0, num(it.size?.y));
+    const uz = Math.max(0, num(it.size?.z));
+    const total = Math.max(0, Math.round(num(it.count, 0)));
+    const fitsSomehow = (uw <= w && uh <= packH) || (uh <= w && uw <= packH);
+    if (!fitsSomehow || w <= 0 || packH <= 0) {
+      return { plates: [], plateCount: 0, area, reserve: reserveRect, overflow: [it.id] };
+    }
+    // The better of the two orientations for gridding the pack area — the same
+    // choice the estimate's grid makes, so cols/orientation line up.
+    const cellsFor = (cw, ch) => Math.max(0, Math.floor((w + gap) / (cw + gap)))
+      * Math.max(0, Math.floor((packH + gap) / (ch + gap)));
+    const rot = cellsFor(uh, uw) > cellsFor(uw, uh);
+    const cellW = rot ? uh : uw;
+    const cellH = rot ? uw : uh;
+    const cols = Math.max(1, Math.floor((w + gap) / (cellW + gap)));
+    const per = Math.max(1, Math.round(num(it.perPlate)));
+    const materials = Array.isArray(it.materials) ? it.materials.filter(Boolean) : [];
+    const grid = [];
+    let placed = 0;
+    while (placed < total) {
+      const placements = [];
+      for (let idx = 0; idx < per && placed < total; idx += 1, placed += 1) {
+        placements.push({
+          id: it.id, label: it.label, colour: it.colour || null, materials,
+          w: cellW, h: cellH, z: uz,
+          x: (idx % cols) * (cellW + gap), y: yOffset + Math.floor(idx / cols) * (cellH + gap),
+        });
+      }
+      grid.push({ w, h, placements });
+    }
+    return { plates: grid, plateCount: grid.length, area, reserve: reserveRect, overflow: [] };
+  }
+
   const units = [];
   const overflow = new Set();
   for (const it of items || []) {
@@ -50,13 +95,13 @@ export function arrangeBed(items, build, { gap = 8, margin = 10, reserve = null 
     const uz = Math.max(0, num(it.size?.z));
     const n = Math.max(0, Math.round(num(it.count, 0)));
     const materials = Array.isArray(it.materials) ? it.materials.filter(Boolean) : [];
-    if (n > 0 && (uw > w || uh > packH || w <= 0 || packH <= 0)) overflow.add(it.id);
+    // A part that fits in NEITHER orientation overflows; otherwise it packs, and
+    // the placer below chooses whichever way round fits.
+    const fitsSomehow = (uw <= w && uh <= packH) || (uh <= w && uw <= packH);
+    if (n > 0 && (!fitsSomehow || w <= 0 || packH <= 0)) overflow.add(it.id);
     else for (let i = 0; i < n; i += 1) units.push({ id: it.id, label: it.label, colour: it.colour || null, w: uw, h: uh, z: uz, materials });
   }
   units.sort((a, b) => (b.w * b.h) - (a.w * a.h));
-
-  // Placements are offset down by the tower strip, so parts never sit under it.
-  const yOffset = stripH;
 
   const plates = [];
   const freshPlate = () => {
@@ -70,17 +115,30 @@ export function arrangeBed(items, build, { gap = 8, margin = 10, reserve = null 
   // that rect into the strip to the right (full height) and the strip below (used
   // width). Returns true if it landed.
   const placeOn = (p, u) => {
+    // Try the part both ways round on the bed — a 90° spin on the plate is the
+    // same print — and drop it into the tightest free rectangle that takes it,
+    // in whichever orientation. This is the same freedom the grid estimate uses,
+    // so the drawn layout packs as densely as the estimate counts.
     let best = -1;
-    for (let i = 0; i < p.free.length; i += 1) {
-      const r = p.free[i];
-      if (u.w <= r.w + 1e-9 && u.h <= r.h + 1e-9
-        && (best < 0 || r.w * r.h < p.free[best].w * p.free[best].h)) best = i;
+    let bestRot = false;
+    let bestArea = Infinity;
+    for (const rot of [false, true]) {
+      const uw = rot ? u.h : u.w;
+      const uh = rot ? u.w : u.h;
+      for (let i = 0; i < p.free.length; i += 1) {
+        const r = p.free[i];
+        if (uw <= r.w + 1e-9 && uh <= r.h + 1e-9 && r.w * r.h < bestArea) {
+          best = i; bestRot = rot; bestArea = r.w * r.h;
+        }
+      }
     }
     if (best < 0) return false;
     const r = p.free[best];
-    p.placements.push({ ...u, x: r.x, y: r.y });
-    const usedW = u.w + gap;
-    const usedH = u.h + gap;
+    const uw = bestRot ? u.h : u.w;
+    const uh = bestRot ? u.w : u.h;
+    p.placements.push({ ...u, w: uw, h: uh, x: r.x, y: r.y });
+    const usedW = uw + gap;
+    const usedH = uh + gap;
     const right = { x: r.x + usedW, y: r.y, w: r.w - usedW, h: r.h };
     const below = { x: r.x, y: r.y + usedH, w: usedW, h: r.h - usedH };
     p.free.splice(best, 1);

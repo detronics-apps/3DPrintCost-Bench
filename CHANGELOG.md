@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.49 — Plate counts line up everywhere; the app stops serving stale code (2026-09-12)
+
+- **The bed picture now shows the same parts-per-plate the estimate uses.** The layout packer
+  under-filled plates (it never turned a part 90° and its guillotine wasted space), so it could
+  draw 12 per plate while the estimate counted 16. For a single part type the picture now lays the
+  exact grid the estimate counts, and it honours the part's **Parts per plate** override — so the
+  count on the plate picture, in the estimate, and on a recorded print all agree.
+- **The dev server no longer lets the browser cache stale code.** Updates were not reaching you
+  because the browser held on to old JavaScript modules after each change — which is why "it works
+  on my side" and "it doesn't on yours". `npm run serve` now runs a small server that tells the
+  browser never to cache, so a reload always runs the current code. After this update, start the
+  app with `npm run serve` (or restart it) and reload once.
+
 ## 1.0.48 — Completing production records the whole job (2026-09-12)
 
 - **"Production complete" now logs the whole print, not one plate.** It adds a single entry that

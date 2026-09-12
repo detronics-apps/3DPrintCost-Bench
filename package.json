@@ -6,6 +6,6 @@
   "description": "Costing, quoting, production and invoicing for 3D-printed parts.",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "serve": "python -m http.server 8080"
+    "serve": "python serve.py 8080"
   }
 }

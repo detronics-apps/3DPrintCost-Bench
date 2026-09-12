@@ -9,6 +9,24 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Plate counts align everywhere; no-cache dev server (v1.0.49)
+
+- **Bed picture matches the estimate's per-plate.** Root cause: `partsPerPlate`/`bestGrid`
+  (estimate) tries both XY orientations and grids cleanly; `arrangeBed` (the drawn layout) used one
+  orientation and a guillotine that fragments — so it drew fewer per plate (e.g. bed 300×220: grid
+  15, layout 12). Fixes in `js/bedplan.js`: (1) the guillotine now tries both orientations per unit
+  (`placeOn`), and (2) a **single part type** short-circuits to a clean grid of exactly `it.perPlate`
+  per plate (better-orientation cols), so the picture equals the estimate and honours the operator's
+  override. `js/ui/tools/projects.js` `bedLayoutPanel` passes each part's `perPlate` = `result.lines
+  [idx].perPlate` (override-or-grid) into `bedPlan`; `bedPlan` already forwards item fields to
+  `arrangeBed`. Verified: 300×220 → both 15 (7 plates); override 12 → 12/plate (9 plates).
+- **No-cache dev server** (`serve.py`): `SimpleHTTPRequestHandler` subclass sending
+  `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` + `Pragma`/`Expires` on every
+  response, threaded, port arg. `package.json` `serve` → `python serve.py 8080`; `.claude/launch.json`
+  preview → `python serve.py 8847`. Fixes the recurring stale-ES-module problem (the browser was
+  running old modules after each update, so fixes appeared not to work / the app half-broke). No
+  build step, consistent with the no-build architecture.
+
 ## Completing production records the whole job (v1.0.48)
 
 - `js/ui/tools/projects.js`: extracted `bookAttempt(project, part, line, attempt)` (recordAttempt +

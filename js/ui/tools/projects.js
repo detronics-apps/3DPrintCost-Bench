@@ -1396,8 +1396,18 @@ function bedLayoutPanel(ctx, project, result) {
     const ids = [...new Set([...fromMix, ...fromBands].filter(Boolean))];
     return ids.length ? ids : [p.materialId].filter(Boolean);
   };
+  // Each part's authoritative per-plate count — the same figure the estimate and
+  // the recorded prints use (the operator's override, or the grid fit) — so the
+  // drawn layout shows exactly that many per bed, not a looser guess.
+  const perPlateOf = (p) => {
+    const idx = project.parts.findIndex((x) => x.id === p.id);
+    return Math.max(0, Math.round(num(result.lines[idx]?.perPlate, 0)));
+  };
   const planItems = shared
-    .map((p) => ({ id: p.id, label: p.name, size: footprintOf(p), count: p.quantity, materials: materialsOf(p) }))
+    .map((p) => ({
+      id: p.id, label: p.name, size: footprintOf(p), count: p.quantity,
+      materials: materialsOf(p), perPlate: perPlateOf(p),
+    }))
     .filter((it) => it.size && it.size.x && it.size.y);
   const plan = bedPlan(planItems, printer.build, {
     tower: bedTowerFootprint(settings, project.slots),
