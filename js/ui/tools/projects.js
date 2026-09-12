@@ -555,15 +555,33 @@ function partsPanel(ctx, project, result) {
  * effect, exactly as recording a print has always been.
  */
 function recordOnePrint(project, part, line) {
-  const onPlate = Math.min(part.quantity, line?.perPlate || 1);
+  const q = Math.max(1, num(part.quantity, 1));
+  const onPlate = Math.min(q, line?.perPlate || 1);
+  const share = onPlate / q; // this plate's share of the whole print
+  // Record the REAL sliced figures the operator entered — the whole-print totals
+  // (grams off every head, and the print time) — not the app's own estimate.
+  // Those are exactly what they typed, and why the gate made them type them. The
+  // estimate is only a fallback for a part with no slice, and stays on the
+  // `estimated*` fields for the estimate-versus-actual comparison.
+  const hasSlicer = partHasSlicerGrams(part) && partHasSlicerTime(part);
+  const slicerGrams = Math.max(
+    num(part.slicer?.grams),
+    (part.slicer?.heads || []).reduce((t, h) => t + num(h.grams), 0),
+  );
+  const actualMinutes = hasSlicer
+    ? Math.round(num(part.slicer.minutes) * share)
+    : Math.round((line?.estimate.minutes || 0) * onPlate);
+  const actualGrams = hasSlicer
+    ? Number((slicerGrams * share).toFixed(1))
+    : Number(((line?.estimate.grams || 0) * onPlate).toFixed(1));
   const attempt = {
     printerId: part.printerOverride ? part.printerId : project.printerId,
     materialId: part.materialId,
     quantity: onPlate,
     accepted: onPlate,
     rejected: 0,
-    minutes: Math.round((line?.estimate.minutes || 0) * onPlate),
-    grams: Number(((line?.estimate.grams || 0) * onPlate).toFixed(1)),
+    minutes: actualMinutes,
+    grams: actualGrams,
     estimatedMinutes: Math.round((line?.estimate.minutes || 0) * onPlate),
     estimatedGrams: Number(((line?.estimate.grams || 0) * onPlate).toFixed(1)),
     costPerAttempt: line?.ctc || 0,

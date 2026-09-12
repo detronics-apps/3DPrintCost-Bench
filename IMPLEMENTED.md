@@ -9,6 +9,30 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## To-scale timeline, longer-print-first at night, sliced figures on record, chart scale (v1.0.47)
+
+- **Record uses slicer figures** (`js/ui/tools/projects.js` `recordOnePrint`): actual `minutes`/
+  `grams` come from `part.slicer` (total minutes; grams = max of `slicer.grams` and the sum of
+  head grams), scaled by `onPlate/quantity`; the estimate is only a fallback and stays on
+  `estimatedMinutes`/`estimatedGrams`. `movementsForRun` already draws from `attempt.grams`, so
+  the stock draw is corrected too. Fixes: a 27.5 h / 1.23 kg print was logging the ~248 min /
+  245.7 g estimate.
+- **Night ordering + placement** (`js/scheduler.js`): the evening/day-off branch of
+  `orderForClock` now sorts unattended prints longest-first by `!needsAttendance` (independent of
+  the overnight-HIRA toggle, which only governs whether a job may START outside hours). In
+  `liveSchedule`, only the machine's FIRST job may begin now (running, or startable this minute);
+  a later job — even one marked `in-production` — is placed like any queued job (`nextAttendedStart`
+  or `nextWorkingStart`), so a second "in production" print waits for working hours. +1 test.
+- **To-scale weekly timeline** (`js/ui/tools/scheduler.js` `weekTimeline`): replaces the day-column
+  `gantt`. Maps `startAt`/`endAt` onto a time axis from `now` across ≥7 days (viewBox 1200-wide,
+  `xAt(ms)`), shades each working window green, draws midnight gridlines + day labels + a "now"
+  line, and numbers each bar. Wrapped in a `.panel` ("The week ahead"). CSS: `.timeline-scroll`
+  (overflow-x auto) + `.week-timeline` (width 100%, min-width 720px → desktop fills, phone scrolls).
+- **Chart scale** (`js/ui/tools/dashboard.js` `sparkline`): a top dashed gridline labelled with the
+  max value and a solid zero baseline, y-axis value labels, and each bar's own value above it;
+  `format` (full money) + `compact` (`compactMoney`: R12k / R1.2k / R850) options, wired from the
+  trend panel.
+
 ## Scheduler: start prints in working hours, numbered timeline (v1.0.46)
 
 - **Starts only in working hours** (`js/scheduler.js`): new `nextWorkingStart(from, week)` returns

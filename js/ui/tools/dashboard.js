@@ -27,34 +27,72 @@ export const short = 'Board';
 
 const touch = (rerender) => { saveSoon(); rerender(); };
 
-/** A sparkline. Values are scaled to their own range, padded relatively. */
+/** A short money label for a bar top — e.g. R12k, R1.2k, R850 — kept narrow. */
+function compactMoney(value, code) {
+  const sym = fmtMoney(0, code).replace(/[\d.,\s]/g, '') || '';
+  const a = Math.abs(value);
+  if (a >= 1000) {
+    const k = value / 1000;
+    return `${sym}${a >= 10000 ? Math.round(k) : k.toFixed(1)}k`;
+  }
+  return `${sym}${Math.round(value)}`;
+}
+
+/**
+ * A monthly bar chart with a real scale: a top gridline labelled with the
+ * highest value and a zero baseline, so every bar's height means something, plus
+ * each month's own value written above its bar. `format` is the axis unit (full
+ * money); `compact` is the shorter per-bar label.
+ */
 function sparkline(buckets, pick, {
   width = 520, height = 90, colour = 'var(--accent-strong)', label = 'Revenue by month',
+  format = (v) => String(Math.round(v)), compact = (v) => String(Math.round(v)),
 } = {}) {
   const values = buckets.map(pick);
   const max = Math.max(...values, 0);
   const min = Math.min(...values, 0);
-  // A relative guard: an absolute epsilon is a claim about units (pitfalls #11).
   const magnitude = Math.max(Math.abs(min), Math.abs(max), Number.MIN_VALUE);
   const span = Math.abs(max - min) <= magnitude * 1e-12 ? magnitude || 1 : max - min;
 
   const root = svg('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': label });
-  const left = 8;
+  const left = 52; // room for the y-axis value labels
   const right = width - 8;
-  const top = 12;
-  const bottom = height - 20;
+  const top = 16;
+  const bottom = height - 18;
+  const yFor = (v) => bottom - (span > 0 ? ((v - min) / span) * (bottom - top) : 0);
   const step = buckets.length > 1 ? (right - left) / (buckets.length - 1) : 0;
-  const barWidth = Math.max(4, step * 0.6);
+  const barWidth = Math.max(4, step * 0.62);
+
+  // Scale lines: the top (the largest month) and the zero baseline, each labelled.
+  const yZero = yFor(0);
+  for (const g of [{ v: max, y: top }, { v: 0, y: yZero }]) {
+    root.appendChild(svg('line', {
+      x1: left, y1: g.y, x2: right, y2: g.y,
+      stroke: 'var(--border)', 'stroke-width': 0.75, 'stroke-dasharray': g.v === 0 ? null : '3 3',
+    }));
+    root.appendChild(svg('text', {
+      x: left - 6, y: g.y + 3, 'font-size': 9, 'text-anchor': 'end',
+      fill: 'var(--text-2)', 'font-family': 'inherit',
+    }, [format(g.v)]));
+  }
 
   buckets.forEach((bucket, i) => {
     const value = pick(bucket);
-    const h = span > 0 ? ((value - min) / span) * (bottom - top) : 0;
+    const yTop = yFor(value);
     const x = left + i * step - barWidth / 2;
     root.appendChild(svg('rect', {
-      x: Math.max(left, x), y: bottom - h, width: barWidth, height: Math.max(1, h), rx: 2, fill: colour,
+      x: Math.max(left, x), y: Math.min(yTop, yZero), width: barWidth,
+      height: Math.max(1, Math.abs(yTop - yZero)), rx: 2, fill: colour,
     }));
+    // The month's value, above the bar (or below, for a negative one).
+    if (Math.abs(value) > magnitude * 1e-9) {
+      root.appendChild(svg('text', {
+        x: left + i * step, y: (value >= 0 ? yTop - 3 : yTop + 9), 'font-size': 8,
+        'text-anchor': 'middle', fill: 'var(--text-2)', 'font-family': 'inherit',
+      }, [compact(value)]));
+    }
     root.appendChild(svg('text', {
-      x: left + i * step, y: height - 6, 'font-size': 9, 'text-anchor': 'middle',
+      x: left + i * step, y: height - 5, 'font-size': 9, 'text-anchor': 'middle',
       fill: 'var(--text-faint)', 'font-family': 'inherit',
     }, [bucket.label]));
   });
@@ -135,8 +173,14 @@ export function main(ctx) {
       ]),
     ]),
     el('div', { class: 'viewport__stage' }, [
-      sparkline(months, trend.pick, { width: 1040, height: 150, colour: trend.colour, label: trend.label }),
+      sparkline(months, trend.pick, {
+        width: 1040, height: 170, colour: trend.colour, label: trend.label,
+        format: (v) => fmtMoney(v, code),
+        compact: (v) => compactMoney(v, code),
+      }),
     ]),
+    muted('Each bar is that month’s total; the dashed line is the highest month and the solid '
+      + 'line is zero. Amounts are shown above every bar and on the left.'),
   ]));
 
   nodes.push(el('div', { class: 'summary-grid' }, [

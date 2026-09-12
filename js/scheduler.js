@@ -276,9 +276,15 @@ function orderForClock(jobs, { now, week, overnightAllowed }) {
       if (canNight(a) !== canNight(b)) return canNight(a) ? -1 : 1;
       return b.machineHours - a.machineHours;
     }
-    // Evening/overnight: fill the night with the longest unattended print.
-    if (canNight(a) !== canNight(b)) return canNight(a) ? -1 : 1;
-    if (canNight(a) && canNight(b)) return b.machineHours - a.machineHours;
+    // Evening / overnight / a day off: the longest print that can be left
+    // unattended goes first, to use the stretch of hours nobody is there. This
+    // orders by length regardless of the overnight-HIRA toggle — that toggle
+    // only governs whether a job may START outside working hours, not the order
+    // the machine works through its queue.
+    const nightA = !a.needsAttendance;
+    const nightB = !b.needsAttendance;
+    if (nightA !== nightB) return nightA ? -1 : 1;
+    if (nightA && nightB) return b.machineHours - a.machineHours;
     return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
   });
 }
@@ -342,21 +348,21 @@ export function liveSchedule(jobs, printers, {
     // opening — nobody is there to load it in the small hours.
     let firstOnMachine = true;
     for (const job of ordered) {
-      // A running job is on the machine now; it started in the past and its
-      // remaining hours run from now. An unattended job may run overnight, but
-      // must still be STARTED by someone; an attended job must also fit inside a
-      // working window.
+      // Only the machine's FIRST job may begin right now: it is either the print
+      // physically running, or the one you can start this minute because you are
+      // at the schedule. Every later job needs someone to start it, so it waits
+      // for a working-hours opening (an attended job must also fit the window).
+      // A second job marked "in production" is really just queued — one machine
+      // runs one print at a time — so it is placed like any other later job.
       const attended = job.needsAttendance || !overnightAllowed;
       let start;
       let overruns = false;
-      if (job.status === 'in-production') {
+      if (firstOnMachine && (job.status === 'in-production' || !attended)) {
         start = new Date(clock);
       } else if (attended) {
         const slot = nextAttendedStart(clock, job.machineHours, cal);
         start = slot.start;
         overruns = slot.overruns;
-      } else if (firstOnMachine) {
-        start = new Date(clock);
       } else {
         start = nextWorkingStart(clock, cal);
       }

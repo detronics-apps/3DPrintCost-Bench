@@ -162,3 +162,29 @@ test('a job that frees the machine overnight — the next one waits for the morn
   assert.equal(next.startAt.getHours(), 8, 'the next print waits for the 08:00 opening');
   assert.equal(next.startAt.getDate(), 8, 'the morning after (Thu)');
 });
+
+test('two jobs queued at night — the longer runs now, the shorter waits for working hours', () => {
+  // Sat 01:56, before the 08:00 opening. Two jobs on one machine (both marked in
+  // production, but a machine runs one at a time). The LONGER should run now; the
+  // shorter must wait for a working-hours start.
+  const weekSatWorks = [
+    { working: false, start: 8, end: 16 }, // Sun off
+    { working: true, start: 8, end: 16 },
+    { working: true, start: 8, end: 16 },
+    { working: true, start: 8, end: 16 },
+    { working: true, start: 8, end: 16 },
+    { working: true, start: 8, end: 16 },
+    { working: true, start: 8, end: 16 }, // Sat works
+  ];
+  const satNight = new Date(2026, 0, 10, 1, 56, 0, 0); // Saturday 01:56
+  const r = liveSchedule([
+    { id: 'short', name: 'Short', printerId: 'snap', machineHours: 2.8, status: 'in-production', createdAt: '1' },
+    { id: 'long', name: 'Long', printerId: 'snap', machineHours: 28.2, status: 'in-production', createdAt: '2' },
+  ], printers, { now: satNight.getTime(), week: weekSatWorks, overnightAllowed: false });
+  const long = r.placed.find((j) => j.id === 'long');
+  const short = r.placed.find((j) => j.id === 'short');
+  assert.ok(long.startsNow, 'the longer print runs now');
+  assert.equal(r.recommendations[0].startNowJobId, 'long', 'and it is what to start now');
+  assert.ok(short.startAt.getTime() >= long.endAt.getTime(), 'the shorter waits behind it');
+  assert.equal(short.startAt.getHours(), 8, 'and only starts in working hours');
+});

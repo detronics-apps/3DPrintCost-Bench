@@ -94,67 +94,110 @@ function workWeek(settings) {
   });
 }
 
-/* ----------------------------------------------------------------- gantt -- */
+/* -------------------------------------------------------------- timeline -- */
 
-function gantt(result, numberOf) {
-  const rows = result.timelines.filter((t) => t.jobs.length > 0);
-  if (!rows.length) return null;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
-  const horizon = Math.max(1, result.horizonDays);
-  const rowH = 34;
-  const labelW = 120;
-  const dayW = Math.max(14, Math.min(48, Math.round(560 / horizon)));
-  const width = labelW + horizon * dayW + 16;
-  const height = rows.length * rowH + 34;
+/**
+ * A real, to-scale timeline of the week ahead.
+ *
+ * Time runs left→right from NOW across at least a week, so every bar's position
+ * and width are proportional to when it runs and how long it takes — a 28-hour
+ * print is visibly ten times a 3-hour one, and two back-to-back jobs sit side by
+ * side rather than stacked on the same day column. Working hours are shaded, so
+ * it is plain why a print waits for the morning. It fills the width on a desktop
+ * and scrolls sideways on a phone.
+ */
+function weekTimeline(live, printers, week, now, numberOf) {
+  const rowsData = printers
+    .map((p) => ({ id: p.id, name: p.name, jobs: live.placed.filter((j) => j.printerId === p.id) }))
+    .filter((r) => r.jobs.length);
+  if (!rowsData.length) return null;
+
+  const startMs = now.getTime();
+  const lastEnd = live.placed.reduce((m, j) => Math.max(m, j.endAt.getTime()), startMs);
+  const endMs = Math.max(startMs + 7 * DAY_MS, lastEnd + 2 * HOUR_MS); // a week, or more if it runs longer
+  const spanMs = Math.max(HOUR_MS, endMs - startMs);
+
+  const labelW = 78;
+  const rowH = 30;
+  const headerH = 30;
+  const padR = 10;
+  const vbW = 1200;
+  const chartW = vbW - labelW - padR;
+  const height = headerH + rowsData.length * rowH + 10;
+  const xAt = (ms) => labelW + ((Math.min(Math.max(ms, startMs), endMs) - startMs) / spanMs) * chartW;
 
   const root = svg('svg', {
-    viewBox: `0 0 ${width} ${height}`,
+    viewBox: `0 0 ${vbW} ${height}`,
+    class: 'week-timeline',
     role: 'img',
-    'aria-label': 'Production schedule by printer',
-    class: 'gantt',
+    'aria-label': 'Production timeline for the week ahead',
+    preserveAspectRatio: 'xMinYMin meet',
   });
 
-  // Day gridlines and a few labels.
-  for (let d = 0; d <= horizon; d += 1) {
-    const x = labelW + d * dayW;
-    root.appendChild(svg('line', {
-      x1: x, y1: 24, x2: x, y2: height - 6,
-      stroke: 'var(--border)', 'stroke-width': d % 5 === 0 ? 1.2 : 0.5,
-    }));
-    if (d % 5 === 0 || horizon <= 10) {
-      root.appendChild(svg('text', {
-        x: x + 2, y: 16, 'font-size': 10, fill: 'var(--text-faint)',
-      }, [`d${d}`]));
+  // Per-day: shade the working hours, draw the midnight gridline, label the day.
+  let day = new Date(now);
+  day.setHours(0, 0, 0, 0);
+  for (; day.getTime() < endMs; day = new Date(day.getTime() + DAY_MS)) {
+    const c = week[day.getDay()];
+    if (c && c.working) {
+      const ws = new Date(day); ws.setHours(Math.floor(c.start), 0, 0, 0);
+      const we = new Date(day); we.setHours(Math.floor(c.end), 0, 0, 0);
+      const x1 = xAt(ws.getTime());
+      const x2 = xAt(we.getTime());
+      if (x2 > x1) {
+        root.appendChild(svg('rect', {
+          x: x1, y: headerH - 4, width: x2 - x1, height: height - headerH - 2,
+          fill: 'var(--ok)', opacity: 0.09,
+        }));
+      }
     }
+    if (day.getTime() > startMs) {
+      const x = xAt(day.getTime());
+      root.appendChild(svg('line', {
+        x1: x, y1: headerH - 6, x2: x, y2: height - 6, stroke: 'var(--border)', 'stroke-width': 1,
+      }));
+    }
+    root.appendChild(svg('text', {
+      x: xAt(Math.max(day.getTime(), startMs)) + 3, y: 13, 'font-size': 11, fill: 'var(--text-2)',
+    }, [day.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })]));
   }
 
-  rows.forEach((tline, i) => {
-    const y = 24 + i * rowH;
-    root.appendChild(svg('text', {
-      x: 0, y: y + rowH / 2 + 3, 'font-size': 12, fill: 'var(--text)',
-    }, [tline.name]));
+  // The "now" line at the left edge.
+  root.appendChild(svg('line', {
+    x1: xAt(startMs), y1: headerH - 8, x2: xAt(startMs), y2: height - 6,
+    stroke: 'var(--accent-strong)', 'stroke-width': 1.5,
+  }));
 
-    tline.jobs.forEach((job) => {
-      const x = labelW + job.startDay * dayW;
-      const w = Math.max(dayW * 0.6, (job.endDay - job.startDay) * dayW - 3);
+  rowsData.forEach((r, i) => {
+    const y = headerH + i * rowH;
+    root.appendChild(svg('text', {
+      x: 0, y: y + rowH / 2 + 3, 'font-size': 11, fill: 'var(--text)',
+    }, [r.name.length > 11 ? `${r.name.slice(0, 10)}…` : r.name]));
+
+    r.jobs.forEach((job) => {
+      const x1 = xAt(job.startAt.getTime());
+      const x2 = xAt(job.endAt.getTime());
+      const w = Math.max(7, x2 - x1);
       const running = job.status === 'in-production';
       root.appendChild(svg('rect', {
-        x: x + 1, y: y + 5, width: w, height: rowH - 12, rx: 4,
+        x: x1, y: y + 4, width: w, height: rowH - 10, rx: 3,
         fill: running ? 'var(--accent-strong)' : 'var(--accent-soft)',
         stroke: running ? 'var(--accent-strong)' : 'var(--border-strong)',
       }));
-      // Just the project's number on the bar — names overlap badly once the
-      // bars are short. The number is the key in the table below.
-      const label = numberOf && numberOf.get(job.id) ? `#${numberOf.get(job.id)}` : job.name;
-      root.appendChild(svg('text', {
-        x: x + w / 2 + 1, y: y + rowH / 2 + 3, 'font-size': 11, 'font-weight': 700,
-        'text-anchor': 'middle',
-        fill: running ? 'var(--accent-ink)' : 'var(--text)',
-      }, [label]));
+      const n = numberOf && numberOf.get(job.id);
+      if (n) {
+        root.appendChild(svg('text', {
+          x: x1 + w / 2, y: y + rowH / 2 + 3, 'font-size': 11, 'font-weight': 700,
+          'text-anchor': 'middle', fill: running ? 'var(--accent-ink)' : 'var(--text)',
+        }, [`#${n}`]));
+      }
     });
   });
 
-  return el('div', { class: 'viewport__stage' }, [root]);
+  return el('div', { class: 'timeline-scroll' }, [root]);
 }
 
 /* ------------------------------------------------------------------ tool -- */
@@ -334,8 +377,15 @@ export function main(ctx) {
   });
   const numberOf = new Map(sortedPlaced.map((j, i) => [j.id, i + 1]));
 
-  const gnode = gantt(result, numberOf);
-  if (gnode) nodes.push(gnode);
+  const gnode = weekTimeline(live, printers, week, live.now, numberOf);
+  if (gnode) {
+    nodes.push(el('div', { class: 'panel' }, [
+      el('h3', { text: 'The week ahead' }),
+      gnode,
+      muted('To scale from now across the week — bar length is print time, the green bands are '
+        + 'your working hours. The number on each bar is its row in the table below.'),
+    ]));
+  }
 
   nodes.push(el('div', { class: 'panel' }, [
     el('h3', { text: 'Start times and promised lead times' }),

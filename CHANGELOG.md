@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.47 — To-scale timeline, longer-print-first at night, sliced figures on record, chart scale (2026-09-12)
+
+- **Recorded prints now use your slicer figures, not the estimate.** Completing production (and
+  the Record-a-print button) logs the real grams and print time you entered — e.g. 27.5 h and
+  1.23 kg — instead of the app's geometry estimate. The stock draw follows the same figures.
+- **The longer print goes first at night.** When you look outside working hours, the machine's
+  longest print is offered first (to use the hours nobody is there); the shorter one waits. And a
+  second job marked "in production" is treated as queued — one machine runs one print — so it too
+  only starts in working hours.
+- **A real, to-scale weekly timeline, in its own panel.** The schedule chart is now a proper
+  time-scale view: it runs from now across the week, every bar sized to its actual print time and
+  placed at its real start, working hours shaded green, back-to-back jobs side by side instead of
+  stacked. It fills the width on a desktop and scrolls sideways on a phone.
+- **The revenue / profit chart now has a scale.** Each bar shows its amount, with the highest
+  month and the zero line labelled down the side — so a bar's height finally means something.
+
 ## 1.0.46 — Scheduler: start prints in working hours, numbered timeline (2026-09-12)
 
 - **A print only starts when someone is there to start it.** If a print finishes in the small

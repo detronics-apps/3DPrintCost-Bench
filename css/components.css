@@ -724,6 +724,12 @@
 .gantt { width: 100%; height: auto; }
 .gantt text { font-family: inherit; }
 
+/* The to-scale weekly production timeline: fills the width on a desktop, and
+   scrolls sideways on a narrow phone (min-width forces the scroll). */
+.timeline-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+.week-timeline { display: block; width: 100%; min-width: 720px; height: auto; }
+.week-timeline text { font-family: inherit; }
+
 /* "What to start now": one row per machine, the live recommendation. */
 .startnow {
   display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
