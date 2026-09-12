@@ -18,9 +18,6 @@ settings, nav and the smaller polish. Say the word to re-rank.
 
 **Bugs**
 
-- **Portal: "Collect" still charges delivery** — choosing Collect (pickup) as the delivery
-  option still shows R19.70 in the delivery & packaging section. Pickup should zero the delivery
-  (courier) cost; packaging may still apply, but the courier/shipping line should be R0.
 - **Dashboard top tiles ignore imported history** — the CSV printer-history import DOES feed the
   "has the machine paid for itself" ROI (shows 79 of 7 200 h on the Snapmaker), but the top-of-
   dashboard "Machine hours" (5.8) and "Filament used" (0.19 kg) tiles only count the app's own
@@ -30,12 +27,6 @@ settings, nav and the smaller polish. Say the word to re-rank.
   internal, but a company-internal print still costs the company (material/machine) — that CTC
   should count, not be zeroed; (2) estimate a CTC for the imported prior runs from their material
   (grams) + machine hours, so imported history contributes to CTC too.
-- **Estimate quote disclaimer wrong for expedited** — the portal note "…The confirmed invoice is
-  usually at or below the quote." Its LAST sentence must NOT show for an expedited order (the
-  client pays the estimated amount up front, so it is not "just a quote" and it is not going to
-  come in cheaper). For expedite, drop that sentence (arguably the whole quote-caveat message,
-  since the estimate IS the price being paid).
-
 **Features**
 
 - **Portal "compile email" attaches the files** — the compile-email button should download the

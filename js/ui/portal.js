@@ -164,6 +164,10 @@ function price() {
     lines: state.parts.map((p) => toLine(p)),
     // Before a delivery is chosen, price as collect (no delivery cost) so the total is stable.
     shippingMethodId: state.shippingMethodId || 'collect',
+    // Collect means the parts are handed over as they come off the printer — no
+    // courier AND no packaging, matching what the collect note promises. Without
+    // this the quote still charged packaging while telling the customer it would not.
+    noPackaging: state.shippingMethodId === 'collect',
     extras: [],
   }, state.settings, { internal: !!state.config?.internal });
 }
@@ -886,6 +890,9 @@ function render() {
   const printer = printerOf();
   const deliveryTotal = result.orderExtras.shipping + result.orderExtras.packaging;
   const internal = !!config.internal;
+  // An expedited order pays the estimate up front, so it is NOT "just a quote" and
+  // will not come in cheaper — the "usually at or below" caveat must not show for it.
+  const isExpedited = !internal && ((config.expediteMode || 'off') === 'only' || state.expedite);
   const buffer = internal ? 0 : Math.max(0, num(config.quoteBuffer, 0));
   const validityDays = Math.max(1, Math.round(num(config.quoteValidityDays, 30)));
   const validUntil = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
@@ -1114,7 +1121,8 @@ function render() {
         + 'from the model’s shape; the exact figure is known once the part is sliced.')
       : banner('info', 'This is a quotation only. The price is estimated from the shape of your '
         + 'models; the exact figures can only be worked out once the parts have been prepared and '
-        + 'sliced for printing. The confirmed invoice is usually at or below this quote.'),
+        + 'sliced for printing.'
+        + (isExpedited ? '' : ' The confirmed invoice is usually at or below this quote.')),
     internal ? null
       : banner('warn', `This quote is valid for ${validityDays} day${validityDays === 1 ? '' : 's'} `
         + `from when you download it — until ${validUntil.toLocaleDateString()}. Prices change, so `
@@ -1191,6 +1199,9 @@ function render() {
       shippingMethodId: state.shippingMethodId,
       // A collection carries no delivery, so the workshop skips the courier.
       packagingCollected: state.shippingMethodId === 'collect',
+      // …and no packaging either, so the imported project matches the quote the
+      // customer was shown (parts handed over as they come off the printer).
+      noPackaging: state.shippingMethodId === 'collect',
     },
     quotedTotal: quoted,
     currencyCode: code,

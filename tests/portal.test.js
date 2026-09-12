@@ -55,6 +55,23 @@ test('the form prices exactly the same as internal quoting', () => {
   assert.equal(external.capacity.leadDays, internal.capacity.leadDays);
 });
 
+test('collect zeroes both the courier AND the packaging the portal promises to drop', () => {
+  // The portal tells the customer collect = "no packaging, parts as they come off
+  // the printer", so the quote must charge neither courier nor packaging. Without
+  // noPackaging it still charged packaging while promising it would not.
+  const settings = withPortal();
+  const collect = calculateOrder(
+    { lines: [line()], shippingMethodId: 'collect', noPackaging: true }, settings,
+  );
+  assert.equal(collect.orderExtras.shipping, 0, 'no courier on collection');
+  assert.equal(collect.orderExtras.packaging, 0, 'no packaging on collection');
+
+  // Contrast: a couriered order of the same parts does charge packaging, so the
+  // zero above is the collect rule, not a parts-with-no-box accident.
+  const couriered = calculateOrder({ lines: [line()], shippingMethodId: 'pudo-s' }, settings);
+  assert.ok(couriered.orderExtras.packaging > 0, 'a couriered order is boxed and charged');
+});
+
 test('the form offers hardware, and it prices the same as internal', () => {
   const settings = withPortal();
   const config = portalConfig(settings);

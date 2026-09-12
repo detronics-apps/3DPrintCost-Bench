@@ -9,6 +9,22 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Portal: collect drops packaging too, and expedite loses the quote caveat (v1.0.53)
+
+Two portal-facing bugs (`js/ui/portal.js`).
+
+- **Collect still charged packaging** — the portal note promises collect = "no packaging, parts as
+  they come off the printer", but `price()` only passed `shippingMethodId: 'collect'` (which the engine
+  zeroes the courier for, `js/engine.js:795`) and never `noPackaging`, so packaging (the R19.70) was
+  still charged — the price contradicting the promise. Fix: `price()` and the request payload now pass
+  `noPackaging: state.shippingMethodId === 'collect'`, so both the courier and the packaging are zero on
+  collect and the imported project matches the quote. Regression test in `tests/portal.test.js` (collect
+  → both extras 0; a couriered order still boxed); it fails without the flag.
+- **Expedite showed the "usually at or below" caveat** — an expedited client pays the estimate up front,
+  so the quote is the price and will not come in cheaper. Added `isExpedited` (expedite-only, or optional
+  + ticked) and dropped the last sentence of the quote-caveat banner when it is set. The estimate-nature
+  wording stays; the expedite panel already explains the estimate is set at or above the final cost.
+
 ## Estimate → project carries the printer + heads, and opens the part editor (v1.0.52)
 
 Two bugs on the estimate save-as-project transition (`js/ui/tools/estimate.js`, "Save this bed as a project").
