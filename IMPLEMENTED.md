@@ -9,6 +9,23 @@ each cluster lives in `FEATURES.md`. See the `detronics-app` skill's
 _This ledger begins 2026-09-08. Features that shipped before then are recorded in
 `FEATURES.md` and the git history._
 
+## Dashboard: imported history + internal prints count toward CTC, hours and filament (v1.0.54)
+
+Two dashboard bugs (`js/analytics.js` `dashboard()`, `js/ui/tools/dashboard.js`).
+
+- **Machine hours / Filament used ignored imported history** — those tiles summed only the app's own
+  attempts; the ROI view already read `priorRuns` but the top tiles did not. `dashboard()` now takes
+  `priorRuns`, and the dashboard tool passes `state.priorRuns`. `machineHours` and `kgUsed` add the
+  prior runs' minutes/grams (range-filtered on `run.at`), with a tile hint "incl. N h / N kg imported".
+- **Cost to Company read zero** — it summed only invoiced CTC, so a workshop of company-internal
+  projects (no invoice) plus imported history showed 0. Now `costToCompany = invoiced CTC +
+  internalExpense (company-internal production, already subtracted from profit) + priorCtc`. New
+  `priorRunCost(run, settings)` estimates a run's CTC = machine time × the printer's hourly rate +
+  filament (per-head material when the run names it, else the catalogue's average per gram). Prior runs
+  earned no revenue, so they raise CTC but NOT current profit (profit is unchanged). Tile hint shows the
+  internal + imported split. Tests in `tests/records.test.js` cover `priorRunCost`, the three totals, and
+  that profit is untouched.
+
 ## Portal: collect drops packaging too, and expedite loses the quote caveat (v1.0.53)
 
 Two portal-facing bugs (`js/ui/portal.js`).

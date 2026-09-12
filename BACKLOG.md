@@ -16,17 +16,8 @@ settings, nav and the smaller polish. Say the word to re-rank.
 
 ## Batch raised 2026-09-13 (bugs first, then features)
 
-**Bugs**
+**Bugs** — all cleared; see IMPLEMENTED.md (v1.0.52–v1.0.54).
 
-- **Dashboard top tiles ignore imported history** — the CSV printer-history import DOES feed the
-  "has the machine paid for itself" ROI (shows 79 of 7 200 h on the Snapmaker), but the top-of-
-  dashboard "Machine hours" (5.8) and "Filament used" (0.19 kg) tiles only count the app's own
-  projects, not the imported prior runs. Make those totals include `priorRuns` too.
-- **Dashboard Cost to Company shows zero** — CTC reads 0 even though there are two projects (both
-  with a CTC) plus all the imported prior runs. Two parts: (1) the two projects are company-
-  internal, but a company-internal print still costs the company (material/machine) — that CTC
-  should count, not be zeroed; (2) estimate a CTC for the imported prior runs from their material
-  (grams) + machine hours, so imported history contributes to CTC too.
 **Features**
 
 - **Portal "compile email" attaches the files** — the compile-email button should download the

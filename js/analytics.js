@@ -14,6 +14,41 @@ import { num } from './money.js';
 import { partStats } from './projects.js';
 import { isOverdue, outstanding } from './documents.js';
 import { machineHourCost } from './printers.js';
+import { findMaterial, pricePerGram } from './materials.js';
+
+/** The catalogue's average filament cost per gram, for runs that name no material. */
+function avgPricePerGram(settings) {
+  const rates = (settings.materials || [])
+    .map((m) => pricePerGram(m, settings.countryId))
+    .filter((r) => r != null && r > 0);
+  return rates.length ? rates.reduce((t, r) => t + r, 0) / rates.length : 0;
+}
+
+/**
+ * A rough Cost to Company for one imported prior run: the machine time at the
+ * printer's hourly rate, plus the filament. Prior runs predate the app and were
+ * never costed, so this is an estimate — enough for the company's history to
+ * count toward its lifetime CTC, not an invoice figure.
+ *
+ * ponytail: material falls back to the catalogue average per gram when a run (or a
+ * head) names no known material — set per-head materials on import for a tighter
+ * figure.
+ */
+export function priorRunCost(run, settings) {
+  const printer = (settings.printers || []).find((p) => p.id === run.printerId);
+  const machine = printer ? (num(run.minutes) / 60) * machineHourCost(printer).total : 0;
+
+  const perGram = avgPricePerGram(settings);
+  const material = Array.isArray(run.heads) && run.heads.length
+    ? run.heads.reduce((t, h) => {
+      const m = findMaterial(settings.materials, h.materialId);
+      const rate = m ? pricePerGram(m, settings.countryId) : null;
+      return t + num(h.grams) * (rate != null ? rate : perGram);
+    }, 0)
+    : num(run.grams) * perGram;
+
+  return machine + material;
+}
 
 const inRange = (iso, range) => {
   if (!range || (!range.from && !range.to)) return true;
@@ -25,7 +60,7 @@ const inRange = (iso, range) => {
 };
 
 /** Everything the dashboard shows, for a filtered slice of the data. */
-export function dashboard({ projects = [], settings, filter = {} }, now = new Date()) {
+export function dashboard({ projects = [], settings, filter = {}, priorRuns = [] }, now = new Date()) {
   const live = projects.filter((p) => {
     if (filter.customerId && p.customerId !== filter.customerId) return false;
     if (filter.status && p.status !== filter.status) return false;
@@ -55,6 +90,18 @@ export function dashboard({ projects = [], settings, filter = {} }, now = new Da
     .reduce((t, p) => t + (p.parts || []).reduce((s, part) => s + num(partStats(part).cost), 0), 0);
 
   const profit = revenue - ctc - internalExpense;
+
+  // Imported print history (pre-app runs): its hours, grams and an estimated CTC
+  // so the machine's whole life shows, not just what the app has logged. It earned
+  // no revenue, so it counts toward Cost to Company but NOT toward current profit.
+  const priorLive = (priorRuns || []).filter((r) => inRange(r.at, filter.range));
+  const priorMinutes = priorLive.reduce((t, r) => t + num(r.minutes), 0);
+  const priorGrams = priorLive.reduce((t, r) => t + num(r.grams), 0);
+  const priorCtc = priorLive.reduce((t, r) => t + priorRunCost(r, settings), 0);
+
+  // What the company has actually spent making things: the invoiced CTC, plus the
+  // company-internal prints (real cost, no revenue), plus the imported history.
+  const costToCompany = ctc + internalExpense + priorCtc;
 
   /* --- production ----------------------------------------------------- */
 
@@ -139,8 +186,10 @@ export function dashboard({ projects = [], settings, filter = {} }, now = new Da
       paid,
       owed,
       overdue: overdue.reduce((t, i) => t + outstanding(i), 0),
-      costToCompany: ctc,
+      costToCompany,
+      invoicedCtc: ctc,
       internalExpense,
+      priorCtc,
       profit,
       margin: revenue > 0 ? profit / revenue : null,
       averageOrder: invoices.length ? revenue / invoices.length : null,
@@ -150,8 +199,10 @@ export function dashboard({ projects = [], settings, filter = {} }, now = new Da
       accepted,
       rejected,
       rejectionRate: printed > 0 ? rejected / printed : null,
-      machineHours: machineMinutes / 60,
-      kgUsed: grams / 1000,
+      machineHours: (machineMinutes + priorMinutes) / 60,
+      kgUsed: (grams + priorGrams) / 1000,
+      priorMinutes,
+      priorGrams,
       costPerAccepted: accepted > 0 && ctc > 0 ? ctc / accepted : null,
     },
     byPrinter: byPrinter.sort((a, b) => b.minutes - a.minutes),

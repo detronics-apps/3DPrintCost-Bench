@@ -105,7 +105,7 @@ export function main(ctx) {
   const settings = state.settings;
   const code = settings.currencyCode;
   const filter = state.ui.filter || {};
-  const d = buildDashboard({ projects: state.projects, settings, filter });
+  const d = buildDashboard({ projects: state.projects, settings, filter, priorRuns: state.priorRuns });
 
   if (!state.projects.length) {
     return [emptyState('Nothing to report yet. Save an estimate as a project and record a '
@@ -143,7 +143,11 @@ export function main(ctx) {
       statTile('Active projects', String(d.counts.active), { hint: `${d.counts.projects} in total` }),
       statTile('Open quotes', String(d.counts.openQuotes)),
       statTile('Revenue', fmtMoney(d.money.revenue, code)),
-      statTile('Cost to Company', fmtMoney(d.money.costToCompany, code)),
+      statTile('Cost to Company', fmtMoney(d.money.costToCompany, code),
+        d.money.priorCtc > 0 || d.money.internalExpense > 0
+          ? { hint: `incl. ${fmtMoney(d.money.internalExpense, code)} internal, `
+            + `${fmtMoney(d.money.priorCtc, code)} imported history` }
+          : undefined),
       statTile('Profit', fmtMoney(d.money.profit, code), { tone: d.money.profit >= 0 ? 'ok' : 'danger' }),
       statTile('Margin', d.money.margin == null ? 'not enough data' : fmtRate(d.money.margin)),
       statTile('Outstanding', fmtMoney(d.money.owed, code), { tone: d.money.owed ? 'warn' : null }),
@@ -189,8 +193,14 @@ export function main(ctx) {
     statTile('Rejection rate', d.production.rejectionRate == null
       ? 'not enough data' : fmtRate(d.production.rejectionRate),
     { tone: d.production.rejectionRate > 0.15 ? 'warn' : null }),
-    statTile('Machine hours', d.production.machineHours.toFixed(1)),
-    statTile('Filament used', `${d.production.kgUsed.toFixed(2)} kg`),
+    statTile('Machine hours', d.production.machineHours.toFixed(1),
+      d.production.priorMinutes > 0
+        ? { hint: `incl. ${(d.production.priorMinutes / 60).toFixed(1)} h imported` }
+        : undefined),
+    statTile('Filament used', `${d.production.kgUsed.toFixed(2)} kg`,
+      d.production.priorGrams > 0
+        ? { hint: `incl. ${(d.production.priorGrams / 1000).toFixed(2)} kg imported` }
+        : undefined),
     statTile('Cost per accepted', d.production.costPerAccepted == null
       ? 'not enough data' : fmtMoney(d.production.costPerAccepted, code)),
     statTile('Quote conversion', d.conversion == null ? 'not enough data' : fmtRate(d.conversion)),

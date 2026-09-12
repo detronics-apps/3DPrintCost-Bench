@@ -17,10 +17,12 @@ import {
   MOVEMENT_REASONS, reason,
 } from '../js/inventory.js';
 import { calibrate, samplesFrom, correctionFor, errorReport, DEFAULT_CALIBRATION } from '../js/calibration.js';
-import { dashboard, committedLoad, revenueByMonth } from '../js/analytics.js';
+import { dashboard, committedLoad, revenueByMonth, priorRunCost } from '../js/analytics.js';
 import { defaultSettings, clone } from '../js/settings.js';
 import { calculateOrder } from '../js/engine.js';
 import { analyse } from '../js/geometry.js';
+import { machineHourCost } from '../js/printers.js';
+import { pricePerGram } from '../js/materials.js';
 import { box } from './helpers/solids.js';
 
 const close = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol,
@@ -741,6 +743,36 @@ test('a company-internal print reduces profit as an expense, earning no revenue'
   close(withIt.money.revenue, without.money.revenue, 1e-9, 'it adds no revenue');
   close(withIt.money.profit, without.money.profit - withIt.money.internalExpense, 1e-6,
     'and it lowers profit by exactly its cost');
+  // …and it is a real cost the company carried, so it shows in Cost to Company too
+  // (it used to read only the invoiced CTC, so a company-only workshop showed zero).
+  close(withIt.money.costToCompany, without.money.costToCompany + withIt.money.internalExpense, 1e-6,
+    'the internal print raises Cost to Company by its cost');
+});
+
+test('a prior run costs machine time at the printer rate plus its filament', () => {
+  const settings = defaultSettings();
+  const printer = settings.printers[0];
+  const mat = settings.materials[0];
+  const run = { printerId: printer.id, minutes: 120, heads: [{ grams: 50, materialId: mat.id }] };
+  const expected = (120 / 60) * machineHourCost(printer).total
+    + 50 * pricePerGram(mat, settings.countryId);
+  close(priorRunCost(run, settings), expected, 1e-9, 'machine + material');
+  // A run on an unknown printer still costs its filament, just no machine time.
+  assert.ok(priorRunCost({ printerId: 'nope', grams: 100 }, settings) > 0, 'material still counts');
+});
+
+test('imported history feeds machine hours, filament and CTC, but not current profit', () => {
+  const settings = defaultSettings();
+  const priorRuns = [{ printerId: settings.printers[0].id, minutes: 600, grams: 200, at: null }];
+
+  const base = dashboard({ projects: [], settings });
+  const withPrior = dashboard({ projects: [], settings, priorRuns });
+
+  close(withPrior.production.machineHours, base.production.machineHours + 10, 1e-9, '600 min = 10 h');
+  close(withPrior.production.kgUsed, base.production.kgUsed + 0.2, 1e-9, '200 g = 0.2 kg');
+  close(withPrior.money.costToCompany, base.money.costToCompany + priorRunCost(priorRuns[0], settings),
+    1e-9, 'the estimated history cost lands in CTC');
+  close(withPrior.money.profit, base.money.profit, 1e-9, 'history earned no revenue, so profit is unchanged');
 });
 
 test('committed load counts accepted work only, never open quotes', () => {
