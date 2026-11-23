@@ -314,3 +314,29 @@ export function revenueByMonth(projects, months = 12, now = new Date()) {
   }
   return buckets;
 }
+
+/**
+ * How much each employee's internal prints came to, for the dashboard.
+ *
+ * Only 'employee' internal orders that name an employee count. Totals come from
+ * the real recorded prints (attempts), so it reflects what was actually run.
+ */
+export function productionByEmployee(projects, employees) {
+  const name = new Map((employees || []).map((e) => [e.id, e.name]));
+  const acc = new Map();
+  for (const p of projects || []) {
+    if (p.internal !== 'employee' || !p.employeeId) continue;
+    const row = acc.get(p.employeeId)
+      || { employeeId: p.employeeId, name: name.get(p.employeeId) || 'Unknown', projects: 0, prints: 0, grams: 0, minutes: 0 };
+    row.projects += 1;
+    for (const part of p.parts || []) {
+      for (const a of part.attempts || []) {
+        row.prints += 1;
+        row.grams += num(a.grams);
+        row.minutes += num(a.minutes);
+      }
+    }
+    acc.set(p.employeeId, row);
+  }
+  return [...acc.values()].sort((a, b) => b.grams - a.grams);
+}

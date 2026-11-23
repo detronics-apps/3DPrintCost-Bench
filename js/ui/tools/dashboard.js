@@ -13,7 +13,7 @@ import {
 } from '../controls.js';
 import { svg } from '../dom.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
-import { dashboard as buildDashboard, committedLoad, revenueByMonth } from '../../analytics.js';
+import { dashboard as buildDashboard, committedLoad, revenueByMonth, productionByEmployee } from '../../analytics.js';
 import { calibrate, samplesFrom, errorReport, correctionFor, CALIBRATION_SCOPES, DEFAULT_CALIBRATION } from '../../calibration.js';
 import { demandMultiplier, utilisation, CAPACITY_SOURCES } from '../../demand.js';
 import { downloadCsv } from '../export.js';
@@ -375,6 +375,21 @@ export function main(ctx) {
       : muted(`A correction needs ${num(settings.calibration?.minimumSamples, 5)} finished prints `
         + 'in a scope before it is applied. Until then the app uses its own geometry unchanged.'),
   ]));
+
+  const byEmployee = productionByEmployee(state.projects, settings.employees);
+  if (byEmployee.length) {
+    nodes.push(el('div', { class: 'panel' }, [
+      el('h3', { text: 'Printing by employee' }),
+      muted('Internal “for an employee” orders, totalled from the real recorded prints.'),
+      table([
+        { label: 'Employee', get: (r) => r.name },
+        { label: 'Projects', align: 'right', mono: true, get: (r) => String(r.projects) },
+        { label: 'Prints', align: 'right', mono: true, get: (r) => String(r.prints) },
+        { label: 'Filament', align: 'right', mono: true, get: (r) => `${(r.grams / 1000).toFixed(2)} kg` },
+        { label: 'Hours', align: 'right', mono: true, get: (r) => (r.minutes / 60).toFixed(1) },
+      ], byEmployee),
+    ]));
+  }
 
   return nodes;
 }

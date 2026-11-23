@@ -17,7 +17,7 @@ import {
 } from '../../documents.js';
 import { buildPrintSheet, printSheet, downloadCsv, documentCsv, csvFilename } from '../export.js';
 import { calculateOrder } from '../../engine.js';
-import { orderFromProject } from '../../projects.js';
+import { orderFromProject, projectSettings } from '../../projects.js';
 import { advance, displayPhase } from '../../workflow.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import { state, saveSoon, replaceProject, customerFor } from '../../state.js';
@@ -360,7 +360,7 @@ export function sidebar(ctx) {
         + 'you are looking at is never rewritten.'),
       buttonRow([button('Create a revision at today’s prices', () => {
         const order = orderFromProject(project, { customer: customerFor(project) });
-        const result = calculateOrder(order, state.settings);
+        const result = calculateOrder(order, projectSettings(project, state.settings));
         const next = reprice(doc, { result, order, settings: state.settings });
         const key = doc.kind === 'invoice' ? 'invoices' : 'quotes';
         replaceProject({ ...project, [key]: [...project[key], next] });

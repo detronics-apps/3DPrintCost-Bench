@@ -109,6 +109,14 @@ function customerLines(result, order) {
       unitPriceBeforeDiscount: line.price.price,
       discount: line.lineDiscount,
       total: line.lineTotal,
+      // Shown to the client: how long one part took, print time and the hands-on
+      // labour on it as one figure. And whether they supplied the filament.
+      timeOnPartMinutes: num(line.detail?.machineMinutes) + num(line.detail?.labour?.minutesPerUnit),
+      ownFilament: (line.filaments || []).some((f) => f.ownFilament),
+      // The print time lost to reprints, so the client sees the failure rate. It
+      // is NOT an extra charge — the scrap allowance is already inside the price;
+      // this only makes the effort visible.
+      failedMinutes: num(line.detail?.machineMinutes) * Math.max(0, num(line.detail?.scrap?.attempts, 1) - 1),
     };
   });
 }
@@ -351,10 +359,25 @@ export function assumptionDrift(doc, settings) {
 }
 
 /** The document as plain rows, for the printed sheet and the CSV. */
+/** Minutes as "Xh Ym" (or just "Ym"), for the time shown on a quote. */
+function fmtDuration(min) {
+  const m = Math.max(0, Math.round(num(min)));
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return h ? `${h}h ${r}m` : `${r}m`;
+}
+
 export function documentRows(doc) {
   const rows = doc.lines.map((line) => ({
     description: `${line.name}${line.partNumber ? ` (${line.partNumber})` : ''}`,
-    detail: line.description,
+    // The client-facing sub-line: what it is, how long one part took (print time
+    // and hands-on labour as one figure), and whether they brought the filament.
+    detail: [
+      line.description,
+      num(line.timeOnPartMinutes) > 0 ? `Time on part: ${fmtDuration(line.timeOnPartMinutes)}` : null,
+      num(line.failedMinutes) > 0 ? `Failed prints: ${fmtDuration(line.failedMinutes)} (not charged)` : null,
+      line.ownFilament ? 'customer-supplied filament' : null,
+    ].filter(Boolean).join(' · '),
     quantity: line.quantity,
     unitPrice: line.unitPrice,
     total: line.total,

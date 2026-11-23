@@ -17,8 +17,9 @@ import {
   MOVEMENT_REASONS, reason,
 } from '../js/inventory.js';
 import { calibrate, samplesFrom, correctionFor, errorReport, DEFAULT_CALIBRATION } from '../js/calibration.js';
-import { dashboard, committedLoad, revenueByMonth, priorRunCost } from '../js/analytics.js';
+import { dashboard, committedLoad, revenueByMonth, priorRunCost, productionByEmployee } from '../js/analytics.js';
 import { defaultSettings, clone } from '../js/settings.js';
+import { projectSettings } from '../js/projects.js';
 import { calculateOrder } from '../js/engine.js';
 import { analyse } from '../js/geometry.js';
 import { machineHourCost } from '../js/printers.js';
@@ -478,6 +479,52 @@ test('the printed rows drop zero lines and keep the discount negative', () => {
   assert.equal(rows.length, 1);
   assert.ok(extras.some((e) => e.label === 'Discount' && e.amount === -25));
   assert.ok(!extras.some((e) => e.label === 'Handling'), 'a zero line is not printed');
+});
+
+test('a quote line shows "Time on part" and flags customer-supplied filament', () => {
+  const doc = {
+    lines: [
+      { name: 'Bracket', description: 'PLA · Red', quantity: 2, unitPrice: 50, total: 100, timeOnPartMinutes: 135, ownFilament: true },
+      { name: 'Gear', description: 'PETG · Black', quantity: 1, unitPrice: 80, total: 80, timeOnPartMinutes: 45, ownFilament: false },
+    ],
+  };
+  const { rows } = documentRows(doc);
+  assert.match(rows[0].detail, /Time on part: 2h 15m/, 'print + labour shown as one figure in h/m');
+  assert.match(rows[0].detail, /customer-supplied filament/);
+  assert.match(rows[1].detail, /Time on part: 45m/);
+  assert.doesNotMatch(rows[1].detail, /customer-supplied/, 'not flagged when the shop supplied it');
+});
+
+test('a project preset override prices with that preset; null uses the company default', () => {
+  const settings = defaultSettings();
+  assert.equal(projectSettings({ presetId: null }, settings), settings, 'no override = company settings');
+  const startup = projectSettings({ presetId: 'startup' }, settings);
+  assert.notEqual(startup, settings, 'an override is a separate settings object');
+  assert.ok(startup.thirds.commercialShare < settings.thirds.commercialShare,
+    'Startup lowers the commercial share for this project only');
+});
+
+test('production is totalled per employee, from the real prints only', () => {
+  const employees = [{ id: 'e1', name: 'Alex' }, { id: 'e2', name: 'Sam' }];
+  const projects = [
+    { internal: 'employee', employeeId: 'e1', parts: [{ attempts: [{ grams: 100, minutes: 120 }, { grams: 50, minutes: 60 }] }] },
+    { internal: 'employee', employeeId: 'e2', parts: [{ attempts: [{ grams: 200, minutes: 300 }] }] },
+    { internal: 'off', employeeId: null, parts: [{ attempts: [{ grams: 999, minutes: 999 }] }] },
+    { internal: 'employee', employeeId: null, parts: [] },
+  ];
+  const rows = productionByEmployee(projects, employees);
+  assert.equal(rows.length, 2, 'only employee orders that name someone count');
+  assert.equal(rows[0].name, 'Sam', 'sorted by filament, Sam (200 g) first');
+  const alex = rows.find((r) => r.name === 'Alex');
+  assert.equal(alex.grams, 150);
+  assert.equal(alex.prints, 2);
+  assert.equal(alex.minutes, 180);
+});
+
+test('failed-print time is shown but marked not charged', () => {
+  const doc = { lines: [{ name: 'Bracket', description: 'PLA', quantity: 1, unitPrice: 50, total: 50, failedMinutes: 20 }] };
+  const { rows } = documentRows(doc);
+  assert.match(rows[0].detail, /Failed prints: 20m \(not charged\)/);
 });
 
 test('the assumption snapshot carries what moved a number and nothing else', () => {

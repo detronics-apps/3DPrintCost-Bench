@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.65 — Per-project pricing, quote transparency, employees (2026-11-23)
+
+- **The quote shows the client "Time on part" and failed-print time.** Each line
+  carries how long one part took (print time + hands-on labour as one figure) and
+  the time lost to reprints, marked *(not charged)* — so the client sees the real
+  effort and the failure rate without it adding a cent (the scrap allowance is
+  already inside the price). Lines also note *customer-supplied filament* where it
+  applies.
+- **A project can override the pricing preset.** The project header now shows which
+  preset (Startup / Standard / High demand / …) and demand multiplier it is pricing
+  at, and lets you set one just for that job. It flows through the live price, a new
+  quote (frozen in) and Reprice.
+- **Employees.** Add your people in Settings → Company → Employees. An internal
+  "for an employee" order then asks which employee it is for, and the dashboard
+  totals production (projects, prints, filament, hours) per employee from the real
+  recorded prints.
+
 ## 1.0.64 — Corrupt-model guard, internal pricing, customer's own filament (2026-11-23)
 
 - **A faulty .3MF can no longer wedge the estimate.** A model that parses to NaN

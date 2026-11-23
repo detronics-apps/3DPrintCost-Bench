@@ -15,7 +15,18 @@
 
 import { num } from './money.js';
 import { usableGeometry } from './geometry.js';
+import { applyPreset } from './settings.js';
 import { normalizePostSelection, entryPostOps } from './postprocessing.js';
+
+/**
+ * The settings a project is priced under: the company's, unless the project
+ * overrides the pricing preset (Startup, High demand, …). A null override means
+ * "whatever the company is on". One helper so the live price, a fresh quote and a
+ * reprice all agree on which preset the project used.
+ */
+export function projectSettings(project, settings) {
+  return project?.presetId ? applyPreset(settings, project.presetId) : settings;
+}
 
 export const PROJECT_VERSION = 2;
 
@@ -191,6 +202,11 @@ export function makeProject(spec = {}) {
     //   'employee' for a staff member: still quoted and paid, but at cost
     //   'company'  for the company itself (R&D, office): no quote, an expense
     internal: 'off',
+    // Which employee an internal 'employee' order is for (a settings.employees id).
+    employeeId: null,
+    // Pricing-preset override: null = the company's current preset; otherwise a
+    // preset id (startup, high-demand, …) that prices just this project.
+    presetId: null,
     createdAt: at,
     modifiedAt: at,
     notes: '',
@@ -666,6 +682,8 @@ export function migrateProject(stored) {
   // `internal` used to be a boolean; a true one becomes an employee order.
   if (raw.internal === true) project.internal = 'employee';
   else if (!['off', 'employee', 'company'].includes(raw.internal)) project.internal = 'off';
+  project.presetId = raw.presetId || null;
+  project.employeeId = raw.employeeId || null;
   project.history = Array.isArray(raw.history) ? raw.history : [];
   project.quotes = Array.isArray(raw.quotes) ? raw.quotes : [];
   project.invoices = Array.isArray(raw.invoices) ? raw.invoices : [];

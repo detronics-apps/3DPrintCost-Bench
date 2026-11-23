@@ -27,7 +27,7 @@ import { fmtMoney, fmtRate, num } from '../../money.js';
 import {
   makeProject, makePart, makeCustomer, addPart, updatePart, removePart, duplicatePart,
   duplicateProject, recordAttempt, removeAttempt, partStats, orderFromProject, logEvent,
-  consumedGrams,
+  consumedGrams, projectSettings,
 } from '../../projects.js';
 import {
   workflowState, advance, clientProgressReport, phaseName, PHASES, isInternal, displayPhase,
@@ -59,7 +59,7 @@ const commit = (project) => { replaceProject(project); };
 
 function priceProject(project, settings) {
   const customer = customerFor(project);
-  return calculateOrder(orderFromProject(project, { customer }), settings,
+  return calculateOrder(orderFromProject(project, { customer }), projectSettings(project, settings),
     { internal: isInternal(project), companyInternal: isCompanyInternal(project) });
 }
 
@@ -80,7 +80,8 @@ function createQuote(project, result) {
     customer: customerFor(project),
     result,
     order: orderFromProject(project),
-    settings,
+    // Freeze the preset the project priced under, not the company default.
+    settings: projectSettings(project, settings),
   });
   state.activeDocumentId = quote.id;
   toast(`Quote ${number} created`);
@@ -189,6 +190,27 @@ function newProject(rerender) {
 
 /* -------------------------------------------------------------- project -- */
 
+/** Which pricing preset the project is on — visible, and overridable per project. */
+function presetControl(project, result, rerender) {
+  const settings = state.settings;
+  const locked = lockedPricing(project.invoices);
+  const companyPreset = settings.presets.find((p) => p.id === settings.presetId)?.name || 'Standard';
+  const effName = project.presetId
+    ? (settings.presets.find((p) => p.id === project.presetId)?.name || project.presetId)
+    : `company default (${companyPreset})`;
+  const demandX = (result.demand?.multiplier ?? 1).toFixed(2);
+  return selectField('project-preset', 'Pricing preset',
+    [{ value: '', label: `Company default — ${companyPreset}` },
+      ...settings.presets.filter((p) => !p.archived).map((p) => ({ value: p.id, label: p.name }))],
+    project.presetId || '',
+    (v) => { project.presetId = v || null; saveSoon(); rerender(); },
+    {
+      disabled: !!locked,
+      hint: `Pricing this job at ${effName} · demand ×${demandX}`
+        + (locked ? ' · locked to the invoice' : ''),
+    });
+}
+
 function projectHeader(ctx, project, result) {
   const { rerender } = ctx;
   const code = result.currencyCode;
@@ -229,6 +251,7 @@ function projectHeader(ctx, project, result) {
       statTile('Lead time', `${result.capacity.leadDays} days`),
       statTile('Margin', fmtRate(margin)),
     ]),
+    presetControl(project, result, rerender),
     locked
       ? muted(`Locked to invoice ${locked.number} of `
         + `${new Date(locked.at).toLocaleDateString()} — settings changes since then do not `
@@ -844,6 +867,16 @@ function projectSidebar(ctx, project, result) {
           + 'at cost; a company order is a bare expense — it also drops those two allowances and '
           + 'goes straight to production, skipping the quote and payment.',
       }),
+      project.internal === 'employee'
+        ? selectField('project-employee', 'Which employee',
+          [{ value: '', label: '— choose —' },
+            ...(settings.employees || []).filter((e) => !e.archived).map((e) => ({ value: e.id, label: e.name }))],
+          project.employeeId || '', (v) => setProject({ employeeId: v || null }), {
+            hint: (settings.employees || []).some((e) => !e.archived)
+              ? 'Who this internal print is for — totalled per employee on the dashboard.'
+              : 'Add your people in Settings → Company → Employees first.',
+          })
+        : null,
       textField('project-notes', 'Notes', project.notes, (v) => setProject({ notes: v }), { multiline: true }),
     ]),
     projectBedSection(project, settings, setProject),

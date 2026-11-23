@@ -203,6 +203,11 @@ export function defaultSettings() {
       shipInternational: false,
     },
 
+    // The workshop's people. An internal "for an employee" order points at one of
+    // these, and the dashboard totals production by employee. Each: { id, name,
+    // archived }.
+    employees: [],
+
     // How the production schedule turns machine-hours into days. `hoursPerDay`
     // is the run-hours a printer clears in a day - attended setup plus the long
     // unattended stretches - and a printer may override it with its own.
@@ -550,6 +555,7 @@ export function migrateSettings(stored) {
   // `generalAllowance` still see the effective allowance.
   merged.ctc.generalAllowance = ctcAllowanceRate(merged.ctc);
   // The scheduler block is newer than most stored settings.
+  if (!Array.isArray(merged.employees)) merged.employees = [];
   if (!merged.scheduler || typeof merged.scheduler !== 'object') {
     merged.scheduler = clone(defaults.scheduler);
   }

@@ -180,6 +180,25 @@ function companyPanel(ctx) {
     ]),
 
     el('div', { class: 'panel' }, [
+      el('div', { class: 'panel__head' }, [
+        el('h3', { text: 'Employees' }),
+        button('Add employee', () => {
+          settings.employees = [...(settings.employees || []),
+            { id: makeId('emp'), name: 'New employee', archived: false }];
+          touch(rerender);
+        }, { key: 'add-employee' }),
+      ]),
+      muted('For internal “for an employee” orders — the project then asks which one — and for the '
+        + 'per-employee production totals on the dashboard.'),
+      ...(settings.employees || []).map((e) => el('div', { class: 'row-editor' }, [
+        textField(`emp-${e.id}`, '', e.name, (v) => { e.name = v; touch(rerender); }),
+        button(e.archived ? 'Restore' : 'Archive', () => { e.archived = !e.archived; touch(rerender); },
+          { key: `emp-arch-${e.id}`, danger: !e.archived }),
+      ])),
+      (settings.employees || []).length === 0 ? muted('No employees yet.') : null,
+    ].filter(Boolean)),
+
+    el('div', { class: 'panel' }, [
       el('h3', { text: 'Country, currency and tax' }),
       selectField('country', 'Country',
         settings.countries.map((c) => ({ value: c.id, label: c.name })),
