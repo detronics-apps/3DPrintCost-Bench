@@ -205,6 +205,15 @@ test('a company-internal order drops the rejection and general allowances', () =
   close(company.ctc, company.production.total, 1e-9, 'company CTC is the direct cost only');
 });
 
+test('internal rides on the ORDER, so a project reprice prices at cost without a context', () => {
+  const s = settings();
+  const sum = (r) => r.lines.reduce((t, l) => t + l.price.price * l.quantity, 0);
+  const normal = calculateOrder({ lines: [{ ...bracket(), quantity: 2 }] }, s);
+  const internal = calculateOrder({ lines: [{ ...bracket(), quantity: 2 }], internal: 'company' }, s);
+  assert.ok(sum(internal) < sum(normal), 'internal is cheaper — no margin added');
+  for (const l of internal.lines) close(l.price.price, l.ctc, 1e-9, 'internal line price is its CTC');
+});
+
 test('a real line produces finite, ordered numbers all the way down', () => {
   const s = settings();
   const line = calculateLine(bracket(), s);

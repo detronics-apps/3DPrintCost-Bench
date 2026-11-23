@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.64 — Corrupt-model guard, internal pricing, customer's own filament (2026-11-23)
+
+- **A faulty .3MF can no longer wedge the estimate.** A model that parses to NaN
+  vertices used to be saved with a non-finite size and crash every later render;
+  now such a file is refused on upload, and any already-stored bad geometry is
+  treated as "no model" so the page recovers.
+- **Internal projects price at cost everywhere.** The `internal` flag now rides on
+  the order, so the live display, the scheduler and the Reprice button all cost a
+  company/employee job at CTC — not just the first quote. (Reprice an invoice
+  issued before you flipped it to internal and it comes out at cost.)
+- **Customer's own filament.** A tickbox per loaded colour/head on the estimate,
+  both portals and projects: when the customer supplies that spool, its material
+  cost — and the margin on it — come off, so they pay only for the printing. The
+  grams still count (it is printed and it still weighs).
+
 ## 1.0.51 — Project money bars flow like the estimate, plus estimate-vs-actual (2026-09-12)
 
 - **The project's three money bars now tell one story, like the estimate's do.** Production builds

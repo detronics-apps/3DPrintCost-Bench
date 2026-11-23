@@ -31,6 +31,17 @@ const EMPTY = {
 };
 
 /**
+ * A stored geometry is only usable if it measures something finite. A part saved
+ * with a corrupt model (from before analyse guarded it) comes back with a
+ * non-finite size; treating it as "no model" lets the page render and recover
+ * instead of crashing on every draw.
+ */
+export function usableGeometry(g) {
+  return g && [g.size?.x, g.size?.y, g.size?.z].every(Number.isFinite) && g.volume > 0
+    ? g : null;
+}
+
+/**
  * Measure a mesh.
  *
  * `volume` is signed: a mesh whose faces all point inward comes back negative,
@@ -92,6 +103,11 @@ export function analyse(mesh, { overhangAngle = DEFAULT_OVERHANG_ANGLE, countObj
 
   const bbox = { min, max };
   const size = { x: max.x - min.x, y: max.y - min.y, z: max.z - min.z };
+
+  // A file with triangles but non-finite vertices (a corrupt 3MF, NaN coords)
+  // never updates min/max, leaving size = -Infinity. Refuse it as empty rather
+  // than saving geometry that crashes every later render.
+  if (![size.x, size.y, size.z, volume6].every(Number.isFinite)) return { ...EMPTY };
 
   // The support model, stated plainly: every overhanging face is assumed to be
   // held up from the build plate, at a fill density typical of tree supports.

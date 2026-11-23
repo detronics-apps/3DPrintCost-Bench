@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   analyse, orientations, partsPerPlate, plateLayout, fmtSize, mm3ToCm3, DEFAULT_OVERHANG_ANGLE,
+  usableGeometry,
 } from '../js/geometry.js';
 import { readMesh, parseObj, parseAsciiStl, parse3mfModel, looksBinaryStl } from '../js/mesh.js';
 import { listEntries, unzipText, platformInflate } from '../js/zip.js';
@@ -9,6 +10,22 @@ import { box, twoBoxes, toBinaryStl, toAsciiStl, toObj, to3mfModel, makeZip } fr
 
 const close = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol,
   `${what}: got ${a}, expected ${b} ± ${tol}`);
+
+test('a corrupt mesh (NaN vertices) measures as empty, not -Infinity', () => {
+  // A faulty 3MF can parse to triangles with NaN coordinates. min/max never
+  // update, which used to leave size = -Infinity and crash every later render.
+  const g = analyse({ positions: new Float32Array([NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN]), triangleCount: 1 });
+  assert.equal(g.triangleCount, 0, 'refused as empty');
+  assert.ok(Number.isFinite(g.size.x) && g.size.x === 0);
+  assert.equal(usableGeometry(g), null, 'and it is not usable geometry');
+});
+
+test('usableGeometry keeps a real measurement and drops a broken one', () => {
+  const good = analyse(box(10, 10, 10));
+  assert.equal(usableGeometry(good), good);
+  assert.equal(usableGeometry({ size: { x: -Infinity, y: 1, z: 1 }, volume: NaN }), null);
+  assert.equal(usableGeometry(null), null);
+});
 
 test('a box measures its own closed-form volume and area', () => {
   const g = analyse(box(20, 30, 40));

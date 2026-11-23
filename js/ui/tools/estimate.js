@@ -34,7 +34,7 @@ import {
 } from '../export.js';
 import { readMesh } from '../../mesh.js';
 import { platformInflate } from '../../zip.js';
-import { analyse, orientations, fmtSize, mm3ToCm3 } from '../../geometry.js';
+import { analyse, orientations, fmtSize, mm3ToCm3, usableGeometry } from '../../geometry.js';
 import { calculateOrder, comparePrinters } from '../../engine.js';
 import { fmtMoney, fmtRate, num } from '../../money.js';
 import { groupLabour } from '../../labour.js';
@@ -80,7 +80,7 @@ function partToLine(part, quick) {
     profileId: part.profileId,
     settingOverrides: part.settingOverrides,
     mix: part.mix,
-    geometry: part.geometry,
+    geometry: usableGeometry(part.geometry),
     manual: part.manual,
     orientedSize: part.orientedSize,
     colourBands: part.colourBands,
@@ -120,6 +120,9 @@ async function loadModel(file, part, rerender) {
     const buffer = await file.arrayBuffer();
     const mesh = await readMesh(file.name, buffer, { inflate: platformInflate });
     const geometry = analyse(mesh);
+    if (!geometry.triangleCount || !(geometry.volume > 0)) {
+      throw new Error('That file has no readable geometry — it looks empty or corrupt.');
+    }
     part.geometry = geometry;
     part.modelName = file.name;
     part.orientedSize = null;
@@ -139,7 +142,7 @@ async function loadModel(file, part, rerender) {
 function partBlock(ctx, part, index, canRemove, open = true) {
   const { state, rerender } = ctx;
   const key = part.id;
-  const geometry = part.geometry;
+  const geometry = usableGeometry(part.geometry);
 
   const set = (field) => (value) => { part[field] = value; saveSoon(); rerender(); };
 
@@ -1358,7 +1361,7 @@ function exportSection(ctx) {
             settingOverrides: { ...part.settingOverrides },
             printerId: state.quick.printerId,
             materialId: state.quick.materialId,
-            geometry: part.geometry,
+            geometry: usableGeometry(part.geometry),
             // The estimator names the model on `modelName`; a project identifies
             // it by `modelFileId`, so carry the name across into that field.
             modelFileId: part.modelName || null,

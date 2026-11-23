@@ -14,6 +14,7 @@
  */
 
 import { num } from './money.js';
+import { usableGeometry } from './geometry.js';
 import { normalizePostSelection, entryPostOps } from './postprocessing.js';
 
 export const PROJECT_VERSION = 2;
@@ -677,6 +678,10 @@ export function orderFromProject(project, { customer = null } = {}) {
   const projectSlots = project.slots || null;
   return {
     ...project.order,
+    // Internal ('off' | 'employee' | 'company') rides on the order so every path
+    // that prices it — the reprice, the scheduler, a fresh quote — costs it the
+    // same way, not just the one screen that remembered to pass a context.
+    internal: project.internal || 'off',
     // The whole project shares one bed by default, so the order carries a plate —
     // that is what turns on bed packing, colour splitting, the plate count and the
     // layout, exactly as the estimate bed does. A part with `printerOverride` is
@@ -696,7 +701,7 @@ export function orderFromProject(project, { customer = null } = {}) {
       // an override; absent falls back to a single slot synthesised from materialId.
       slots: part.printerOverride ? (part.slots || null) : projectSlots,
       mix: part.mix || null,
-      geometry: part.geometry,
+      geometry: usableGeometry(part.geometry),
       manual: part.manual,
       orientedSize: part.orientedSize,
       colours: part.colours,

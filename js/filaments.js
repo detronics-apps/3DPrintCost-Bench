@@ -259,7 +259,12 @@ export function materialBreakdown(bodyVolumeMm3, slots, normalised, materials, c
     const volume = Math.max(0, num(bodyVolumeMm3)) * entry.fraction;
     const g = (volume / 1000) * density(material);
     const perGram = pricePerGram(material, countryId);
-    if (perGram == null) missingPrice = true;
+    // The customer supplied this spool, so it costs nothing — and because margin
+    // is taken on the cost, dropping the cost drops its profit too. The grams
+    // still count (it is still printed into the part and still weighs).
+    const ownFilament = !!slot?.ownFilament;
+    if (perGram == null && !ownFilament) missingPrice = true;
+    const lineCost = ownFilament ? 0 : num(perGram) * g;
 
     lines.push({
       slotId: entry.slotId,
@@ -270,11 +275,12 @@ export function materialBreakdown(bodyVolumeMm3, slots, normalised, materials, c
       volume,
       grams: g,
       perGram: perGram == null ? null : perGram,
-      cost: num(perGram) * g,
-      wasteFactor: Math.max(0, num(material?.wasteFactor, 0.03)),
+      cost: lineCost,
+      ownFilament,
+      wasteFactor: ownFilament ? 0 : Math.max(0, num(material?.wasteFactor, 0.03)),
     });
     grams += g;
-    cost += num(perGram) * g;
+    cost += lineCost;
   }
 
   return { lines, grams, cost, missingPrice };
@@ -305,7 +311,10 @@ export function materialBreakdownFromGrams(heads, slots, materials, countryId) {
     const material = findMaterial(materials, slot?.materialId);
     const g = Math.max(0, num(head.grams));
     const perGram = pricePerGram(material, countryId);
-    if (perGram == null) missingPrice = true;
+    // Customer-supplied spool: grams still count, cost (and its margin) do not.
+    const ownFilament = !!slot?.ownFilament;
+    if (perGram == null && !ownFilament) missingPrice = true;
+    const lineCost = ownFilament ? 0 : num(perGram) * g;
     lines.push({
       slotId: head.slotId,
       material,
@@ -315,11 +324,12 @@ export function materialBreakdownFromGrams(heads, slots, materials, countryId) {
       volume: (g / Math.max(0.01, density(material))) * 1000,
       grams: g,
       perGram: perGram == null ? null : perGram,
-      cost: num(perGram) * g,
-      wasteFactor: Math.max(0, num(material?.wasteFactor, 0.03)),
+      cost: lineCost,
+      ownFilament,
+      wasteFactor: ownFilament ? 0 : Math.max(0, num(material?.wasteFactor, 0.03)),
     });
     grams += g;
-    cost += num(perGram) * g;
+    cost += lineCost;
   }
 
   return { lines, grams, cost, missingPrice };

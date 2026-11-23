@@ -64,6 +64,25 @@ test('per-head slicer grams are costed each at its own plastic’s price', () =>
   close(b.cost, one.cost + two.cost, 1e-9, 'the total is the sum of the heads');
 });
 
+test('a customer-supplied spool costs nothing, but its grams still count', () => {
+  const settings = defaultSettings();
+  const slots = [
+    { id: 's1', materialId: 'petg-dark-grey' },
+    { id: 's2', materialId: 'pla-dark-grey', ownFilament: true },
+  ];
+  const b = materialBreakdownFromGrams(
+    [{ slotId: 's1', grams: 60 }, { slotId: 's2', grams: 40 }],
+    slots, settings.materials, settings.countryId,
+  );
+  const one = b.lines.find((l) => l.slotId === 's1');
+  const own = b.lines.find((l) => l.slotId === 's2');
+  close(own.grams, 40, 1e-9, 'the customer spool is still printed, so it still weighs');
+  assert.equal(own.cost, 0, 'but it is not charged for');
+  assert.equal(own.wasteFactor, 0, 'and no scrap allowance on material we did not buy');
+  assert.ok(one.cost > 0, 'the company spool is charged as normal');
+  close(b.cost, one.cost, 1e-9, 'the total excludes the customer-supplied head');
+});
+
 test('a head with no grams, or one pointing at a gone spool, is left out', () => {
   const settings = defaultSettings();
   const slots = [{ id: 's1', materialId: 'petg-dark-grey' }];

@@ -18,7 +18,7 @@
 
 import { el, swatch } from './dom.js';
 import {
-  section, subsection, numberField, selectField, button, buttonRow, banner, muted, pill, table,
+  section, subsection, numberField, selectField, checkField, button, buttonRow, banner, muted, pill, table,
 } from './controls.js';
 import { materialPicker } from './material-picker.js';
 import { colourMode, slotLimit } from '../printers.js';
@@ -68,6 +68,17 @@ export function filamentSlots({
     onSlots(live.map((s) => (s.id === id ? { ...s, materialId } : s)));
   };
 
+  // Per spool: the customer brought this one. Its material cost — and the margin
+  // on it — come off; they pay only for the printing. Wording differs for the
+  // client's own portal (no margin talk) from the internal screens.
+  const ownToggle = (slot, key) => checkField(`${key}-own`,
+    showDetail ? 'Customer’s own filament' : 'I’ll supply this colour myself',
+    !!slot.ownFilament,
+    (v) => onSlots(live.map((s) => (s.id === slot.id ? { ...s, ownFilament: v } : s))),
+    { hint: showDetail
+      ? 'They supply this spool, so its material cost and the margin on it come off — only the printing is charged.'
+      : 'You bring this spool, so you are not charged for this material — only the printing.' });
+
   if (!mode.coloursVary) {
     // One spool. There is nothing to add, so there is no button to add it.
     nodes.push(...materialPicker({
@@ -79,6 +90,7 @@ export function filamentSlots({
       showDetail,
       onChange: (id) => setSlot(live[0].id, id),
     }).nodes);
+    nodes.push(ownToggle(live[0], `${keyPrefix}-0`));
     return nodes;
   }
 
@@ -110,20 +122,23 @@ export function filamentSlots({
 
     nodes.push(subsection('Loaded colours', live.map((slot, i) => {
       const material = findMaterial(materials, slot.materialId);
-      return el('div', { class: 'slot-row' }, [
-        el('span', { class: 'slot-row__index', text: String(i + 1) }),
-        swatch(colourHex(material), { title: material?.colour }),
-        selectField(`${keyPrefix}-slot-${i}-colour`, `Slot ${i + 1}`,
-          colours.map((c) => ({ value: c, label: c })),
-          material?.colour,
-          (colour) => {
-            const hit = findByTypeAndColour(materials, type, colour);
-            if (hit) setSlot(slot.id, hit.id);
-          }),
-        live.length > 1
-          ? button('Unload', () => onSlots(live.filter((s) => s.id !== slot.id)),
-            { key: `${keyPrefix}-unload-${i}` })
-          : null,
+      return el('div', {}, [
+        el('div', { class: 'slot-row' }, [
+          el('span', { class: 'slot-row__index', text: String(i + 1) }),
+          swatch(colourHex(material), { title: material?.colour }),
+          selectField(`${keyPrefix}-slot-${i}-colour`, `Slot ${i + 1}`,
+            colours.map((c) => ({ value: c, label: c })),
+            material?.colour,
+            (colour) => {
+              const hit = findByTypeAndColour(materials, type, colour);
+              if (hit) setSlot(slot.id, hit.id);
+            }),
+          live.length > 1
+            ? button('Unload', () => onSlots(live.filter((s) => s.id !== slot.id)),
+              { key: `${keyPrefix}-unload-${i}` })
+            : null,
+        ]),
+        ownToggle(slot, `${keyPrefix}-slot-${i}`),
       ]);
     })));
   } else {
@@ -148,6 +163,7 @@ export function filamentSlots({
         showDetail,
         onChange: (id) => setSlot(slot.id, id),
       }).nodes,
+      ownToggle(slot, `${keyPrefix}-slot-${i}`),
     ])), {
       hint: mode.manual
         ? 'Only one of these is in the machine at a time. The print pauses and '

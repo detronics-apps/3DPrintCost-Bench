@@ -639,6 +639,12 @@ export function calculateOrder(order, settings, context = {}) {
   const currencyCode = settings.currencyCode || country.currency;
   const demand = context.demand || demandMultiplier(settings.demand);
 
+  // Internal pricing is a fact about the order, so an order carrying it (every
+  // one built from a project does) prices at cost without the caller having to
+  // pass a context. An explicit context still wins, so nothing else changes.
+  const internal = context.internal ?? (order.internal === 'employee' || order.internal === 'company');
+  const companyInternal = context.companyInternal ?? (order.internal === 'company');
+
   // The loaded filament belongs to the machine, so it is an order-level fact
   // that every line printed in that setup draws from. An order without one is
   // priced exactly as before, from each line's own materialId.
@@ -751,7 +757,7 @@ export function calculateOrder(order, settings, context = {}) {
         ? (line.printerId ? { printerId: line.printerId, slots: line.slots || null } : null)
         : plate;
       return calculateLine(line, settings, {
-        ...context, demand, plate: linePlate, bedPlacement: bedPlacements[i], shipped: !collected, packs,
+        ...context, internal, companyInternal, demand, plate: linePlate, bedPlacement: bedPlacements[i], shipped: !collected, packs,
       });
     });
   for (const line of lines) notes.push(...line.notes.filter((n) => n.level !== 'info'));
