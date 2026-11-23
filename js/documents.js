@@ -93,7 +93,7 @@ export function snapshotAssumptions(settings) {
  * carries the company's margin in a field nobody renders is one careless export
  * away from being a problem.
  */
-function customerLines(result, order) {
+function customerLines(result, order, { failedByPart = {} } = {}) {
   return result.lines.map((line, i) => {
     const source = (order.lines || [])[i] || {};
     return {
@@ -113,10 +113,11 @@ function customerLines(result, order) {
       // labour on it as one figure. And whether they supplied the filament.
       timeOnPartMinutes: num(line.detail?.machineMinutes) + num(line.detail?.labour?.minutesPerUnit),
       ownFilament: (line.filaments || []).some((f) => f.ownFilament),
-      // The print time lost to reprints, so the client sees the failure rate. It
-      // is NOT an extra charge — the scrap allowance is already inside the price;
-      // this only makes the effort visible.
-      failedMinutes: num(line.detail?.machineMinutes) * Math.max(0, num(line.detail?.scrap?.attempts, 1) - 1),
+      // The time lost to prints that ACTUALLY failed on this part, so the client
+      // sees the real failure rate. NOT an extra charge — the scrap allowance is
+      // already inside the price; this only makes the effort visible. Zero on a
+      // part that has not failed, so only the ones that really did show it.
+      failedMinutes: num(failedByPart[source.partId]),
     };
   });
 }
@@ -131,6 +132,20 @@ export function makeQuote({ number, project, customer, result, order, settings, 
   const days = Math.max(1, Math.round(num(validityDays, settings.company?.quoteValidityDays ?? 30)));
   const issued = new Date();
   const expires = new Date(issued.getTime() + days * 86400000);
+
+  // The time that actually went into each part that failed, from the recorded
+  // prints — so the client sees the real failure rate, not a flat estimate.
+  const failedByPart = {};
+  for (const p of project?.parts || []) {
+    let min = 0;
+    for (const a of p.attempts || []) if (a.failed) min += num(a.minutes);
+    if (min > 0) failedByPart[p.id] = min;
+  }
+
+  const lines = customerLines(result, order, { failedByPart });
+  // The whole order's time: each part's time once, times how many were made.
+  const totalTimeMinutes = lines.reduce((t, l) => t + num(l.timeOnPartMinutes) * Math.max(1, num(l.quantity, 1)), 0);
+  const totalFailedMinutes = lines.reduce((t, l) => t + num(l.failedMinutes), 0);
 
   return {
     id: makeId('quote'),
@@ -151,7 +166,9 @@ export function makeQuote({ number, project, customer, result, order, settings, 
     projectName: project?.name || '',
 
     currencyCode: result.currencyCode,
-    lines: customerLines(result, order),
+    lines,
+    totalTimeMinutes,
+    totalFailedMinutes,
     subtotal: result.parts.beforeDiscount,
     discount: result.parts.discount,
     parts: result.parts.total,
@@ -300,10 +317,12 @@ export function displayStatus(doc, now = new Date()) {
  * The original is returned untouched alongside, so the caller stores both and
  * the history is real rather than implied.
  */
-export function reprice(doc, { result, order, settings }) {
+export function reprice(doc, { result, order, settings, project }) {
   const fresh = makeQuote({
     number: doc.number,
-    project: { id: doc.projectId, name: doc.projectName },
+    // The real project (with its recorded prints) so a reprice after production
+    // picks up the actual failures; falls back to a stub if not supplied.
+    project: project || { id: doc.projectId, name: doc.projectName },
     customer: doc.customer,
     result,
     order,
@@ -360,7 +379,7 @@ export function assumptionDrift(doc, settings) {
 
 /** The document as plain rows, for the printed sheet and the CSV. */
 /** Minutes as "Xh Ym" (or just "Ym"), for the time shown on a quote. */
-function fmtDuration(min) {
+export function fmtDuration(min) {
   const m = Math.max(0, Math.round(num(min)));
   const h = Math.floor(m / 60);
   const r = m % 60;
@@ -368,20 +387,26 @@ function fmtDuration(min) {
 }
 
 export function documentRows(doc) {
-  const rows = doc.lines.map((line) => ({
+  const rows = doc.lines.map((line) => {
+    // Lines show the FULL price; the discount is a line of its own below, so
+    // "Parts" is the full total and Parts − Discount = Total. (Older documents
+    // without the before-discount figure fall back to the net unit price.)
+    const unit = num(line.unitPriceBeforeDiscount ?? line.unitPrice);
+    return {
     description: `${line.name}${line.partNumber ? ` (${line.partNumber})` : ''}`,
     // The client-facing sub-line: what it is, how long one part took (print time
     // and hands-on labour as one figure), and whether they brought the filament.
     detail: [
-      line.description,
+      line.description,                                    // profile · plastic · colour
+      line.ownFilament ? 'customer-supplied' : null,        // straight after the colour
       num(line.timeOnPartMinutes) > 0 ? `Time on part: ${fmtDuration(line.timeOnPartMinutes)}` : null,
       num(line.failedMinutes) > 0 ? `Failed prints: ${fmtDuration(line.failedMinutes)} (not charged)` : null,
-      line.ownFilament ? 'customer-supplied filament' : null,
     ].filter(Boolean).join(' · '),
     quantity: line.quantity,
-    unitPrice: line.unitPrice,
-    total: line.total,
-  }));
+    unitPrice: unit,
+    total: unit * Math.max(1, num(line.quantity, 1)),
+  };
+  });
 
   const extras = [];
   const push = (label, amount) => {

@@ -9,7 +9,7 @@
 import { download, toast } from './dom.js';
 import { standaloneSvg } from './patterns.js';
 import { fmtMoney, round } from '../money.js';
-import { documentRows, documentFilename } from '../documents.js';
+import { documentRows, documentFilename, fmtDuration } from '../documents.js';
 import { groupLabour } from '../labour.js';
 import { findMaterial } from '../materials.js';
 
@@ -237,7 +237,7 @@ export function buildPrintSheet(doc, { host }) {
     row.appendChild(make('span', null, money(value)));
     totals.appendChild(row);
   };
-  addTotal('Parts', doc.parts);
+  addTotal('Parts', doc.subtotal ?? doc.parts);
   for (const extra of extras) addTotal(extra.label, extra.amount);
   if (doc.tax) addTotal(`${doc.taxName} at ${(doc.taxRate * 100).toFixed(0)}%`, doc.tax);
   addTotal('Total', doc.total, true);
@@ -246,6 +246,15 @@ export function buildPrintSheet(doc, { host }) {
     addTotal('Outstanding', doc.total - doc.paid, true);
   }
   sheet.appendChild(totals);
+
+  if (doc.totalTimeMinutes > 0) {
+    const time = make('div', 'sheet__terms');
+    time.appendChild(make('p', null, `Total time on this order: ${fmtDuration(doc.totalTimeMinutes)}`
+      + (doc.totalFailedMinutes > 0
+        ? ` — including ${fmtDuration(doc.totalFailedMinutes)} on prints that failed (not charged)`
+        : '')));
+    sheet.appendChild(time);
+  }
 
   if (doc.terms) {
     const terms = make('div', 'sheet__terms');

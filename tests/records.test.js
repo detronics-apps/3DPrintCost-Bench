@@ -472,6 +472,18 @@ test('an expired quote shows as expired without being rewritten', () => {
   assert.equal(sent.status, 'sent', 'the stored status is untouched');
 });
 
+test('lines show the full price so Parts − Discount = Total', () => {
+  const doc = {
+    subtotal: 100, parts: 90, discount: 10, total: 90,
+    lines: [{ name: 'A', description: 'x', quantity: 2, unitPrice: 45, unitPriceBeforeDiscount: 50, total: 90 }],
+  };
+  const { rows, extras } = documentRows(doc);
+  assert.equal(rows[0].unitPrice, 50, 'the full unit price, not the discounted 45');
+  assert.equal(rows[0].total, 100, 'the full line total (50 × 2)');
+  assert.ok(extras.some((e) => e.label === 'Discount' && e.amount === -10));
+  assert.equal(doc.subtotal - doc.discount, doc.total, 'Parts − Discount lands on Total');
+});
+
 test('the printed rows drop zero lines and keep the discount negative', () => {
   const { quote } = pricedQuote();
   const withDiscount = { ...quote, discount: 25, handling: 0, storage: 0 };
@@ -490,7 +502,8 @@ test('a quote line shows "Time on part" and flags customer-supplied filament', (
   };
   const { rows } = documentRows(doc);
   assert.match(rows[0].detail, /Time on part: 2h 15m/, 'print + labour shown as one figure in h/m');
-  assert.match(rows[0].detail, /customer-supplied filament/);
+  assert.match(rows[0].detail, /· customer-supplied ·/, 'tagged right after the colour, no "filament"');
+  assert.doesNotMatch(rows[0].detail, /filament/);
   assert.match(rows[1].detail, /Time on part: 45m/);
   assert.doesNotMatch(rows[1].detail, /customer-supplied/, 'not flagged when the shop supplied it');
 });

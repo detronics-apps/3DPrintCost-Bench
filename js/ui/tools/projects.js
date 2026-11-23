@@ -548,7 +548,18 @@ function partsPanel(ctx, project, result) {
       { label: 'Profile', get: (r) => r.line?.profile.name || '—' },
       { label: 'Printer', get: (r) => r.line?.printer.name || '—' },
       { label: 'Qty', align: 'right', mono: true, get: (r) => String(r.part.quantity) },
-      { label: 'Each', align: 'right', mono: true, get: (r) => `${r.line?.estimate.grams.toFixed(1) ?? '—'} g` },
+      {
+        // The sliced grams per part once the operator has entered them, so the
+        // table reflects the edit; the geometry estimate only until then.
+        label: 'Each',
+        align: 'right',
+        mono: true,
+        get: (r) => {
+          const q = Math.max(1, num(r.part.quantity, 1));
+          const g = partHasSlicerGrams(r.part) ? slicerTotals(r.part, r.line).grams / q : r.line?.estimate.grams;
+          return g == null ? '—' : `${g.toFixed(1)} g`;
+        },
+      },
       { label: 'CTC', align: 'right', mono: true, get: (r) => fmtMoney(r.line?.ctc ?? 0, code) },
       { label: 'Price', align: 'right', mono: true, get: (r) => fmtMoney(r.line?.unitPrice ?? 0, code) },
       {

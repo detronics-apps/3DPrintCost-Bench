@@ -256,7 +256,7 @@ function documentView(ctx, { project, document: doc }) {
       { label: 'Total', align: 'right', mono: true, get: (r) => fmtMoney(r.total, code) },
     ], rows),
     el('div', { class: 'totals' }, [
-      costRow('Parts', doc.parts, code),
+      costRow('Parts', doc.subtotal ?? doc.parts, code),
       ...extras.map((extra) => costRow(extra.label, extra.amount, code, { sub: true })),
       doc.tax ? costRow(`${doc.taxName} ${fmtRate(doc.taxRate)}`, doc.tax, code, { sub: true }) : null,
       costRow('Total', doc.total, code, { strong: true }),
@@ -361,7 +361,7 @@ export function sidebar(ctx) {
       buttonRow([button('Create a revision at today’s prices', () => {
         const order = orderFromProject(project, { customer: customerFor(project) });
         const result = calculateOrder(order, projectSettings(project, state.settings));
-        const next = reprice(doc, { result, order, settings: state.settings });
+        const next = reprice(doc, { result, order, settings: state.settings, project });
         const key = doc.kind === 'invoice' ? 'invoices' : 'quotes';
         replaceProject({ ...project, [key]: [...project[key], next] });
         state.activeDocumentId = next.id;

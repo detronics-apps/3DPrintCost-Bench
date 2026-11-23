@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.66 — Quote fixes: real failures, discount, order time (2026-11-23)
+
+- **Failed-print time is now the actual failures**, from the recorded prints, so
+  only parts that really failed show it — not a flat scrap estimate on every line.
+  Reprice carries the real project, so repricing after production captures them.
+- **Discount shows correctly.** Lines now carry the full price, "Parts" is the
+  before-discount subtotal, and Parts − Discount = Total. (It was showing already-
+  discounted lines plus a discount line, so Parts and Total matched.)
+- **Total time on the order** prints on the quote/invoice, including how much went
+  on failed prints (not charged).
+- **"customer-supplied"** — no longer says "filament", and sits right after the
+  colour.
+- **Projects Parts table** shows the sliced grams you entered (it was stuck on the
+  geometry estimate, so an edit looked like it hadn't applied).
+
 ## 1.0.65 — Per-project pricing, quote transparency, employees (2026-11-23)
 
 - **The quote shows the client "Time on part" and failed-print time.** Each line
