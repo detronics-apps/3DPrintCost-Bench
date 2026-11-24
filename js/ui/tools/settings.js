@@ -194,8 +194,48 @@ function companyPanel(ctx) {
         textField(`emp-${e.id}`, '', e.name, (v) => { e.name = v; touch(rerender); }),
         button(e.archived ? 'Restore' : 'Archive', () => { e.archived = !e.archived; touch(rerender); },
           { key: `emp-arch-${e.id}`, danger: !e.archived }),
+        // Delete, for a mistaken entry. Archive is for someone who worked here and
+        // whose history you want to keep; Delete removes an entry that should never
+        // have existed. It warns if a project is already assigned to them.
+        button('Delete', async () => {
+          const inUse = state.projects.some((p) => p.employeeId === e.id);
+          const ok = await confirmModal(inUse
+            ? `Delete ${e.name}? A project is assigned to them and will show “Unknown” on the `
+              + 'dashboard — Archive instead to keep the history.'
+            : `Delete ${e.name}? This cannot be undone.`, { confirmLabel: 'Delete' });
+          if (!ok) return;
+          settings.employees = settings.employees.filter((x) => x.id !== e.id);
+          touch(rerender);
+        }, { key: `emp-del-${e.id}`, danger: true }),
       ])),
       (settings.employees || []).length === 0 ? muted('No employees yet.') : null,
+
+      subsection('Add several at once', [
+        textField('emp-import', '', '', () => {}, {
+          multiline: true, rows: 4,
+          placeholder: 'Paste names — one per line, or separated by ; or , (a CSV column works too)',
+        }),
+        buttonRow([button('Add these', () => {
+          const field = document.querySelector('[data-field="emp-import"]');
+          const names = (field?.value || '').split(/[\n;,]+/).map((s) => s.trim()).filter(Boolean);
+          if (!names.length) { toast('Paste some names first'); return; }
+          const existing = new Set((settings.employees || []).map((e) => e.name.trim().toLowerCase()));
+          const added = [];
+          for (const name of names) {
+            const key = name.toLowerCase();
+            if (existing.has(key)) continue;
+            existing.add(key);
+            added.push({ id: makeId('emp'), name, archived: false });
+          }
+          settings.employees = [...(settings.employees || []), ...added];
+          if (field) field.value = '';
+          const skipped = names.length - added.length;
+          toast(added.length
+            ? `Added ${added.length}${skipped ? `, skipped ${skipped} already there` : ''}`
+            : 'All of those are already on the list');
+          touch(rerender);
+        }, { key: 'emp-import-add', primary: true })]),
+      ], { open: (settings.employees || []).length === 0 }),
     ].filter(Boolean)),
 
     el('div', { class: 'panel' }, [

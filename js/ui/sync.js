@@ -129,6 +129,41 @@ async function loadNow() {
   error = null;
 }
 
+/**
+ * Are two workshop exports the same DATA? Ignores `exportedAt`, which is a fresh
+ * timestamp on every export and would otherwise make an identical workshop look
+ * changed.
+ */
+export function sameWorkshop(aText, bText) {
+  try {
+    const strip = (t) => {
+      const o = JSON.parse(t);
+      delete o.exportedAt;
+      return JSON.stringify(o);
+    };
+    return strip(aText) === strip(bText);
+  } catch { return false; }
+}
+
+/**
+ * Re-establish the connection WITHOUT ever clobbering local work. Used on
+ * start-up and on a manual reconnect — the moments a naive "the file wins" load
+ * silently destroyed unsynced local changes (employees added just before a
+ * reconnect, say). The rule: adopt the file only when it already matches what we
+ * hold; if it differs, raise a conflict so the person chooses whose version wins,
+ * exactly as a mid-session conflict does. An empty file is seeded from local.
+ */
+async function adoptOrConflict() {
+  const text = await readFile();
+  error = null;
+  if (!text || !text.trim()) {
+    await writeNow(); // nothing on the other side yet — seed it, do not wipe local
+    return;
+  }
+  lastSyncedText = text;
+  conflict = !sameWorkshop(text, exportAll());
+}
+
 /** Write our whole workshop over the file. Our version wins. */
 async function writeNow() {
   const text = exportAll();
@@ -247,8 +282,9 @@ export async function restoreSync() {
     if (!h) return;
     handle = h;
     if (await ensurePermission(handle)) {
-      // Permission survived: adopt the file as the truth and catch up to it.
-      await loadNow();
+      // Permission survived — reconcile WITHOUT clobbering any local changes made
+      // since the last sync; a difference becomes a conflict, not a silent load.
+      await adoptOrConflict();
     }
   } catch { /* nothing to restore */ }
   notify();
@@ -259,7 +295,9 @@ export async function reconnectSync() {
   if (!handle) return false;
   try {
     if (await ensurePermission(handle, { request: true })) {
-      await loadNow();
+      // Reconnect must NOT overwrite local work with a possibly-stale file — the
+      // bug that lost a batch of employees. Reconcile safely instead.
+      await adoptOrConflict();
       notify();
       return true;
     }

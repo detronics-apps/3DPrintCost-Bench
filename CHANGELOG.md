@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.67 — Sync no longer clobbers local work; employee tools (2026-11-24)
+
+- **Reconnecting to the shared file can no longer wipe local changes.** Start-up
+  and Reconnect used to load the file over whatever was here ("the file wins"),
+  which destroyed data added just before reconnecting (a batch of employees).
+  They now reconcile safely: adopt the file only when it already matches what you
+  hold, otherwise raise a conflict so you choose whose version wins. The timestamp
+  in an export is ignored when comparing, so an identical workshop is not mistaken
+  for a change.
+- **Employees can be deleted, not only archived** — Delete for a mistaken entry
+  (confirmed; warns if a project is assigned), Archive for someone who worked here.
+- **Batch-add employees** — paste a list (one per line, or separated by ; or ,, a
+  CSV column works) and add them all at once; duplicates are skipped.
+
 ## 1.0.66 — Quote fixes: real failures, discount, order time (2026-11-23)
 
 - **Failed-print time is now the actual failures**, from the recorded prints, so
