@@ -19,6 +19,27 @@ const toProduction = (o) => advance(advance(o, 'send-quote'), 'payment-received'
 
 const lastEvent = (p) => p.history[p.history.length - 1];
 
+test('production can start WITHOUT payment, and payment is recorded later without moving the phase', () => {
+  const awaiting = advance(order(), 'send-quote');
+  assert.equal(awaiting.phase, 'awaiting-payment');
+
+  // The urgent path: start making it now, no payment.
+  const making = advance(awaiting, 'begin-production');
+  assert.equal(making.phase, 'production', 'production starts without payment');
+  assert.ok(!making.workflow.paymentReceivedAt, 'and nothing is marked paid');
+
+  // Payment is still outstanding, and the workflow offers a way to record it.
+  const ws = workflowState(making);
+  assert.equal(ws.paymentOutstanding, true);
+  assert.ok(ws.actions.some((a) => a.id === 'record-payment'), 'a "Payment received" action is offered in production');
+
+  // Recording it marks paid but does NOT advance the phase.
+  const paid = advance(making, 'record-payment');
+  assert.ok(paid.workflow.paymentReceivedAt, 'payment is now recorded');
+  assert.equal(paid.phase, 'production', 'and the phase is untouched');
+  assert.equal(workflowState(paid).paymentOutstanding, false);
+});
+
 /* -------------------------------------------------------------- shape ----- */
 
 test('the six phases are named and weighted, and closed/cancelled are terminal', () => {
@@ -47,10 +68,14 @@ test('returning to the client records the issue and stays in Quotation', () => {
   assert.equal(lastEvent(p).type, 'returned-to-client');
 });
 
-test('sending the quote moves to Awaiting payment, a blocked waiting state', () => {
+test('sending the quote moves to Awaiting payment, with payment outstanding but NOT blocking', () => {
   const p = advance(order(), 'send-quote');
   assert.equal(p.phase, 'awaiting-payment');
-  assert.equal(workflowState(p).blocked, true, 'the order cannot proceed until paid');
+  const ws = workflowState(p);
+  assert.equal(ws.paymentOutstanding, true, 'the money is owed');
+  // Payment no longer gates production: both "pay and start" and "start now" exist.
+  assert.ok(ws.actions.some((a) => a.id === 'payment-received'));
+  assert.ok(ws.actions.some((a) => a.id === 'begin-production'), 'you can start without paying');
 });
 
 /* --------------------------------------------------- awaiting payment ----- */

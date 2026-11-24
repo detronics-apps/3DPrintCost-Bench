@@ -89,7 +89,7 @@ export function unslicedParts(project) {
  * quote or payment step at all.
  */
 export const SLICE_GATED_ACTIONS = new Set([
-  'send-quote', 'payment-received', 'start-production', 'inspection-pass',
+  'send-quote', 'payment-received', 'begin-production', 'start-production', 'inspection-pass',
 ]);
 
 function facts(project) {
@@ -279,7 +279,10 @@ function actionsFor(project) {
       main.push({ id: 'return-to-client', label: 'Issue — return to client', tone: 'warn' });
       break;
     case 'awaiting-payment':
-      main.push({ id: 'payment-received', label: 'Payment received', primary: true, tone: 'ok' });
+      main.push({ id: 'payment-received', label: 'Payment received — start production', primary: true, tone: 'ok' });
+      // Payment does not gate production: an urgent job can start now and be paid
+      // later. This is the "just get it done" path.
+      main.push({ id: 'begin-production', label: 'Start production now (payment to follow)' });
       break;
     case 'production':
       if (!wf.productionStartedAt) main.push({ id: 'start-production', label: 'Mark production started' });
@@ -307,6 +310,14 @@ function actionsFor(project) {
     default:
       break;
   }
+  // Payment is recordable at any point once a job is live — it never blocks the
+  // pipeline. In awaiting-payment it is the primary action above; from production
+  // onward it is a side action until the money actually lands.
+  const paymentOutstanding = !wf.paymentReceivedAt && !isCompanyInternal(project);
+  if (paymentOutstanding && phase !== 'quotation' && phase !== 'awaiting-payment') {
+    main.push({ id: 'record-payment', label: 'Payment received', tone: 'ok' });
+  }
+
   // Step back a phase — available wherever there is a phase behind this one.
   if (phase !== 'quotation') main.push({ id: 'back', label: '← Back a phase' });
   // On-hold and Cancel are available from every active phase.
@@ -349,7 +360,12 @@ export function workflowState(project) {
     overallProgress: overall,
     actions: actionsFor(project),
     nextExpected: next ? { id: next, name: phaseName(next) } : null,
-    blocked: project.phase === 'awaiting-payment',
+    // Money owed but not yet in — true in any phase from awaiting-payment on, so
+    // the "Awaiting payment" tag follows the order into production rather than
+    // disappearing the moment it starts. Payment no longer blocks anything.
+    paymentOutstanding: !project.workflow?.paymentReceivedAt && !isCompanyInternal(project)
+      && PHASE_ORDER.indexOf(eff) >= PHASE_ORDER.indexOf('awaiting-payment'),
+    paymentReceivedAt: project.workflow?.paymentReceivedAt || null,
     terminal: project.phase === 'closed' || project.phase === 'cancelled',
     onHold: project.phase === 'on-hold',
   };
@@ -373,6 +389,18 @@ const TRANSITIONS = {
     phase: 'production',
     workflow: { paymentReceivedAt: now() },
     event: { type: 'payment-received', text: 'Payment received — order approved for production', phaseFrom: p.phase, phaseTo: 'production' },
+  }),
+  // Start making it WITHOUT payment first — an urgent job the customer has told
+  // you to just get done. Payment is recorded later with `record-payment`, which
+  // never moves the phase, so the money can land at any point.
+  'begin-production': (p) => ({
+    phase: 'production',
+    workflow: { productionStartedAt: p.workflow?.productionStartedAt || now() },
+    event: { type: 'production-started', text: 'Production started before payment', phaseFrom: p.phase, phaseTo: 'production' },
+  }),
+  'record-payment': (p) => ({
+    workflow: { paymentReceivedAt: p.workflow?.paymentReceivedAt || now() },
+    event: { type: 'payment-received', text: 'Payment received' },
   }),
   'start-production': (p) => ({
     workflow: { productionStartedAt: p.workflow?.productionStartedAt || now() },

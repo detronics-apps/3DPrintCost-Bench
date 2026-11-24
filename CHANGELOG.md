@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.68 — Payment no longer blocks production (2026-11-24)
+
+- **An urgent job can start production without payment.** Awaiting-payment now
+  offers both "Payment received — start production" and "Start production now
+  (payment to follow)". Payment stopped being the only way forward.
+- **Payment is recordable in any phase.** From production on, while money is owed,
+  a "Payment received" button records it — raising the final invoice at the real
+  cost if there isn't one yet — without moving the phase.
+- **The "Awaiting payment" tag follows the order** through production until it is
+  actually paid, instead of disappearing the moment production starts.
+
 ## 1.0.67 — Sync no longer clobbers local work; employee tools (2026-11-24)
 
 - **Reconnecting to the shared file can no longer wipe local changes.** Start-up

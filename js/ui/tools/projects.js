@@ -119,6 +119,15 @@ function phaseTone(phase) {
   }
 }
 
+/** Money owed but not received — true from awaiting-payment onward (so it is shown
+ *  even once production has started), never for a company print or a paid order. */
+function paymentOutstanding(project) {
+  if (project.internal === 'company' || project.workflow?.paymentReceivedAt) return false;
+  if (['closed', 'cancelled', 'on-hold'].includes(project.phase)) return false;
+  const eff = displayPhase(project);
+  return PHASES.findIndex((p) => p.id === eff) >= PHASES.findIndex((p) => p.id === 'awaiting-payment');
+}
+
 /* ----------------------------------------------------------------- list -- */
 
 function projectList(ctx) {
@@ -236,6 +245,9 @@ function projectHeader(ctx, project, result) {
       el('div', { class: 'btn-row' }, [
         locked ? pill(`Locked · ${locked.number}`, 'ok') : null,
         pill(phaseName(displayPhase(project)), phaseTone(displayPhase(project))),
+        // The money follows the job: an "Awaiting payment" tag stays until it is
+        // actually paid, in whatever phase, since payment no longer gates anything.
+        paymentOutstanding(project) ? pill('Awaiting payment', 'warn') : null,
         button('Back to the list', () => {
           state.activeProjectId = null;
           saveSoon();
@@ -373,6 +385,18 @@ function workflowPanel(ctx, project, result) {
       }
       const withInvoice = p.invoices.length ? p : createPaidInvoice(p);
       commit(advance(withInvoice, 'payment-received'));
+      rerender();
+      return;
+    }
+    if (id === 'record-payment') {
+      // Payment arriving for a job that started without it (the urgent path). Raise
+      // the invoice at the final cost if there is not one yet, mark it paid, and
+      // set the workflow marker — but DON'T touch the phase; production carries on.
+      let p = project;
+      if (!p.quotes.length) p = createQuote(p, result);
+      const withInvoice = p.invoices.length ? p : createPaidInvoice(p);
+      commit(advance(withInvoice, 'record-payment'));
+      toast('Payment recorded');
       rerender();
       return;
     }
